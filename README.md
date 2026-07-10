@@ -1,10 +1,17 @@
-# CAP CLAIR DEV15.1.3 - COCKPIT MAP MODES
+# CAP CLAIR DEV15.1.4 - COCKPIT CONTROLS HOTFIX
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.1.3 repart de la base Android DEV15.1.2 validée et signée. Cette version ajoute deux fonctions cockpit ciblées : la carte en mode trajectoire en haut et le mode Suivi plein écran avec bandeau inférieur.
+DEV15.1.4 repart de la base Android DEV15.1.2 validée et signée. Cette version ajoute deux fonctions cockpit ciblées : la carte en mode trajectoire en haut et le mode Suivi plein écran avec bandeau inférieur.
 
-## Nouveautés DEV15.1.3
+## Hotfix DEV15.1.4
+
+- Les boutons Plein écran et NORD UP / TRK UP sont désormais montés directement dans l'écran Suivi.
+- Ils restent visibles en mode normal comme en plein écran.
+- Le composant carte conserve uniquement Centrer, Zoom + et Zoom -, ce qui supprime la dépendance qui masquait les deux nouvelles commandes sur l'APK réel.
+
+
+## Nouveautés DEV15.1.4
 
 ### Carte Nord en haut / Trajectoire en haut
 
@@ -43,8 +50,8 @@ DEV15.1.3 repart de la base Android DEV15.1.2 validée et signée. Cette version
 
 ```text
 applicationId fr.capclair.app
-versionCode 15013
-versionName 15.1.3
+versionCode 15014
+versionName 15.1.4
 ```
 
 ## Scripts
@@ -82,8 +89,8 @@ Ne jamais régénérer la clé stable.
 
 ## Tests téléphone prioritaires
 
-1. Installer DEV15.1.3 par-dessus DEV15.1.2.
-2. Vérifier que la version 15.1.3 est affichée.
+1. Installer DEV15.1.4 par-dessus DEV15.1.3.
+2. Vérifier que la version 15.1.4 est affichée.
 3. Lancer une simulation puis basculer entre `NORD UP` et `TRK UP`.
 4. Vérifier que l'avion reste vers le haut en `TRK UP` et que la carte pivote sans tour complet parasite.
 5. Tester le bouton de centrage dans les deux modes.

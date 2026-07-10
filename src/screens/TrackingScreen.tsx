@@ -80,6 +80,18 @@ function hudValue(value: number | null | undefined, suffix = '', digits = 0): st
   return `${value.toFixed(digits).replace('.', ',')}${suffix ? ` ${suffix}` : ''}`;
 }
 
+function FullscreenToggleIcon({ active }: { active: boolean }) {
+  return active ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+    </svg>
+  );
+}
+
 export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps, wakeLockActive }: TrackingScreenProps) {
   const [confirmStop, setConfirmStop] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -140,10 +152,34 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
           baseLayer={mapBaseLayer}
           followAircraft={isRecording}
           orientationMode={orientationMode}
-          onToggleOrientation={toggleOrientation}
           fullscreen={fullscreen}
-          onToggleFullscreen={() => setFullscreen((current) => !current)}
         />
+
+        <div className="tracking-map-mode-controls" aria-label="Modes de la carte">
+          <button
+            type="button"
+            className="tracking-map-mode-icon"
+            onClick={() => setFullscreen((current) => !current)}
+            aria-label={fullscreen ? 'Quitter le plein écran' : 'Afficher la carte en plein écran'}
+            title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+          >
+            <FullscreenToggleIcon active={fullscreen} />
+          </button>
+          <button
+            type="button"
+            className={`tracking-map-orientation-control ${orientationMode === 'track-up' ? 'active' : ''}`}
+            onClick={toggleOrientation}
+            aria-label={orientationMode === 'track-up' ? 'Passer en nord en haut' : 'Passer en trajectoire en haut'}
+            aria-pressed={orientationMode === 'track-up'}
+            title={orientationMode === 'track-up' ? 'Trajectoire en haut' : 'Nord en haut'}
+          >
+            {orientationMode === 'track-up' ? (
+              <><span>TRK</span><strong>UP</strong></>
+            ) : (
+              <><span>NORD</span><strong>UP</strong></>
+            )}
+          </button>
+        </div>
       </div>
 
       {fullscreen && (

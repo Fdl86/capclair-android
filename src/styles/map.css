@@ -271,3 +271,94 @@
   left: calc(12px + var(--safe-left));
   bottom: calc(118px + var(--safe-bottom));
 }
+
+
+/* DEV15.1.4 - controls mounted directly by TrackingScreen.
+   This avoids losing fullscreen and orientation actions in the nested map controls. */
+.tracking-map-mode-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 203px;
+  z-index: 8;
+  display: grid;
+  gap: 7px;
+}
+
+.tracking-map-mode-controls button {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(30, 49, 69, 0.9);
+  border-radius: 12px;
+  background: rgba(5, 11, 18, 0.88);
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+}
+
+.tracking-map-mode-controls button:active {
+  transform: scale(0.96);
+}
+
+.tracking-map-mode-icon {
+  display: grid;
+  place-items: center;
+}
+
+.tracking-map-mode-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tracking-map-orientation-control {
+  display: grid;
+  place-content: center;
+  gap: 0;
+  line-height: 1;
+  color: var(--text-2);
+}
+
+.tracking-map-orientation-control span,
+.tracking-map-orientation-control strong {
+  display: block;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
+.tracking-map-orientation-control strong {
+  margin-top: 2px;
+  color: var(--text);
+}
+
+.tracking-map-orientation-control.active {
+  color: var(--cyan-soft);
+  border-color: rgba(89, 207, 255, 0.62);
+  background: rgba(7, 25, 38, 0.94);
+}
+
+.tracking-map-orientation-control.active strong {
+  color: var(--cyan-soft);
+}
+
+.tracking-screen.is-fullscreen .tracking-map-mode-controls {
+  top: calc(74px + var(--safe-top));
+  right: calc(12px + var(--safe-right));
+  bottom: auto;
+  z-index: 13;
+}
+
+.tracking-screen.is-fullscreen .tracking-map-mode-controls button {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+.tracking-screen.is-fullscreen .map-shell.is-map-fullscreen .map-controls {
+  top: calc(180px + var(--safe-top));
+}
