@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { NavPoint, NavRoute } from '../domain/navigation.types';
 import type { GpsTrackingState } from '../hooks/useGpsTracking';
 import { OpenLayersMap } from '../components/map/OpenLayersMap';
@@ -12,7 +12,8 @@ import { Card } from '../components/ui/Card';
 import { distanceNm } from '../services/geo/distance';
 import { isReliableGpsAltitude } from '../services/gps/geolocationService';
 import type { GpsPosition } from '../domain/gps.types';
-import type { MapBaseLayer } from '../mapEngine/mapTypes';
+import type { MapBaseLayer, MapOrientationMode } from '../mapEngine/mapTypes';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 
 interface TrackingScreenProps {
   route: NavRoute;
@@ -37,6 +38,12 @@ function statusLabel(status: string): string {
     case 'stopped': return 'Sauvé';
     default: return 'GPS prêt';
   }
+}
+
+function statusTone(status: string): 'ok' | 'warn' | 'off' {
+  if (status === 'active' || status === 'simulating' || status === 'stopped') return 'ok';
+  if (status === 'degraded' || status === 'frozen' || status === 'requesting' || status === 'simulation-complete' || status === 'saving' || status === 'save-error') return 'warn';
+  return 'off';
 }
 
 function formatClock(date = new Date()): string {
@@ -68,8 +75,16 @@ function metricNumber(value: number | null | undefined, suffix: string, digits =
   return `${value.toFixed(digits).replace('.', ',')} ${suffix}`;
 }
 
+function hudValue(value: number | null | undefined, suffix = '', digits = 0): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '--';
+  return `${value.toFixed(digits).replace('.', ',')}${suffix ? ` ${suffix}` : ''}`;
+}
+
 export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps, wakeLockActive }: TrackingScreenProps) {
   const [confirmStop, setConfirmStop] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [orientationMode, setOrientationMode] = useLocalStorageState<MapOrientationMode>('capclair.trackingMapOrientation.v1', 'north-up');
+
   const isRecording = gps.status === 'active' || gps.status === 'degraded' || gps.status === 'frozen' || gps.status === 'simulating';
   const canSaveTrace = isRecording || gps.status === 'simulation-complete' || gps.status === 'save-error';
   const isSavedTrace = gps.status === 'stopped';
@@ -80,6 +95,7 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
 
   const groundSpeed = gps.currentPosition?.vitesse ?? null;
   const altitude = gps.currentPosition && isReliableGpsAltitude(gps.currentPosition) ? gps.currentPosition.altitude : null;
+  const altitudeFt = altitude !== null ? Math.round(altitude * 3.28084) : null;
   const currentTrack = gps.currentPosition?.track ?? null;
   const remainingDistanceNm = routePointDistanceRemainingNm(route, gps.currentPosition, gps.nextPoint, gps.crossTrack.segmentIndex);
   const eteMinutes = groundSpeed && groundSpeed > 5 && remainingDistanceNm !== null
@@ -87,8 +103,32 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
     : null;
   const eta = eteMinutes !== null ? new Date(Date.now() + eteMinutes * 60000) : null;
 
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [fullscreen]);
+
+  const toggleOrientation = () => {
+    setOrientationMode((current) => current === 'track-up' ? 'north-up' : 'track-up');
+  };
+
   return (
-    <section className="tracking-screen">
+    <section className={`tracking-screen ${fullscreen ? 'is-fullscreen' : ''}`}>
       <div className="tracking-map-panel">
         <MapLayerToggle baseLayer={mapBaseLayer} onChange={onMapBaseLayerChange} />
         <OpenLayersMap
@@ -99,8 +139,57 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
           compact
           baseLayer={mapBaseLayer}
           followAircraft={isRecording}
+          orientationMode={orientationMode}
+          onToggleOrientation={toggleOrientation}
+          fullscreen={fullscreen}
+          onToggleFullscreen={() => setFullscreen((current) => !current)}
         />
       </div>
+
+      {fullscreen && (
+        <>
+          <div className="tracking-fullscreen-topbar" aria-label="État du suivi">
+            <div className="tracking-fullscreen-brand">
+              <img src="/cap-clair-logo.svg" alt="" />
+              <strong>CAP CLAIR</strong>
+            </div>
+            <span className={`tracking-status-chip ${statusTone(gps.status)}`}>{statusLabel(gps.status)}</span>
+            <button type="button" className="tracking-orientation-chip" onClick={toggleOrientation}>
+              {orientationMode === 'track-up' ? 'TRK UP' : 'NORD UP'}
+            </button>
+          </div>
+
+          <div className="tracking-fullscreen-hud" aria-label="Informations de navigation">
+            <div className="tracking-hud-grid">
+              <div className="tracking-hud-cell tracking-hud-next">
+                <span>Prochain</span>
+                <strong>{gps.nextPoint?.nom ?? '--'}</strong>
+              </div>
+              <div className="tracking-hud-cell">
+                <span>Dist</span>
+                <strong>{hudValue(gps.nextPointDistance, 'NM', 1)}</strong>
+              </div>
+              <div className="tracking-hud-cell">
+                <span>Cap mag</span>
+                <strong>{magneticHeading !== null ? `${magneticHeading}°` : '--'}</strong>
+              </div>
+              <div className="tracking-hud-cell">
+                <span>GS</span>
+                <strong>{hudValue(groundSpeed, 'kt')}</strong>
+              </div>
+              <div className="tracking-hud-cell">
+                <span>Alt GPS</span>
+                <strong>{altitudeFt !== null ? `${altitudeFt.toLocaleString('fr-FR')} ft` : '--'}</strong>
+              </div>
+              <div className="tracking-hud-cell">
+                <span>ETA</span>
+                <strong>{eta ? formatClock(eta) : '--'}</strong>
+              </div>
+            </div>
+            <div className="tracking-hud-mode">Mode suivi plein écran</div>
+          </div>
+        </>
+      )}
 
       <aside className="tracking-panel">
         <div className="cockpit-badges">
@@ -166,11 +255,10 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
 
         <div className="cockpit-value-grid">
           <MetricCard label="GS" value={metricNumber(groundSpeed, 'kt')} />
-          <MetricCard label="ALT" value={altitude !== null ? `${Math.round(altitude * 3.28084).toLocaleString('fr-FR')} ft` : '--'} />
+          <MetricCard label="ALT" value={altitudeFt !== null ? `${altitudeFt.toLocaleString('fr-FR')} ft` : '--'} />
           <MetricCard label="TRK GPS" value={currentTrack !== null ? `${Math.round(currentTrack)}°` : '--'} />
           <MetricCard label="ETE dest" value={eteMinutes !== null ? formatDuration(eteMinutes) : '--'} />
         </div>
-
 
         <div className="tracking-actions">
           {!canSaveTrace && gps.status !== 'saving' && <Button variant="primary" onClick={gps.startGps}>Démarrer GPS</Button>}

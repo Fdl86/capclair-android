@@ -4,13 +4,14 @@ Aucun Android Studio ni JDK local n'est nécessaire.
 
 ## Étapes
 
-1. Copier le zip complet dans la branche `dev15-mobile-foundation`.
-2. Commit recommandé : `DEV15.1.2 trace durability and native hardening`.
-3. Push avec GitHub Desktop.
-4. Ouvrir `Actions` -> `Android Debug APK`.
-5. Attendre que toutes les étapes passent au vert.
-6. Télécharger l'artifact `cap-clair-dev15-1-2-debug-apk`.
-7. Dézipper puis installer `app-debug.apk` par-dessus la version précédente.
+1. Vider le dossier local du dépôt `capclair-android` en conservant uniquement `.git`.
+2. Copier le contenu complet du zip dans ce dossier.
+3. Commit recommandé : `DEV15.1.3 cockpit map modes`.
+4. Push sur `main` avec GitHub Desktop.
+5. Ouvrir `Actions` -> `Android Debug APK`.
+6. Attendre que toutes les étapes passent au vert.
+7. Télécharger l'artifact `cap-clair-dev15-1-3-debug-apk`.
+8. Dézipper puis installer `app-debug.apk` par-dessus DEV15.1.2.
 
 L'artifact contient aussi `apk-signature.txt`. L'empreinte SHA-256 doit rester identique entre les versions.
 

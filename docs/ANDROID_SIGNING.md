@@ -19,11 +19,11 @@ Dans `Settings` -> `Secrets and variables` -> `Actions` -> `Secrets` :
 - mettre à jour `versionName` ;
 - sauvegarder hors GitHub le fichier keystore téléchargé lors de sa création.
 
-DEV15.1.2 utilise :
+DEV15.1.3 utilise :
 
 ```text
-versionCode 15012
-versionName 15.1.2
+versionCode 15013
+versionName 15.1.3
 ```
 
 ## Contrôle automatique

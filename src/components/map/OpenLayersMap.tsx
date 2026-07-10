@@ -10,7 +10,7 @@ import { createFreeMapLayer } from '../../mapSources/freeMapSource';
 import { createOpenAipRasterLayer } from '../../mapSources/openAipRasterSource';
 import { createIgnOaciVfrLayer } from '../../mapSources/ignOaciVfrSource';
 import { initialMapCenter, initialMapZoom } from '../../mapEngine/mapViewConfig';
-import type { MapBaseLayer, MapSourceStatus } from '../../mapEngine/mapTypes';
+import type { MapBaseLayer, MapOrientationMode, MapSourceStatus } from '../../mapEngine/mapTypes';
 import { createPlannedRouteLayer } from '../../mapLayers/plannedRouteLayer';
 import { createActualTraceLayer, updateActualTraceLayer, type ActualTraceLayer } from '../../mapLayers/actualTraceLayer';
 import { createWaypointLayer } from '../../mapLayers/waypointLayer';
@@ -19,6 +19,7 @@ import type { GpsPosition } from '../../domain/gps.types';
 import type { NavRoute } from '../../domain/navigation.types';
 import { MapControls } from './MapControls';
 import { MapFallbackNotice } from './MapFallbackNotice';
+import { closestEquivalentRotation, reliableTrackDeg, viewRotationForTrack } from '../../services/map/mapOrientation';
 
 interface OpenLayersMapProps {
   route: NavRoute;
@@ -28,6 +29,10 @@ interface OpenLayersMapProps {
   compact?: boolean;
   baseLayer?: MapBaseLayer;
   followAircraft?: boolean;
+  orientationMode?: MapOrientationMode;
+  onToggleOrientation?: () => void;
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   addWaypointMode?: boolean;
   onMapAddWaypoint?: (longitude: number, latitude: number) => void;
   onSourceStatusChange?: (status: MapSourceStatus) => void;
@@ -50,6 +55,10 @@ export function OpenLayersMap({
   compact = false,
   baseLayer = 'free',
   followAircraft = false,
+  orientationMode = 'north-up',
+  onToggleOrientation,
+  fullscreen = false,
+  onToggleFullscreen,
   addWaypointMode = false,
   onMapAddWaypoint,
   onSourceStatusChange
@@ -64,6 +73,7 @@ export function OpenLayersMap({
   const traceLayerRef = useRef<ActualTraceLayer | null>(null);
   const aircraftLayerRef = useRef<AircraftLayer | null>(null);
   const latestAircraftRef = useRef<GpsPosition | null>(null);
+  const lastReliableTrackRef = useRef<number | null>(null);
   const currentBaseLayerModeRef = useRef<MapBaseLayer>(baseLayer);
   const lastRoutePointCountRef = useRef<number | null>(null);
   const lastRouteEndpointsKeyRef = useRef<string | null>(null);
@@ -172,6 +182,9 @@ export function OpenLayersMap({
 
   useEffect(() => {
     latestAircraftRef.current = aircraft;
+    const nextTrack = reliableTrackDeg(aircraft);
+    if (nextTrack !== null) lastReliableTrackRef.current = nextTrack;
+
     const aircraftLayer = aircraftLayerRef.current;
     const map = mapRef.current;
     if (!aircraftLayer) return;
@@ -203,12 +216,39 @@ export function OpenLayersMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !followAircraft || !aircraft) return;
-    map.getView().animate({
+    if (!map) return;
+
+    const frame = window.requestAnimationFrame(() => map.updateSize());
+    const timeout = window.setTimeout(() => map.updateSize(), 180);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [fullscreen]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const view = map.getView();
+    const currentRotation = view.getRotation() ?? 0;
+    const storedTrack = lastReliableTrackRef.current;
+    const targetRotation = orientationMode === 'track-up' && storedTrack !== null
+      ? viewRotationForTrack(storedTrack, currentRotation)
+      : closestEquivalentRotation(0, currentRotation);
+
+    if (!followAircraft || !aircraft) {
+      view.animate({ rotation: targetRotation, duration: 260 });
+      return;
+    }
+
+    view.animate({
       center: fromLonLat([aircraft.longitude, aircraft.latitude]),
+      rotation: targetRotation,
       duration: 240
     });
-  }, [aircraft, followAircraft]);
+  }, [aircraft, followAircraft, orientationMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -273,32 +313,54 @@ export function OpenLayersMap({
   const recenter = () => {
     const map = mapRef.current;
     if (!map) return;
+
+    const view = map.getView();
+    const currentRotation = view.getRotation() ?? 0;
+    const storedTrack = lastReliableTrackRef.current;
+    const targetRotation = orientationMode === 'track-up' && storedTrack !== null
+      ? viewRotationForTrack(storedTrack, currentRotation)
+      : closestEquivalentRotation(0, currentRotation);
+
     if (aircraft) {
-      map.getView().animate({ center: fromLonLat([aircraft.longitude, aircraft.latitude]), duration: 120 });
+      view.animate({
+        center: fromLonLat([aircraft.longitude, aircraft.latitude]),
+        rotation: targetRotation,
+        duration: 160
+      });
       return;
     }
+
     if (routeCoordinates.length === 0 || !routeExtent) {
-      map.getView().animate({ center: initialMapCenter, zoom: initialMapZoom, duration: 120 });
+      view.animate({ center: initialMapCenter, zoom: initialMapZoom, rotation: 0, duration: 160 });
       return;
     }
 
     if (routeCoordinates.length === 1) {
-      map.getView().animate({ center: routeCoordinates[0], zoom: 10, duration: 120 });
+      view.animate({ center: routeCoordinates[0], zoom: 10, rotation: 0, duration: 160 });
       return;
     }
 
-    map.getView().fit(routeExtent, { padding: [72, 58, 92, 58], duration: 0, maxZoom: 10 });
+    view.setRotation(0);
+    view.fit(routeExtent, { padding: [72, 58, 92, 58], duration: 0, maxZoom: 10 });
   };
 
   return (
-    <div className={`map-shell ${addWaypointMode ? 'is-adding-point' : ''}`}>
+    <div className={`map-shell ${addWaypointMode ? 'is-adding-point' : ''} ${fullscreen ? 'is-map-fullscreen' : ''}`}>
       <div ref={mapElementRef} className="ol-map" aria-label="Carte CAP CLAIR" />
       {addWaypointMode && (
         <div className="map-add-banner">
           Cliquez sur la carte pour placer le point
         </div>
       )}
-      <MapControls onZoomIn={() => zoom(1)} onZoomOut={() => zoom(-1)} onRecenter={recenter} />
+      <MapControls
+        onZoomIn={() => zoom(1)}
+        onZoomOut={() => zoom(-1)}
+        onRecenter={recenter}
+        orientationMode={onToggleOrientation ? orientationMode : undefined}
+        onToggleOrientation={onToggleOrientation}
+        fullscreen={fullscreen}
+        onToggleFullscreen={onToggleFullscreen}
+      />
       {(sourceStatus === 'fallback' || sourceStatus === 'error') && <MapFallbackNotice mode={sourceStatus === 'error' ? 'oaci' : 'openaip'} />}
     </div>
   );
