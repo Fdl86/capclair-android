@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
@@ -330,7 +331,13 @@ final class NativeGpsStore {
         int start = Math.max(0, points.length() - MAX_MEMORY_POINTS);
         for (int index = start; index < points.length(); index += 1) {
             JSONObject point = points.optJSONObject(index);
-            if (point != null) MEMORY_POINTS.add(new JSObject(point.toString()));
+            if (point == null) continue;
+
+            try {
+                MEMORY_POINTS.add(new JSObject(point.toString()));
+            } catch (JSONException ignored) {
+                // Ignore a corrupted point and continue restoring the session.
+            }
         }
     }
 
