@@ -1,0 +1,96 @@
+name: Android Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'dev15-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cap-clair-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android-debug-apk:
+    name: Build Android debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    env:
+      VITE_CAPCLAIR_API_BASE_URL: ${{ secrets.CAPCLAIR_API_BASE_URL || vars.CAPCLAIR_API_BASE_URL || 'https://capclair.pages.dev' }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      SIGNING_KEY_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate signing secrets
+        run: |
+          test -n "$SIGNING_KEY_BASE64" || { echo "ANDROID_KEYSTORE_BASE64 missing"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "ANDROID_KEYSTORE_PASSWORD missing"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "ANDROID_KEY_ALIAS missing"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "ANDROID_KEY_PASSWORD missing"; exit 1; }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Decode Android signing key
+        run: |
+          echo "$SIGNING_KEY_BASE64" | base64 --decode > android/app/capclair-dev.keystore
+          test -s android/app/capclair-dev.keystore
+
+      - name: Build native web assets
+        run: |
+          npm run build:android
+          test ! -f dist/sw.js || { echo "Service worker must not be packaged in APK"; exit 1; }
+          test ! -f dist/registerSW.js || { echo "PWA registration must not be packaged in APK"; exit 1; }
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Build Android debug APK
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Verify APK signature
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER" || { echo "apksigner not found"; exit 1; }
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          grep -q "Signer #1 certificate SHA-256 digest" apk-signature.txt
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cap-clair-dev15-1-2-debug-apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            apk-signature.txt
+          if-no-files-found: error
+          retention-days: 7

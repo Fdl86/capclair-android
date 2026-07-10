@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.local
+.vite
+.DS_Store
+Thumbs.db
+android/app/*.keystore
+android/app/*.jks

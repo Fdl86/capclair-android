@@ -1,0 +1,3 @@
+export const APP_VERSION = 'CAP CLAIR DEV15.1.2 - TRACE DURABILITY AND NATIVE HARDENING';
+export const APP_TITLE = 'CAP CLAIR';
+export const APP_SUBTITLE = 'Navigation VFR';

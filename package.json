@@ -1,0 +1,35 @@
+{
+  "name": "cap-clair",
+  "private": true,
+  "version": "15.1.2",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:web",
+    "preview": "vite preview",
+    "build:web": "tsc -b && vite build",
+    "build:android": "tsc -b && vite build --mode native",
+    "cap:sync": "npm run build:web && cap sync",
+    "cap:copy": "npm run build:web && cap copy",
+    "cap:open:android": "cap open android",
+    "android:sync": "npm run build:android && cap sync android",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.4.1",
+    "ol": "^10.6.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.2",
+    "vite": "^8.0.16",
+    "vite-plugin-pwa": "^1.0.3",
+    "vitest": "^3.2.7"
+  }
+}

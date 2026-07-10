@@ -1,0 +1,169 @@
+@media (min-width: 760px) {
+  .header-status {
+    display: flex;
+  }
+
+  .app-main {
+    padding: 18px 20px calc(96px + var(--safe-bottom));
+  }
+
+  .home-screen {
+    grid-template-columns: 1.2fr 0.8fr;
+    align-items: start;
+  }
+
+  .hero-card {
+    grid-row: span 3;
+    min-height: 620px;
+  }
+
+  .hero-content {
+    min-height: 620px;
+  }
+
+  .planning-layout {
+    grid-template-columns: minmax(0, 1.75fr) 320px;
+    align-items: stretch;
+  }
+
+  .route-panel {
+    align-self: stretch;
+  }
+
+  .calculation-grid {
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+
+  .wide-card {
+    grid-column: 1 / -1;
+  }
+
+  .metric-grid {
+    grid-column: 1 / -1;
+  }
+
+  .zones-screen,
+  .more-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 760px) {
+  .header-bar,
+  .bottom-nav {
+    display: none;
+  }
+
+  .app-shell {
+    display: block;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-main {
+    height: 100%;
+    max-width: none;
+    padding: 8px;
+  }
+
+  .tracking-screen {
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 8px;
+  }
+
+  .tracking-map-panel {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .tracking-panel {
+    overflow-y: auto;
+    padding-right: 2px;
+    align-content: start;
+  }
+
+  .cockpit-badges {
+    grid-template-columns: 1fr;
+  }
+
+  .tracking-metrics-top,
+  .cockpit-value-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: 62px;
+  }
+
+  .deviation-value strong {
+    font-size: 2.4rem;
+  }
+
+  .map-controls {
+    bottom: 44px;
+  }
+}
+
+@media (max-width: 390px) {
+  .system-badges,
+  .tracking-metrics-top,
+  .cockpit-value-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .branch-row {
+    grid-template-columns: 1.4fr repeat(3, 0.7fr);
+  }
+
+  .branch-table:not(.navlog-table) .branch-row span:nth-child(4),
+  .branch-table:not(.navlog-table) .branch-row span:nth-child(6),
+  .branch-table:not(.navlog-table) .branch-row span:nth-child(7) {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    max-width: 1440px;
+  }
+
+  .planning-map-card {
+    min-height: calc(100dvh - 190px);
+  }
+
+  .route-panel {
+    max-height: calc(100dvh - 190px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .route-builder {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .route-builder-reverse {
+    grid-column: 1 / -1;
+  }
+
+  .map-layer-toggle {
+    max-width: calc(100% - 20px);
+    gap: 4px;
+  }
+
+  .map-layer-toggle span {
+    display: none;
+  }
+
+  .map-layer-toggle button {
+    min-height: 29px;
+    padding: 0 8px;
+    font-size: 0.68rem;
+  }
+
+  .map-topline {
+    top: 54px;
+  }
+}

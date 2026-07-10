@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest';
+import type { AircraftProfile, FuelPlanConfig } from '../../../domain/aircraft.types';
+import type { NavRoute } from '../../../domain/navigation.types';
+import { computeFuelPlan } from '../fuelPlanning';
+
+const aircraft: AircraftProfile = {
+  id: 'c150',
+  label: 'C150',
+  registration: 'F-TEST',
+  model: 'Cessna 150',
+  cruiseTasKt: 95,
+  fuelBurnLh: 24,
+  usableFuelL: 80,
+  reserveMinutes: 30,
+  climbSpeedKt: 70,
+  climbRateFpm: 500,
+  descentSpeedKt: 80,
+  descentRateFpm: 500
+};
+
+const route = {
+  tempsEstimeMin: 60
+} as NavRoute;
+
+const config: FuelPlanConfig = {
+  taxiDepartureMin: 8,
+  arrivalMin: 12,
+  alternateArrivalMin: 12,
+  finalReserveMin: 30,
+  marginLiters: 2
+};
+
+describe('fuel planning', () => {
+  it('never presents calculated endurance as fuel actually onboard', () => {
+    const result = computeFuelPlan(route, aircraft, config, 15);
+    expect(result.lines.timeLimit.label).toBe('Autonomie de l’emport calculé');
+    expect(result.remainingUsableFuelL).toBeGreaterThanOrEqual(0);
+  });
+});
