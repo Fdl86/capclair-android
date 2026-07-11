@@ -7,14 +7,15 @@ interface AppShellProps {
   currentScreen: ScreenId;
   onNavigate: (screen: ScreenId) => void;
   children: ReactNode;
+  immersive?: boolean;
 }
 
-export function AppShell({ currentScreen, onNavigate, children }: AppShellProps) {
+export function AppShell({ currentScreen, onNavigate, children, immersive = false }: AppShellProps) {
   return (
-    <div className="app-shell">
-      <HeaderBar />
+    <div className={`app-shell ${immersive ? 'is-immersive' : ''}`}>
+      {!immersive && <HeaderBar />}
       <main className="app-main">{children}</main>
-      <BottomNav currentScreen={currentScreen} onNavigate={onNavigate} />
+      {!immersive && <BottomNav currentScreen={currentScreen} onNavigate={onNavigate} />}
     </div>
   );
 }

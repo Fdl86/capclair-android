@@ -3,6 +3,7 @@ import type { Trace } from '../domain/trace.types';
 import { recoverNativeTraces, markNativeSessionDeleted, markNativeSessionSaved } from '../services/gps/nativeGpsSession';
 import { readJson, writeJson } from '../services/storage/localStorageService';
 import { persistTraceCollection } from '../services/traces/traceCollection';
+import { clearPendingPlannedRoute } from '../services/traces/plannedRouteSnapshot';
 
 const STORAGE_KEY = 'capclair.traces';
 const MAX_SAVED_TRACES = 20;
@@ -91,6 +92,7 @@ export function useTraces() {
           return;
         }
         await Promise.all(newTraces.map((trace) => markNativeSessionSaved(trace.sessionId, trace.id)));
+        if (newTraces.some((trace) => trace.plannedRoute)) clearPendingPlannedRoute();
       })
       .catch(() => {
         // Web/PWA or unavailable native bridge: no recovery required.

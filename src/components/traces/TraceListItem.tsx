@@ -5,6 +5,8 @@ import { exportGpx, exportJson } from '../../services/export/gpxExport';
 
 interface TraceListItemProps {
   trace: Trace;
+  replayDisabled: boolean;
+  onOpenReplay: (traceId: string) => void;
   onDelete: (traceId: string) => void;
 }
 
@@ -14,7 +16,7 @@ function formatDuration(seconds: number): string {
   return `${minutes} min ${String(remaining).padStart(2, '0')} s`;
 }
 
-export function TraceListItem({ trace, onDelete }: TraceListItemProps) {
+export function TraceListItem({ trace, replayDisabled, onOpenReplay, onDelete }: TraceListItemProps) {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -45,6 +47,7 @@ export function TraceListItem({ trace, onDelete }: TraceListItemProps) {
         <div><dt>Points</dt><dd>{trace.positions.length}</dd></div>
       </dl>
       <div className="trace-actions">
+        <Button variant="primary" disabled={replayDisabled || isExporting} onClick={() => onOpenReplay(trace.id)} title={replayDisabled ? 'Arrêtez le suivi GPS pour lancer le débrief.' : 'Ouvrir le débrief'}>Débriefer</Button>
         <Button variant="secondary" disabled={isExporting} onClick={() => runExport('gpx')}>Exporter GPX</Button>
         <Button variant="ghost" disabled={isExporting} onClick={() => runExport('json')}>JSON secours</Button>
         <Button variant="ghost" disabled={isExporting} onClick={() => onDelete(trace.id)}>Supprimer</Button>

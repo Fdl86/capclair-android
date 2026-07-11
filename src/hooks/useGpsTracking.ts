@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AircraftProfile } from '../domain/aircraft.types';
 import type { GpsPosition, GpsStatus, GpsTraceDiagnostics } from '../domain/gps.types';
 import type { NavRoute } from '../domain/navigation.types';
-import type { Trace, TraceSource } from '../domain/trace.types';
+import type { PlannedRouteSnapshot, Trace, TraceSource } from '../domain/trace.types';
 import { distanceNm, totalDistanceNm } from '../services/geo/distance';
 import { bearingDeg } from '../services/geo/bearing';
 import {
@@ -17,6 +17,12 @@ import type { GpsProviderWatch } from '../services/gps/gpsProvider';
 import { getNativeGpsRuntimeStatus } from '../services/gps/nativeGpsProvider';
 import { markNativeSessionDeleted } from '../services/gps/nativeGpsSession';
 import { hasSavableTrace } from '../services/traces/traceCollection';
+import {
+  clearPendingPlannedRoute,
+  createPlannedRouteSnapshot,
+  persistPendingPlannedRoute,
+  readPendingPlannedRoute
+} from '../services/traces/plannedRouteSnapshot';
 import { interpolateSimulationPoint, simulationTotalSteps } from '../services/gps/simulationService';
 import { getCrossTrackError, getProgressiveCrossTrackError, type CrossTrackResult } from '../services/geo/crossTrackError';
 
@@ -70,6 +76,7 @@ export function useGpsTracking(
   const startTime = useRef<number | null>(null);
   const sessionId = useRef<string | null>(null);
   const traceSource = useRef<TraceSource>('legacy');
+  const plannedRouteSnapshot = useRef<PlannedRouteSnapshot | undefined>(undefined);
   const positionsRef = useRef<GpsPosition[]>([]);
   const statusRef = useRef<GpsStatus>('idle');
   const lastSignalAt = useRef<number | null>(null);
@@ -273,7 +280,7 @@ export function useGpsTracking(
     }
   };
 
-  const startGps = async () => {
+  const startGpsInternal = async (resumeExistingSession: boolean) => {
     await stopGpsWatch().catch(() => []);
     clearSimulation();
     setErrorMessage(null);
@@ -282,6 +289,10 @@ export function useGpsTracking(
     resetTrackingData();
     startTime.current = Date.now();
     sessionId.current = null;
+    plannedRouteSnapshot.current = resumeExistingSession
+      ? readPendingPlannedRoute() ?? createPlannedRouteSnapshot(route)
+      : createPlannedRouteSnapshot(route);
+    persistPendingPlannedRoute(plannedRouteSnapshot.current);
 
     const nextSelection = createGpsProviderSelection();
     setProviderSelection(nextSelection);
@@ -290,6 +301,8 @@ export function useGpsTracking(
     if (!nextSelection.provider.isAvailable()) {
       updateStatus('unavailable');
       setErrorMessage('GPS indisponible sur cet appareil. Mode simulation disponible.');
+      clearPendingPlannedRoute();
+      plannedRouteSnapshot.current = undefined;
       return;
     }
 
@@ -302,6 +315,8 @@ export function useGpsTracking(
           detachGpsWatch();
           updateStatus('denied');
           setErrorMessage('Permission GPS refusée. Mode simulation disponible.');
+          clearPendingPlannedRoute();
+          plannedRouteSnapshot.current = undefined;
           return;
         }
 
@@ -328,6 +343,8 @@ export function useGpsTracking(
     }).catch(() => undefined);
   };
 
+  const startGps = () => startGpsInternal(false);
+
   const startSimulation = async () => {
     if (route.points.length < 2) {
       updateStatus('unavailable');
@@ -345,6 +362,8 @@ export function useGpsTracking(
     startTime.current = Date.now();
     sessionId.current = null;
     traceSource.current = 'simulation';
+    plannedRouteSnapshot.current = createPlannedRouteSnapshot(route);
+    persistPendingPlannedRoute(plannedRouteSnapshot.current);
     simStep.current = 0;
 
     const totalSteps = simulationTotalSteps(route.points);
@@ -388,13 +407,15 @@ export function useGpsTracking(
             ? 'Suivi arrêté - trace trop courte, aucune trace enregistrée.'
             : 'Suivi arrêté - trace trop courte. Le journal natif vide n’a pas pu être nettoyé, sans impact sur les traces sauvegardées.'
         );
+        clearPendingPlannedRoute();
+        plannedRouteSnapshot.current = undefined;
         return;
       }
 
       const startedAtMs = startTime.current ?? finalPositions[0]?.timestamp ?? Date.now();
       const endedAtMs = finalPositions.at(-1)?.timestamp ?? Date.now();
       const trace: Trace = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         id: `trace-${Date.now()}`,
         sessionId: sessionId.current,
         routeId: route.id,
@@ -404,6 +425,7 @@ export function useGpsTracking(
         endedAt: new Date(endedAtMs).toISOString(),
         source: traceSource.current,
         positions: finalPositions,
+        plannedRoute: plannedRouteSnapshot.current,
         dureeSec: Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000)),
         distanceNm: Number(totalDistanceNm(finalPositions).toFixed(2)),
         diagnostics: diagnosticsRef.current
@@ -419,6 +441,8 @@ export function useGpsTracking(
       updateStatus('stopped');
       setErrorMessage(null);
       setNoticeMessage(null);
+      clearPendingPlannedRoute();
+      plannedRouteSnapshot.current = undefined;
     } catch (error) {
       setNoticeMessage(null);
       updateStatus('save-error');
@@ -465,7 +489,7 @@ export function useGpsTracking(
     let cancelled = false;
     getNativeGpsRuntimeStatus().then((nativeStatus) => {
       if (cancelled || !nativeStatus?.running || gpsWatch.current) return;
-      startGps().catch(() => undefined);
+      startGpsInternal(true).catch(() => undefined);
     });
     return () => {
       cancelled = true;

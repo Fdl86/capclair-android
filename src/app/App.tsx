@@ -13,12 +13,14 @@ import { useScreenWakeLock } from '../hooks/useScreenWakeLock';
 import { DEFAULT_FUEL_PLAN_CONFIG } from '../domain/aircraft.types';
 import type { MapBaseLayer } from '../mapEngine/mapTypes';
 import { runStorageMaintenance } from '../services/storage/storageMaintenance';
+import { Button } from '../components/ui/Button';
 
 
 const CalculationsScreen = lazy(() => import('../screens/CalculationsScreen').then((module) => ({ default: module.CalculationsScreen })));
 const ZonesScreen = lazy(() => import('../screens/ZonesScreen').then((module) => ({ default: module.ZonesScreen })));
 const TrackingScreen = lazy(() => import('../screens/TrackingScreen').then((module) => ({ default: module.TrackingScreen })));
 const TracesScreen = lazy(() => import('../screens/TracesScreen').then((module) => ({ default: module.TracesScreen })));
+const TraceReplayScreen = lazy(() => import('../screens/TraceReplayScreen').then((module) => ({ default: module.TraceReplayScreen })));
 const MoreScreen = lazy(() => import('../screens/MoreScreen').then((module) => ({ default: module.MoreScreen })));
 
 function routeEndpointCode(route: ReturnType<typeof useActiveRoute>['route'], type: 'depart' | 'destination') {
@@ -33,6 +35,7 @@ function safeAerodromeCode(code: string, fallback = '') {
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('planning');
+  const [replayTraceId, setReplayTraceId] = useState<string | null>(null);
   const routeState = useActiveRoute();
   const traceState = useTraces();
   const aircraftState = useAircraftProfiles();
@@ -54,6 +57,7 @@ export function App() {
     || gpsState.status === 'degraded'
     || gpsState.status === 'frozen'
     || gpsState.status === 'simulating';
+  const replayTrace = replayTraceId ? traceState.traces.find((trace) => trace.id === replayTraceId) ?? null : null;
   const wakeLockActive = useScreenWakeLock(gpsIsRecording);
 
   const setAlternate = (code: string) => {
@@ -82,7 +86,7 @@ export function App() {
   };
 
   return (
-    <AppShell currentScreen={currentScreen} onNavigate={setCurrentScreen}>
+    <AppShell currentScreen={currentScreen} onNavigate={setCurrentScreen} immersive={currentScreen === 'replay'}>
       <Suspense fallback={<div className="screen-loading">Chargement de l’écran...</div>}>
       {currentScreen === 'planning' && (
         <PlanningScreen
@@ -141,8 +145,30 @@ export function App() {
         <TracesScreen
           traces={traceState.traces}
           onDeleteTrace={traceState.deleteTrace}
+          onOpenReplay={(traceId) => {
+            setReplayTraceId(traceId);
+            setCurrentScreen('replay');
+          }}
+          replayDisabled={gpsIsRecording}
           storageError={traceState.storageError}
         />
+      )}
+      {currentScreen === 'replay' && replayTrace && (
+        <TraceReplayScreen
+          trace={replayTrace}
+          mapBaseLayer={mapBaseLayer}
+          onMapBaseLayerChange={setMapBaseLayer}
+          onBack={() => {
+            setCurrentScreen('traces');
+            setReplayTraceId(null);
+          }}
+        />
+      )}
+      {currentScreen === 'replay' && !replayTrace && (
+        <div className="replay-missing-trace">
+          <strong>Trace introuvable</strong>
+          <Button variant="secondary" onClick={() => setCurrentScreen('traces')}>Retour aux traces</Button>
+        </div>
       )}
       {currentScreen === 'more' && (
         <MoreScreen

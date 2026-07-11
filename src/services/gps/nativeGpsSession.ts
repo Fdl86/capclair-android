@@ -1,5 +1,6 @@
-import type { Trace } from '../../domain/trace.types';
+import type { PlannedRouteSnapshot, Trace } from '../../domain/trace.types';
 import { totalDistanceNm } from '../geo/distance';
+import { readPendingPlannedRoute } from '../traces/plannedRouteSnapshot';
 import {
   NativeGps,
   isAndroidNativeGpsAvailable,
@@ -12,7 +13,7 @@ export interface NativeTraceRecoveryResult {
   sessionIds: string[];
 }
 
-function recoveredSessionToTrace(session: NativeRecoverableSessionPayload): Trace | null {
+function recoveredSessionToTrace(session: NativeRecoverableSessionPayload, pendingRoute?: PlannedRouteSnapshot): Trace | null {
   const positions = (session.positions ?? [])
     .map(nativePayloadToGpsPosition)
     .filter((position): position is NonNullable<typeof position> => position !== null)
@@ -26,9 +27,10 @@ function recoveredSessionToTrace(session: NativeRecoverableSessionPayload): Trac
   const endedAtMs = typeof session.endedAt === 'number' && Number.isFinite(session.endedAt)
     ? session.endedAt
     : positions.at(-1)?.timestamp ?? startedAtMs;
+  const matchingPendingRoute = pendingRoute?.routeId === (session.routeId || 'recovered-route') ? pendingRoute : undefined;
 
   return {
-    schemaVersion: 2,
+    schemaVersion: matchingPendingRoute ? 3 : 2,
     id: session.traceId || `recovered-${session.sessionId}`,
     sessionId: session.sessionId,
     routeId: session.routeId || 'recovered-route',
@@ -38,6 +40,7 @@ function recoveredSessionToTrace(session: NativeRecoverableSessionPayload): Trac
     endedAt: new Date(endedAtMs).toISOString(),
     source: 'android-native',
     positions,
+    plannedRoute: matchingPendingRoute,
     dureeSec: Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000)),
     distanceNm: Number(totalDistanceNm(positions).toFixed(2))
   };
@@ -48,10 +51,11 @@ export async function recoverNativeTraces(): Promise<NativeTraceRecoveryResult> 
   const result = await NativeGps.getRecoverableSessions();
   const traces: Trace[] = [];
   const sessionIds: string[] = [];
+  const pendingRoute = readPendingPlannedRoute();
 
   for (const session of result.sessions ?? []) {
     if (session.running) continue;
-    const trace = recoveredSessionToTrace(session);
+    const trace = recoveredSessionToTrace(session, pendingRoute);
     if (!trace || !session.sessionId) continue;
     traces.push(trace);
     sessionIds.push(session.sessionId);

@@ -9,10 +9,12 @@ import { Card } from '../components/ui/Card';
 interface TracesScreenProps {
   traces: Trace[];
   onDeleteTrace: (traceId: string) => Promise<boolean>;
+  onOpenReplay: (traceId: string) => void;
+  replayDisabled: boolean;
   storageError?: string | null;
 }
 
-export function TracesScreen({ traces, onDeleteTrace, storageError }: TracesScreenProps) {
+export function TracesScreen({ traces, onDeleteTrace, onOpenReplay, replayDisabled, storageError }: TracesScreenProps) {
   const [traceToDelete, setTraceToDelete] = useState<string | null>(null);
   const [deletingTrace, setDeletingTrace] = useState(false);
 
@@ -27,7 +29,13 @@ export function TracesScreen({ traces, onDeleteTrace, storageError }: TracesScre
       <div className="traces-list">
         {traces.length === 0 && <EmptyState title="Aucune trace sauvegardée" text="Démarre le suivi GPS ou la simulation, puis arrête et sauvegarde la trace." />}
         {traces.map((trace) => (
-          <TraceListItem key={trace.id} trace={trace} onDelete={() => setTraceToDelete(trace.id)} />
+          <TraceListItem
+            key={trace.id}
+            trace={trace}
+            replayDisabled={replayDisabled}
+            onOpenReplay={() => onOpenReplay(trace.id)}
+            onDelete={() => setTraceToDelete(trace.id)}
+          />
         ))}
       </div>
       <ConfirmDialog
