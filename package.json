@@ -1,7 +1,7 @@
 {
   "name": "cap-clair",
   "private": true,
-  "version": "15.1.4",
+  "version": "15.1.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,9 @@
     "cap:copy": "npm run build:web && cap copy",
     "cap:open:android": "cap open android",
     "android:sync": "npm run build:android && cap sync android",
-    "test": "vitest run"
+    "test": "vitest run",
+    "version:bump": "node tools/bump-version.mjs",
+    "version:check": "node tools/check-version.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.1",

@@ -21,7 +21,8 @@ export type GpsStatus =
   | 'simulation-complete'
   | 'saving'
   | 'save-error'
-  | 'stopped';
+  | 'stopped'
+  | 'stopped-no-trace';
 
 export interface GpsTraceDiagnostics {
   rawReceived: number;

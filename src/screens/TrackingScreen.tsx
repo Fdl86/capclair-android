@@ -14,6 +14,7 @@ import { isReliableGpsAltitude } from '../services/gps/geolocationService';
 import type { GpsPosition } from '../domain/gps.types';
 import type { MapBaseLayer, MapOrientationMode } from '../mapEngine/mapTypes';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { hasSavableTrace } from '../services/traces/traceCollection';
 
 interface TrackingScreenProps {
   route: NavRoute;
@@ -36,6 +37,7 @@ function statusLabel(status: string): string {
     case 'saving': return 'Sauvegarde...';
     case 'save-error': return 'Sauvegarde à reprendre';
     case 'stopped': return 'Sauvé';
+    case 'stopped-no-trace': return 'Suivi arrêté';
     default: return 'GPS prêt';
   }
 }
@@ -98,7 +100,8 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
   const [orientationMode, setOrientationMode] = useLocalStorageState<MapOrientationMode>('capclair.trackingMapOrientation.v1', 'north-up');
 
   const isRecording = gps.status === 'active' || gps.status === 'degraded' || gps.status === 'frozen' || gps.status === 'simulating';
-  const canSaveTrace = isRecording || gps.status === 'simulation-complete' || gps.status === 'save-error';
+  const canStopTracking = isRecording || gps.status === 'simulation-complete' || gps.status === 'save-error';
+  const traceIsSavable = hasSavableTrace(gps.positions.length);
   const isSavedTrace = gps.status === 'stopped';
   const traceForMap = gps.positions;
 
@@ -233,7 +236,10 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
             label={statusLabel(gps.status)}
             state={gps.status === 'active' || gps.status === 'simulating' || gps.status === 'stopped' ? 'ok' : gps.status === 'degraded' || gps.status === 'frozen' || gps.status === 'requesting' || gps.status === 'simulation-complete' || gps.status === 'saving' || gps.status === 'save-error' ? 'warn' : 'off'}
           />
-          <CockpitBadge label={isRecording ? 'Trace REC' : gps.status === 'simulation-complete' ? 'Trace à sauver' : 'Trace prête'} state={isRecording ? 'rec' : gps.status === 'simulation-complete' ? 'warn' : 'off'} />
+          <CockpitBadge
+            label={isRecording ? 'Trace REC' : gps.status === 'simulation-complete' ? 'Trace à sauver' : gps.status === 'stopped-no-trace' ? 'Aucune trace' : 'Trace prête'}
+            state={isRecording ? 'rec' : gps.status === 'simulation-complete' ? 'warn' : 'off'}
+          />
           <CockpitBadge label={wakeLockActive ? 'Écran actif' : isRecording ? 'Écran veille?' : 'Écran prêt'} state={wakeLockActive ? 'ok' : isRecording ? 'warn' : 'off'} />
         </div>
 
@@ -282,6 +288,13 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
           </Card>
         )}
 
+        {gps.noticeMessage && (
+          <Card className="gps-signal-card">
+            <strong>Suivi</strong>
+            <p>{gps.noticeMessage}</p>
+          </Card>
+        )}
+
         {gps.errorMessage && (
           <Card className="gps-warning">
             <strong>État GPS</strong>
@@ -297,17 +310,23 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
         </div>
 
         <div className="tracking-actions">
-          {!canSaveTrace && gps.status !== 'saving' && <Button variant="primary" onClick={gps.startGps}>Démarrer GPS</Button>}
-          {!canSaveTrace && gps.status !== 'saving' && <Button variant="secondary" onClick={gps.startSimulation}>Tester simulation</Button>}
+          {!canStopTracking && gps.status !== 'saving' && <Button variant="primary" onClick={gps.startGps}>Démarrer GPS</Button>}
+          {!canStopTracking && gps.status !== 'saving' && <Button variant="secondary" onClick={gps.startSimulation}>Tester simulation</Button>}
           {gps.status === 'saving' && <Button variant="secondary" disabled>Finalisation...</Button>}
-          {canSaveTrace && gps.status !== 'saving' && <Button variant="danger" onClick={() => setConfirmStop(true)}>{gps.status === 'save-error' ? 'Réessayer la sauvegarde' : 'Arrêter et sauvegarder'}</Button>}
+          {canStopTracking && gps.status !== 'saving' && (
+            <Button variant="danger" onClick={() => setConfirmStop(true)}>
+              {gps.status === 'save-error' ? 'Réessayer la sauvegarde' : traceIsSavable ? 'Arrêter et sauvegarder' : 'Arrêter le GPS'}
+            </Button>
+          )}
         </div>
       </aside>
 
       <ConfirmDialog
         open={confirmStop}
         title="Arrêter le suivi ?"
-        message="La trace actuelle sera sauvegardée localement. Cette action met fin à l'enregistrement."
+        message={traceIsSavable
+          ? "La trace actuelle sera sauvegardée localement. Cette action met fin à l'enregistrement."
+          : "Le suivi GPS sera arrêté. La trace est trop courte pour être enregistrée."}
         confirmLabel="Arrêter"
         onCancel={() => setConfirmStop(false)}
         onConfirm={() => {

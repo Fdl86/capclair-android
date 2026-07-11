@@ -25,6 +25,7 @@ jobs:
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       SIGNING_KEY_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      VITE_BUILD_ID: ${{ github.sha }}
 
     steps:
       - name: Checkout repository
@@ -46,6 +47,9 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Check version coherence
+        run: npm run version:check
 
       - name: Run unit tests
         run: npm test
@@ -102,7 +106,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cap-clair-dev15-1-4-debug-apk
+          name: cap-clair-dev15-1-5-debug-apk
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             apk-signature.txt

@@ -1,3 +1,5 @@
-export const APP_VERSION = 'CAP CLAIR DEV15.1.4 - COCKPIT CONTROLS HOTFIX';
+export const APP_VERSION_BASE = 'CAP CLAIR DEV15.1.5 - TRACE STORAGE HOTFIX';
+export const APP_BUILD_ID = (import.meta.env.VITE_BUILD_ID || 'local').trim().slice(0, 7);
+export const APP_VERSION = `${APP_VERSION_BASE} - build ${APP_BUILD_ID}`;
 export const APP_TITLE = 'CAP CLAIR';
 export const APP_SUBTITLE = 'Navigation VFR';

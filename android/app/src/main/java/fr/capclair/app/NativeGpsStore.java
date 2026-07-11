@@ -252,7 +252,10 @@ final class NativeGpsStore {
     static synchronized boolean markSessionDeleted(String sessionId) {
         ensureInitialized();
         File metadataFile = metadataFile(sessionId);
-        if (metadataFile == null || !metadataFile.exists()) return false;
+        if (metadataFile == null) return false;
+        // Deletion is idempotent: if the native journal is already gone, the
+        // local trace can still be removed safely without being resurrected.
+        if (!metadataFile.exists()) return true;
         try {
             JSONObject metadata = readJson(metadataFile);
             metadata.put("deleted", true);

@@ -8,12 +8,13 @@ import { Card } from '../components/ui/Card';
 
 interface TracesScreenProps {
   traces: Trace[];
-  onDeleteTrace: (traceId: string) => void;
+  onDeleteTrace: (traceId: string) => Promise<boolean>;
   storageError?: string | null;
 }
 
 export function TracesScreen({ traces, onDeleteTrace, storageError }: TracesScreenProps) {
   const [traceToDelete, setTraceToDelete] = useState<string | null>(null);
+  const [deletingTrace, setDeletingTrace] = useState(false);
 
   return (
     <Page title="Mes traces" subtitle="Traces locales sauvegardées sur cet appareil.">
@@ -33,11 +34,19 @@ export function TracesScreen({ traces, onDeleteTrace, storageError }: TracesScre
         open={traceToDelete !== null}
         title="Supprimer la trace ?"
         message="La suppression est locale et définitive sur cet appareil."
-        confirmLabel="Supprimer"
+        confirmLabel={deletingTrace ? 'Suppression...' : 'Supprimer'}
+        confirmDisabled={deletingTrace}
+        cancelDisabled={deletingTrace}
         onCancel={() => setTraceToDelete(null)}
-        onConfirm={() => {
-          if (traceToDelete) onDeleteTrace(traceToDelete);
-          setTraceToDelete(null);
+        onConfirm={async () => {
+          if (!traceToDelete || deletingTrace) return;
+          setDeletingTrace(true);
+          try {
+            const deleted = await onDeleteTrace(traceToDelete);
+            if (deleted) setTraceToDelete(null);
+          } finally {
+            setDeletingTrace(false);
+          }
         }}
       />
     </Page>

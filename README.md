@@ -1,104 +1,87 @@
-# CAP CLAIR DEV15.1.4 - COCKPIT CONTROLS HOTFIX
+# CAP CLAIR DEV15.1.5 - TRACE STORAGE HOTFIX
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.1.4 repart de la base Android DEV15.1.2 validée et signée. Cette version ajoute deux fonctions cockpit ciblées : la carte en mode trajectoire en haut et le mode Suivi plein écran avec bandeau inférieur.
+DEV15.1.5 corrige deux anomalies ciblées de la DEV15.1.4 sans modifier le GPS natif, le filtrage, le mode TRK UP ni le plein écran.
 
-## Hotfix DEV15.1.4
+## Correctifs DEV15.1.5
 
-- Les boutons Plein écran et NORD UP / TRK UP sont désormais montés directement dans l'écran Suivi.
-- Ils restent visibles en mode normal comme en plein écran.
-- Le composant carte conserve uniquement Centrer, Zoom + et Zoom -, ce qui supprime la dépendance qui masquait les deux nouvelles commandes sur l'APK réel.
+### Suppression de la dernière trace
 
+- une liste vide est maintenant un état valide et est écrite explicitement dans `capclair.traces` ;
+- la dernière trace peut être supprimée comme les autres ;
+- la suppression du journal natif est attendue et confirmée avant mise à jour de l'interface ;
+- une erreur native conserve la trace visible pour éviter sa réapparition au lancement suivant ;
+- la suppression native est idempotente si le journal a déjà disparu ;
+- la boîte de dialogue affiche `Suppression...` et bloque les doubles validations.
 
-## Nouveautés DEV15.1.4
+### Arrêt sans trace exploitable
 
-### Carte Nord en haut / Trajectoire en haut
+- zéro ou un seul point ne déclenche plus une fausse erreur de sauvegarde ;
+- le bouton devient `Arrêter le GPS` tant que deux points valides ne sont pas disponibles ;
+- l'arrêt affiche un message neutre : `Suivi arrêté - trace trop courte, aucune trace enregistrée.` ;
+- le petit journal natif incomplet est nettoyé ;
+- à partir de deux points, le comportement reste `Arrêter et sauvegarder`.
 
-- bouton de bascule directement sur la carte ;
-- mode `NORD UP` : nord fixe en haut, avion orienté selon le track GPS ;
-- mode `TRK UP` : avion dirigé vers le haut et carte tournée autour de lui ;
-- aucune boussole ni magnétomètre utilisé ;
-- rotation basée uniquement sur le track sol GPS ou le relèvement calculé ;
-- dernière orientation fiable conservée à faible vitesse ;
-- rotation lissée et trajet angulaire le plus court ;
-- choix mémorisé entre les ouvertures de l'application.
-
-### Suivi plein écran
-
-- bouton visible pour entrer et quitter le plein écran applicatif ;
-- aucune dépendance au bouton Retour Android ;
-- compatible avec la navigation Xiaomi par gestes ;
-- carte occupant tout l'écran en portrait ou paysage ;
-- commandes permanentes : plein écran, centrage, orientation, zoom + et zoom - ;
-- bandeau cockpit inférieur avec prochain point, distance, cap magnétique, vitesse sol, altitude GPS et ETA ;
-- petits indicateurs supérieurs pour CAP CLAIR, état GPS et mode d'orientation ;
-- état de zoom, centrage et orientation conservé en quittant le plein écran.
-
-### Base DEV15.1.2 conservée
-
-- GPS natif Android et foreground service ;
-- journal GPS persistant et restauration de session ;
-- récupération finale avant sauvegarde ;
-- export GPX multi-segments et JSON ;
-- signature stable obligatoire ;
-- build Android sans service worker ;
-- vent à l'instant T ;
-- bouton `Exporter PDF` conservé pour l'étape suivante.
-
-## Version Android
+## Version et identification du build
 
 ```text
 applicationId fr.capclair.app
-versionCode 15014
-versionName 15.1.4
+versionCode 15015
+versionName 15.1.5
 ```
+
+Le bandeau affiche :
+
+```text
+CAP CLAIR DEV15.1.5 - TRACE STORAGE HOTFIX - build <hash court>
+```
+
+Le hash court provient du commit GitHub Actions. Il permet de vérifier immédiatement que l'appareil exécute bien l'APK du dernier run.
+
+## Versionnement automatisé
+
+```bash
+npm run version:bump -- 15.1.6 "NOM DE VERSION"
+npm run version:check
+```
+
+Le script met à jour :
+
+- `package.json` ;
+- `package-lock.json` ;
+- `android/app/build.gradle` ;
+- `src/app/version.ts` ;
+- `index.html` ;
+- le nom de l'artifact GitHub Actions.
 
 ## Scripts
 
 ```bash
 npm ci
+npm run version:check
 npm test
-npm run build
 npm run build:android
 npx cap sync android
 ```
 
-## Build GitHub Actions
+Le dossier `android/app/src/main/assets/public/` ne doit jamais être modifié manuellement. Il est produit uniquement par le build Vite natif puis `cap sync`.
 
-Le workflow `.github/workflows/android-debug-apk.yml` se lance sur la branche `main` du dépôt `capclair-android`.
+## Livraison APK
 
-Secrets obligatoires :
-
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
-
-Ne jamais régénérer la clé stable.
-
-## Vérifications effectuées avant livraison
-
-- `npm ci --no-audit --no-fund` : OK ;
-- `npm test` : 8 tests sur 8 réussis ;
-- `npm run build:android` : OK ;
-- aucun service worker dans les assets Android : OK ;
-- `npx cap sync android` : OK ;
-- `npm audit --omit=dev` : 0 vulnérabilité ;
-- compilation Gradle complète à valider dans GitHub Actions, le réseau local ne pouvant pas joindre `services.gradle.org`.
+1. Pousser le projet sur `main` dans `capclair-android`.
+2. Attendre le dernier run vert `Android Debug APK`.
+3. Télécharger uniquement l'artifact du dernier run : `cap-clair-dev15-1-5-debug-apk`.
+4. Installer l'APK par-dessus DEV15.1.4. Le `versionCode 15015` autorise la mise à jour avec la même signature CI.
+5. Vérifier dans le bandeau : `DEV15.1.5` et le hash court du commit attendu.
+6. Si la version affichée ne correspond pas, ne pas déboguer le code : vérifier l'artifact et l'installation.
 
 ## Tests téléphone prioritaires
 
-1. Installer DEV15.1.4 par-dessus DEV15.1.3.
-2. Vérifier que la version 15.1.4 est affichée.
-3. Lancer une simulation puis basculer entre `NORD UP` et `TRK UP`.
-4. Vérifier que l'avion reste vers le haut en `TRK UP` et que la carte pivote sans tour complet parasite.
-5. Tester le bouton de centrage dans les deux modes.
-6. Entrer et sortir du mode plein écran uniquement avec le bouton visible.
-7. Vérifier le bandeau inférieur en portrait puis en paysage.
-8. Démarrer une vraie trace courte et confirmer que l'enregistrement, la sauvegarde et l'export restent fonctionnels.
-9. Vérifier dans `apk-signature.txt` que l'empreinte SHA-256 reste inchangée.
-
-## Étape suivante
-
-Export PDF du log de navigation, puis replay GPX avec profil altitude synchronisé.
+1. Avec une seule trace enregistrée, la supprimer et vérifier l'état `Aucune trace sauvegardée`.
+2. Fermer puis rouvrir l'application et vérifier que la trace supprimée ne réapparaît pas.
+3. Démarrer le GPS puis l'arrêter avant deux points : aucun message d'erreur de sauvegarde.
+4. Vérifier le message neutre de trace trop courte.
+5. Enregistrer au moins deux points, arrêter et vérifier la sauvegarde normale.
+6. Vérifier que le plein écran et le mode NORD UP / TRK UP de DEV15.1.4 restent fonctionnels.
+7. Vérifier que l'empreinte SHA-256 de `apk-signature.txt` reste inchangée.

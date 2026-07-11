@@ -15,6 +15,8 @@ import {
 import { createGpsProviderSelection, type GpsProviderSelection } from '../services/gps/gpsProviderFactory';
 import type { GpsProviderWatch } from '../services/gps/gpsProvider';
 import { getNativeGpsRuntimeStatus } from '../services/gps/nativeGpsProvider';
+import { markNativeSessionDeleted } from '../services/gps/nativeGpsSession';
+import { hasSavableTrace } from '../services/traces/traceCollection';
 import { interpolateSimulationPoint, simulationTotalSteps } from '../services/gps/simulationService';
 import { getCrossTrackError, getProgressiveCrossTrackError, type CrossTrackResult } from '../services/geo/crossTrackError';
 
@@ -55,6 +57,7 @@ export function useGpsTracking(
   const [crossTrack, setCrossTrack] = useState<CrossTrackResult>(() => getCrossTrackError(null, route.points));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationWarning, setNotificationWarning] = useState<string | null>(null);
+  const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [lastAccuracy, setLastAccuracy] = useState<number | null>(null);
   const [lastAltitudeAccuracy, setLastAltitudeAccuracy] = useState<number | null>(null);
   const [lastSignalAtState, setLastSignalAtState] = useState<number | null>(null);
@@ -274,6 +277,7 @@ export function useGpsTracking(
     await stopGpsWatch().catch(() => []);
     clearSimulation();
     setErrorMessage(null);
+    setNoticeMessage(null);
     setNotificationWarning(null);
     resetTrackingData();
     startTime.current = Date.now();
@@ -335,6 +339,7 @@ export function useGpsTracking(
     clearSimulation();
     updateStatus('simulating');
     setErrorMessage(null);
+    setNoticeMessage(null);
     setNotificationWarning(null);
     resetTrackingData();
     startTime.current = Date.now();
@@ -374,6 +379,18 @@ export function useGpsTracking(
       positionsRef.current = finalPositions;
       setPositions(finalPositions);
 
+      if (!hasSavableTrace(finalPositions.length)) {
+        const nativeDeleted = await markNativeSessionDeleted(sessionId.current).catch(() => false);
+        updateStatus('stopped-no-trace');
+        setErrorMessage(null);
+        setNoticeMessage(
+          nativeDeleted
+            ? 'Suivi arrêté - trace trop courte, aucune trace enregistrée.'
+            : 'Suivi arrêté - trace trop courte. Le journal natif vide n’a pas pu être nettoyé, sans impact sur les traces sauvegardées.'
+        );
+        return;
+      }
+
       const startedAtMs = startTime.current ?? finalPositions[0]?.timestamp ?? Date.now();
       const endedAtMs = finalPositions.at(-1)?.timestamp ?? Date.now();
       const trace: Trace = {
@@ -401,7 +418,9 @@ export function useGpsTracking(
 
       updateStatus('stopped');
       setErrorMessage(null);
+      setNoticeMessage(null);
     } catch (error) {
+      setNoticeMessage(null);
       updateStatus('save-error');
       setErrorMessage(error instanceof Error ? error.message : 'Finalisation de la trace impossible.');
     }
@@ -475,6 +494,7 @@ export function useGpsTracking(
     nextPointDistance,
     errorMessage,
     notificationWarning,
+    noticeMessage,
     lastAccuracy,
     lastAltitudeAccuracy,
     lastSignalAt: lastSignalAtState,

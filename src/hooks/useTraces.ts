@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Trace } from '../domain/trace.types';
 import { recoverNativeTraces, markNativeSessionDeleted, markNativeSessionSaved } from '../services/gps/nativeGpsSession';
 import { readJson, writeJson } from '../services/storage/localStorageService';
+import { persistTraceCollection } from '../services/traces/traceCollection';
 
 const STORAGE_KEY = 'capclair.traces';
 const MAX_SAVED_TRACES = 20;
@@ -22,21 +23,22 @@ export function useTraces() {
   const [storageError, setStorageError] = useState<string | null>(null);
 
   const persist = (next: Trace[]): boolean => {
-    const unique = uniqueTraces(next).slice(0, MAX_SAVED_TRACES);
-    for (let keep = unique.length; keep >= 1; keep -= 1) {
-      const candidate = unique.slice(0, keep);
-      if (!writeJson(STORAGE_KEY, candidate)) continue;
-      tracesRef.current = candidate;
-      setTraces(candidate);
-      setStorageError(
-        keep < unique.length
-          ? `${unique.length - keep} ancienne(s) trace(s) retirée(s) du stockage rapide. Les journaux natifs récents restent récupérables.`
-          : null
-      );
-      return true;
+    const unique = uniqueTraces(next);
+    const result = persistTraceCollection(unique, MAX_SAVED_TRACES, (candidate) => writeJson(STORAGE_KEY, candidate));
+
+    if (!result.success) {
+      setStorageError('Sauvegarde locale impossible. Le journal natif reste conservé pour récupération.');
+      return false;
     }
-    setStorageError('Sauvegarde locale impossible. Le journal natif reste conservé pour récupération.');
-    return false;
+
+    tracesRef.current = result.saved;
+    setTraces(result.saved);
+    setStorageError(
+      result.discardedCount > 0
+        ? `${result.discardedCount} ancienne(s) trace(s) retirée(s) du stockage rapide. Les journaux natifs récents restent récupérables.`
+        : null
+    );
+    return true;
   };
 
   const saveTrace = async (trace: Trace): Promise<boolean> => {
@@ -51,10 +53,28 @@ export function useTraces() {
     return true;
   };
 
-  const deleteTrace = (traceId: string) => {
+  const deleteTrace = async (traceId: string): Promise<boolean> => {
     const trace = tracesRef.current.find((item) => item.id === traceId);
-    if (!persist(tracesRef.current.filter((item) => item.id !== traceId))) return;
-    void markNativeSessionDeleted(trace?.sessionId);
+    if (!trace) return true;
+
+    try {
+      const nativeDeleted = await markNativeSessionDeleted(trace.sessionId);
+      if (!nativeDeleted) {
+        setStorageError('Suppression du journal natif impossible. La trace est conservée pour éviter sa réapparition.');
+        return false;
+      }
+    } catch {
+      setStorageError('Suppression du journal natif impossible. La trace est conservée pour éviter sa réapparition.');
+      return false;
+    }
+
+    const persisted = persist(tracesRef.current.filter((item) => item.id !== traceId));
+    if (!persisted) {
+      setStorageError('Journal natif supprimé, mais mise à jour de la liste locale impossible. Réessayez après redémarrage.');
+      return false;
+    }
+
+    return true;
   };
 
   useEffect(() => {
