@@ -3385,3 +3385,122 @@
     border-top: 1px solid rgba(30, 49, 69, 0.66);
   }
 }
+
+/* DEV15.2.3 - position and recording are separate concepts */
+.tracking-map-panel > .map-layer-toggle {
+  left: auto;
+  right: 12px;
+  transform: none;
+  max-width: calc(100% - 188px);
+}
+
+.tracking-gps-map-status.idle {
+  border-color: rgba(111, 125, 141, 0.46);
+  color: var(--text-3);
+}
+
+.tracking-live-metric.tracking-precision.idle strong {
+  color: var(--text-3);
+}
+
+.tracking-position-chip,
+.tracking-recording-chip {
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(30, 49, 69, 0.92);
+  border-radius: 12px;
+  padding: 0 9px;
+  background: rgba(5, 11, 18, 0.86);
+  color: var(--text-3);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+}
+
+.tracking-position-chip.ok {
+  color: var(--green);
+  border-color: rgba(61, 220, 132, 0.42);
+}
+
+.tracking-position-chip.warn {
+  color: var(--warn);
+  border-color: rgba(255, 184, 77, 0.45);
+}
+
+.tracking-position-chip.off {
+  color: var(--red);
+  border-color: rgba(255, 92, 92, 0.48);
+}
+
+.tracking-position-chip.idle {
+  color: var(--text-3);
+}
+
+.tracking-recording-chip.rec {
+  color: #ff8f9b;
+  border-color: rgba(255, 92, 92, 0.62);
+  background: rgba(63, 12, 20, 0.88);
+}
+
+.tracking-recording-chip.warn {
+  color: var(--warn);
+  border-color: rgba(255, 184, 77, 0.45);
+}
+
+.tracking-recording-chip.ok {
+  color: var(--green);
+  border-color: rgba(61, 220, 132, 0.42);
+}
+
+.tracking-recording-chip.off {
+  color: var(--text-3);
+}
+
+@media (max-width: 520px) {
+  .tracking-map-panel > .map-layer-toggle {
+    right: 9px;
+    max-width: calc(100% - 154px);
+    gap: 3px;
+    padding: 3px;
+  }
+
+  .tracking-map-panel > .map-layer-toggle button {
+    min-height: 28px;
+    padding: 0 6px;
+    font-size: 0.61rem;
+  }
+
+  .tracking-gps-map-status {
+    left: 9px;
+    max-width: 137px;
+    min-height: 32px;
+    padding: 0 9px;
+  }
+
+  .tracking-gps-map-status span {
+    font-size: 0.61rem;
+  }
+
+  .tracking-screen.is-fullscreen .tracking-fullscreen-brand {
+    display: none;
+  }
+
+  .tracking-fullscreen-topbar {
+    left: calc(8px + var(--safe-left));
+    right: calc(66px + var(--safe-right));
+    gap: 5px;
+  }
+
+  .tracking-position-chip,
+  .tracking-recording-chip,
+  .tracking-orientation-chip {
+    min-height: 33px;
+    padding: 0 7px;
+    font-size: 0.56rem;
+  }
+}

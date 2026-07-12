@@ -751,3 +751,74 @@
     max-width: calc(100% - 150px);
   }
 }
+
+/* DEV15.2.3 - landscape Replay: full-height map, profile in right column */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 760px) {
+  .replay-screen {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-areas:
+      "header header"
+      "map metrics"
+      "map profile"
+      "map controls"
+      "map .";
+    grid-template-rows: 46px auto 150px auto minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  .replay-map-panel {
+    height: 100%;
+  }
+
+  .replay-profile-card {
+    height: auto;
+    min-height: 0;
+    padding: 6px 7px 2px;
+  }
+
+  .replay-profile-heading strong {
+    font-size: 0.62rem;
+  }
+
+  .replay-profile-heading span {
+    font-size: 0.52rem;
+  }
+
+  .replay-profile-svg {
+    height: 118px;
+  }
+
+  .replay-profile-axis {
+    font-size: 7px;
+  }
+
+  .replay-speed-area {
+    align-content: start;
+  }
+
+  .replay-speed-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .replay-speed-grid button {
+    min-height: 36px;
+    padding: 0 3px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .replay-screen {
+    grid-template-columns: minmax(0, 1fr) 286px;
+    grid-template-rows: 42px auto 124px auto minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .replay-profile-svg {
+    height: 94px;
+  }
+
+  .replay-playback-overlay {
+    max-width: calc(100% - 150px);
+  }
+}

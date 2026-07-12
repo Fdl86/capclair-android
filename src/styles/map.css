@@ -393,3 +393,66 @@
 @keyframes capclair-locate-spin {
   to { transform: rotate(360deg); }
 }
+
+/* DEV15.2.3 - record control in fullscreen map column */
+.map-controls .map-record-control {
+  display: grid;
+  place-items: center;
+  border-color: rgba(255, 92, 92, 0.56);
+}
+
+.map-controls .map-record-control span {
+  width: 15px;
+  height: 15px;
+  display: block;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 4px rgba(255, 92, 92, 0.12);
+}
+
+.map-controls .map-record-control.recording {
+  border-color: rgba(255, 92, 92, 0.9);
+  background: rgba(83, 15, 24, 0.94);
+}
+
+.map-controls .map-record-control.recording span {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.map-controls .map-record-control.requesting {
+  border-color: rgba(255, 184, 77, 0.74);
+}
+
+.map-controls .map-record-control.requesting span {
+  background: var(--warn);
+  box-shadow: 0 0 0 4px rgba(255, 184, 77, 0.12);
+  animation: capclair-record-pulse 1.2s ease-in-out infinite;
+}
+
+.map-controls .map-record-control.saving {
+  border-color: rgba(255, 184, 77, 0.58);
+  opacity: 0.78;
+}
+
+.map-controls .map-record-control.saving span {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 184, 77, 0.35);
+  border-top-color: var(--warn);
+  background: transparent;
+  animation: capclair-locate-spin 0.9s linear infinite;
+}
+
+.map-controls .map-record-control.error {
+  border-color: rgba(255, 92, 92, 0.9);
+  background: rgba(83, 15, 24, 0.94);
+}
+
+@keyframes capclair-record-pulse {
+  0%, 100% { transform: scale(0.86); opacity: 0.72; }
+  50% { transform: scale(1); opacity: 1; }
+}

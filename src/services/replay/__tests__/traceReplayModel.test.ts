@@ -96,6 +96,16 @@ describe('Replay sampling', () => {
     expect(sample?.cumulativeDistanceNm).toBeCloseTo(model.totalDistanceNm / 2, 6);
   });
 
+  it('keeps the total distance available at the exact end of replay', () => {
+    const model = buildReplayModel(trace([
+      point(1_000, 0.30),
+      point(5_000, 0.32),
+      point(9_000, 0.34)
+    ]));
+    const sample = sampleReplay(model, model.totalActiveTimeMs);
+    expect(sample?.cumulativeDistanceNm).toBeCloseTo(model.totalDistanceNm, 8);
+  });
+
   it('maps profile distance back to replay time', () => {
     const model = buildReplayModel(trace([
       point(1_000, 0.30),

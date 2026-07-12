@@ -9,6 +9,9 @@ interface MapControlsProps {
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
   locating?: boolean;
+  recordingState?: 'idle' | 'requesting' | 'recording' | 'saving' | 'error';
+  onRecordingAction?: () => void;
+  recordingDisabled?: boolean;
 }
 
 function FullscreenIcon({ active }: { active: boolean }) {
@@ -40,7 +43,10 @@ export function MapControls({
   onToggleOrientation,
   fullscreen = false,
   onToggleFullscreen,
-  locating = false
+  locating = false,
+  recordingState,
+  onRecordingAction,
+  recordingDisabled = false
 }: MapControlsProps) {
   return (
     <div className={`map-controls ${onToggleOrientation || onToggleFullscreen ? 'map-controls-flight' : ''}`} aria-label="Contrôles carte">
@@ -86,6 +92,19 @@ export function MapControls({
 
       <button type="button" onClick={onZoomIn} aria-label="Zoom avant" title="Zoom avant">+</button>
       <button type="button" onClick={onZoomOut} aria-label="Zoom arrière" title="Zoom arrière">-</button>
+
+      {recordingState && onRecordingAction && (
+        <button
+          type="button"
+          className={`map-record-control ${recordingState}`}
+          onClick={onRecordingAction}
+          disabled={recordingDisabled}
+          aria-label={recordingState === 'recording' || recordingState === 'requesting' ? "Arrêter l'enregistrement" : "Démarrer l'enregistrement"}
+          title={recordingState === 'recording' || recordingState === 'requesting' ? "Arrêter l'enregistrement" : "Démarrer l'enregistrement"}
+        >
+          <span aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

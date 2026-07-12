@@ -43,6 +43,9 @@ interface OpenLayersMapProps {
   onRequestPosition?: () => Promise<GpsPosition | null>;
   locating?: boolean;
   locationError?: string | null;
+  recordingControlState?: 'idle' | 'requesting' | 'recording' | 'saving' | 'error';
+  onRecordingControl?: () => void;
+  recordingControlDisabled?: boolean;
 }
 
 function replaceLayer(map: Map, previousLayer: BaseLayer | null, nextLayer: BaseLayer | null): BaseLayer | null {
@@ -72,7 +75,10 @@ export function OpenLayersMap({
   allowUserRotation = false,
   onRequestPosition,
   locating = false,
-  locationError = null
+  locationError = null,
+  recordingControlState,
+  onRecordingControl,
+  recordingControlDisabled = false
 }: OpenLayersMapProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
@@ -416,6 +422,9 @@ export function OpenLayersMap({
         onToggleOrientation={onToggleOrientation}
         fullscreen={fullscreen}
         onToggleFullscreen={onToggleFullscreen}
+        recordingState={recordingControlState}
+        onRecordingAction={onRecordingControl}
+        recordingDisabled={recordingControlDisabled}
       />
       {locationError && <div className="map-location-notice">{locationError}</div>}
       {(sourceStatus === 'fallback' || sourceStatus === 'error') && <MapFallbackNotice mode={sourceStatus === 'error' ? 'oaci' : 'openaip'} />}

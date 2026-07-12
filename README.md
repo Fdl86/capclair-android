@@ -1,75 +1,88 @@
-# CAP CLAIR DEV15.2.2 - SUIVI UX
+# CAP CLAIR DEV15.2.3 - SUIVI REC UX
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.2.2 conserve toutes les fonctions validées de DEV15.2.1 et améliore l'écran Suivi hors plein écran, la lisibilité de la trace réelle et la disposition du Replay en paysage. Le fonctionnement du GPS natif, le stockage et les exports de traces restent inchangés.
+DEV15.2.3 conserve toutes les fonctions validées de DEV15.2.2 et clarifie la différence entre une localisation ponctuelle et l'enregistrement d'une trace. Elle ajoute les commandes d'enregistrement au Suivi plein écran et réorganise entièrement le Replay en paysage. L'import GPX est volontairement reporté à DEV15.3.0.
+
+## Position GPS et enregistrement
+
+- la bulle de carte décrit désormais la position GPS, indépendamment de l'enregistrement ;
+- après un appui sur Centrer, une position ponctuelle récente est affichée sous la forme `POSITION 12 m` ;
+- une position devenue ancienne passe en jaune, puis devient inactive ;
+- les erreurs réelles restent rouges : GPS indisponible ou autorisation refusée ;
+- l'état d'enregistrement utilise une information séparée : `NON ENREGISTRÉ`, `ACQUISITION`, `REC hh:mm:ss`, `SAUVEGARDE` ou `TRACE SAUVÉE` ;
+- aucune localisation ponctuelle ne crée de trace.
 
 ## Suivi hors plein écran
 
-- petite bulle d'état GPS en haut à gauche de la carte ;
-- états explicites avec couleur et texte : GPS arrêté, recherche, signal dégradé, actif ou perdu ;
-- précision horizontale affichée directement lorsque disponible ;
-- écart à la route affiché dans une pastille compacte sur la carte ;
-- quatre données principales compactes sous la carte : vitesse sol, altitude GPS, route GPS et précision ;
-- prochaine étape regroupée dans une ligne compacte avec distance, cap magnétique et ETA ;
-- commandes de démarrage, simulation et arrêt conservées ;
-- diagnostics GPS et trace conservés dans un panneau repliable ;
-- mode plein écran existant conservé sans refonte structurelle.
+- correction du chevauchement entre la bulle de position et le sélecteur OpenAIP / OACI 1/500k ;
+- bouton principal renommé `Démarrer l'enregistrement` ;
+- arrêt renommé selon le contexte : acquisition, enregistrement ou sauvegarde ;
+- libellé `Alt GPS` utilisé pour éviter la troncature sur téléphone étroit ;
+- disposition compacte DEV15.2.2 conservée ;
+- trace réelle magenta avec halo sombre conservée.
 
-## Lisibilité de la trace
+## Suivi plein écran
 
-- trace réelle désormais magenta vif `#FF3FA4` ;
-- halo sombre sous la trace pour rester visible sur OpenAIP et OACI 1/500k ;
-- même présentation dans Suivi et Replay ;
-- route prévue conservée en cyan ;
-- coupures GPS toujours représentées par des segments séparés, sans ligne droite artificielle.
+- bulle de position GPS visible dans la barre supérieure ;
+- chip d'enregistrement placée à côté de NORD UP / TRK UP ;
+- chronomètre REC affiché pendant l'enregistrement ;
+- bouton Record ajouté sous le bouton de zoom arrière ;
+- cercle rouge pour démarrer ;
+- carré blanc sur fond rouge pour arrêter ;
+- état jaune pendant l'acquisition ou la sauvegarde ;
+- arrêt toujours protégé par la confirmation existante ;
+- bandeau cockpit et fonctionnement NORD UP / TRK UP conservés.
 
 ## Replay paysage
 
-- correction de disposition uniquement en paysage ;
-- carte nettement agrandie ;
-- profil d'altitude réduit sans perdre son interaction tactile ;
-- métriques compactées ;
-- vitesses x1, x5, x10 et x20 placées sur une seule ligne ;
-- commandes de lecture réduites pour masquer moins de carte ;
-- portrait DEV15.2.1 conservé.
+- carte placée sur toute la hauteur disponible à gauche ;
+- métriques regroupées en haut de la colonne droite ;
+- profil d'altitude déplacé sous les métriques dans la colonne droite ;
+- vitesses x1, x5, x10 et x20 conservées sous le profil ;
+- commandes lecture, pause et Début conservées sur la carte ;
+- distance totale conservée à la fin exacte du Replay ;
+- portrait DEV15.2.2 conservé sans modification.
 
-## Fonctions DEV15.2.1 conservées
+Le profil d'altitude est volontairement plus compact en paysage. Une trace longue doit être contrôlée sur téléphone afin de confirmer la lisibilité du profil décimé et la précision du déplacement tactile.
 
-- bouton `Replay` depuis `Mes traces` ;
-- suivi avion actif par défaut ;
-- lecture, pause et retour au début sur la carte ;
-- déplacement manuel sur le profil d'altitude ;
-- Planifier verrouillé au nord ;
-- préférence NORD UP / TRK UP propre à Suivi ;
-- ajout continu de plusieurs points depuis la carte ;
-- altitude par défaut réglable par pas de 100 ft ;
-- localisation ponctuelle par le bouton Centrer sans création de trace ;
-- exports GPX et JSON ;
-- stockage et suppression des traces ;
-- compatibilité avec les anciennes traces.
+## Fonctions conservées
+
+- GPS Android natif précis ;
+- stockage, suppression et récupération des traces ;
+- export GPX et JSON ;
+- Replay des anciennes traces ;
+- route prévue superposée au vol réel ;
+- modes NORD UP et TRK UP ;
+- Suivi plein écran ;
+- bandeau cockpit ;
+- ajout continu de points dans Planifier ;
+- altitude par pas de 100 ft ;
+- localisation ponctuelle sans création de trace ;
+- signature Android et workflow GitHub Actions.
 
 ## Compatibilité et sécurité
 
 - aucun changement du service Android de suivi en arrière-plan ;
 - aucun changement des fichiers Java du GPS natif ;
-- signature et workflow GitHub Actions conservés ;
-- aucune nouvelle dépendance graphique ;
+- aucun changement du format des traces ;
+- aucune nouvelle dépendance ;
 - aucun service worker dans le build Android ;
-- dossier Android synchronisé inclus dans la livraison.
+- dossier Android synchronisé inclus dans la livraison ;
+- import GPX non inclus dans cette version.
 
 ## Version et identification du build
 
 ```text
 applicationId fr.capclair.app
-versionCode 15022
-versionName 15.2.2
+versionCode 15023
+versionName 15.2.3
 ```
 
 Le bandeau affiche :
 
 ```text
-CAP CLAIR DEV15.2.2 - SUIVI UX - build <hash court>
+CAP CLAIR DEV15.2.3 - SUIVI REC UX - build <hash court>
 ```
 
 Le hash court provient du commit GitHub Actions.
@@ -77,14 +90,12 @@ Le hash court provient du commit GitHub Actions.
 ## Contrôles réalisés
 
 ```text
-9 fichiers de tests
-28 tests réussis
+10 fichiers de tests
+32 tests réussis
 npm run version:check réussi
 npm run build:android réussi
 npx cap sync android réussi
 ```
-
-L'assemblage Gradle local nécessite le téléchargement de Gradle 8.14.3. Il doit être confirmé par le dernier run vert GitHub Actions lorsque l'environnement local ne dispose pas de cette distribution.
 
 Le dossier `android/app/src/main/assets/public/` ne doit jamais être modifié manuellement. Il est produit uniquement par `npm run build:android`, puis synchronisé par `npx cap sync android`.
 
@@ -93,21 +104,22 @@ Le dossier `android/app/src/main/assets/public/` ne doit jamais être modifié m
 1. Vider le dossier local Android en conservant uniquement `.git`.
 2. Copier le contenu complet de ce ZIP dans le dossier.
 3. Vérifier dans GitHub Desktop que la branche active est `main`.
-4. Utiliser le commit `DEV15.2.2 - Suivi UX et trace renforcée`.
+4. Utiliser le commit `DEV15.2.3 - Suivi REC et Replay paysage`.
 5. Pousser sur GitHub.
 6. Attendre le dernier run vert `Android Debug APK`.
-7. Télécharger uniquement l'artifact `cap-clair-dev15-2-2-debug-apk` de ce run.
-8. Installer l'APK et vérifier `DEV15.2.2` ainsi que le hash court avant tout diagnostic.
+7. Télécharger uniquement l'artifact `cap-clair-dev15-2-3-debug-apk` de ce run.
+8. Installer l'APK et vérifier `DEV15.2.3` ainsi que le hash court avant tout diagnostic.
 
 ## Tests téléphone prioritaires
 
-1. Vérifier le Replay en portrait, qui doit rester identique à la version validée.
-2. Vérifier en paysage que la carte est plus haute et que les quatre vitesses tiennent sur une ligne.
-3. Ouvrir Suivi avec le GPS arrêté et vérifier la bulle rouge `GPS ARRÊTÉ`.
-4. Démarrer le GPS et suivre le passage jaune puis vert avec affichage de la précision.
-5. Vérifier la lisibilité de la trace magenta sur OpenAIP puis OACI 1/500k.
-6. Vérifier l'écart route compact sur la carte.
-7. Vérifier que les données sous la carte restent lisibles sans panneaux surdimensionnés.
-8. Ouvrir puis refermer les détails GPS et trace.
-9. Passer en plein écran et confirmer que les commandes et le bandeau cockpit validés fonctionnent toujours.
-10. Enregistrer, sauvegarder, exporter et supprimer une trace pour confirmer les non-régressions.
+1. Appuyer sur Centrer avec l'enregistrement arrêté et vérifier `POSITION xx m`, sans trace créée.
+2. Vérifier qu'une position ancienne passe en jaune puis devient inactive.
+3. Vérifier l'absence de chevauchement avec OpenAIP / OACI 1/500k en portrait.
+4. Démarrer puis arrêter un enregistrement depuis l'écran normal.
+5. Passer en plein écran et vérifier le bouton Record sous le zoom arrière.
+6. Vérifier `REC hh:mm:ss` à côté de NORD UP / TRK UP.
+7. Arrêter depuis le plein écran, confirmer puis vérifier la sauvegarde.
+8. Ouvrir le Replay en paysage et vérifier que la carte occupe toute la hauteur gauche.
+9. Tester une trace longue dans le petit profil d'altitude à droite.
+10. Vérifier la distance à la fin exacte du Replay.
+11. Exporter GPX et JSON, supprimer la trace puis redémarrer l'application.

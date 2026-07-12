@@ -72,6 +72,8 @@ export function useGpsTracking(
   const [providerSelection, setProviderSelection] = useState<GpsProviderSelection>(() => createGpsProviderSelection());
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
+  const [recordingElapsedSec, setRecordingElapsedSec] = useState(0);
 
   const gpsWatch = useRef<GpsProviderWatch | null>(null);
   const simTimer = useRef<number | null>(null);
@@ -133,6 +135,7 @@ export function useGpsTracking(
     setLastAltitudeAccuracy(null);
     setLastSignalAtState(null);
     setLastSignalAgeSec(null);
+    setRecordingElapsedSec(0);
     lastSignalAt.current = null;
     lastLivePosition.current = null;
     lastTraceSampleAt.current = null;
@@ -293,6 +296,8 @@ export function useGpsTracking(
     setLocationError(null);
     resetTrackingData();
     startTime.current = Date.now();
+    setRecordingStartedAt(startTime.current);
+    setRecordingElapsedSec(0);
     sessionId.current = null;
     plannedRouteSnapshot.current = resumeExistingSession
       ? readPendingPlannedRoute() ?? createPlannedRouteSnapshot(route)
@@ -342,6 +347,7 @@ export function useGpsTracking(
     watch.sessionInfo?.then((info) => {
       sessionId.current = info.sessionId;
       startTime.current = info.startedAt;
+      setRecordingStartedAt(info.startedAt);
       if (info.notificationPermissionGranted === false) {
         setNotificationWarning('Notifications Android refusées : le GPS peut continuer, mais l’indicateur système sera moins visible.');
       }
@@ -366,6 +372,8 @@ export function useGpsTracking(
     setLocationError(null);
     resetTrackingData();
     startTime.current = Date.now();
+    setRecordingStartedAt(startTime.current);
+    setRecordingElapsedSec(0);
     sessionId.current = null;
     traceSource.current = 'simulation';
     plannedRouteSnapshot.current = createPlannedRouteSnapshot(route);
@@ -511,6 +519,24 @@ export function useGpsTracking(
     };
   }, []);
 
+  useEffect(() => {
+    const recordingStatus = status === 'requesting'
+      || status === 'active'
+      || status === 'degraded'
+      || status === 'frozen'
+      || status === 'simulating';
+
+    if (!recordingStatus || recordingStartedAt === null) return undefined;
+
+    const updateElapsed = () => {
+      setRecordingElapsedSec(Math.max(0, Math.floor((Date.now() - recordingStartedAt) / 1000)));
+    };
+
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [recordingStartedAt, status]);
+
   const requestCurrentPosition = (): Promise<GpsPosition | null> => {
     if (locatePromiseRef.current) return locatePromiseRef.current;
 
@@ -533,6 +559,10 @@ export function useGpsTracking(
         setCrossTrack(getProgressiveCrossTrackError(position, route.points, activeSegmentIndex.current));
         setLastAccuracy(position.precision);
         setLastAltitudeAccuracy(position.altitudeAccuracy);
+        const locatedAt = Date.now();
+        lastSignalAt.current = locatedAt;
+        setLastSignalAtState(locatedAt);
+        setLastSignalAgeSec(0);
         setLocationError(null);
         return position;
       })
@@ -578,6 +608,8 @@ export function useGpsTracking(
     nativeProviderPrepared: providerSelection.nativeProviderPrepared,
     locating,
     locationError,
+    recordingStartedAt,
+    recordingElapsedSec,
     requestCurrentPosition,
     startGps,
     startSimulation,

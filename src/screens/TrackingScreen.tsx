@@ -12,6 +12,7 @@ import type { GpsPosition } from '../domain/gps.types';
 import type { MapBaseLayer, MapOrientationMode } from '../mapEngine/mapTypes';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { hasSavableTrace } from '../services/traces/traceCollection';
+import { getGpsPositionUiState, getRecordingUiState } from '../services/gps/gpsUiState';
 
 interface TrackingScreenProps {
   route: NavRoute;
@@ -45,48 +46,6 @@ function statusTone(status: string): 'ok' | 'warn' | 'off' {
   return 'off';
 }
 
-
-interface GpsMapState {
-  tone: 'ok' | 'warn' | 'off';
-  label: string;
-  detail: string;
-}
-
-function gpsMapState(gps: GpsTrackingState): GpsMapState {
-  const accuracy = gps.lastAccuracy !== null && Number.isFinite(gps.lastAccuracy)
-    ? `${Math.round(gps.lastAccuracy)} m`
-    : null;
-  const age = gps.lastSignalAgeSec !== null ? `dernier fix ${gps.lastSignalAgeSec} s` : 'aucun fix récent';
-
-  if (gps.locating || gps.status === 'requesting') {
-    return { tone: 'warn', label: 'RECHERCHE GPS', detail: 'Acquisition de la position en cours' };
-  }
-  if (gps.status === 'simulating') {
-    return { tone: 'ok', label: 'SIMULATION', detail: 'Position simulée' };
-  }
-  if (gps.status === 'active') {
-    return { tone: 'ok', label: accuracy ? `GPS ${accuracy}` : 'GPS ACTIF', detail: accuracy ? `Précision horizontale ${accuracy}` : age };
-  }
-  if (gps.status === 'degraded') {
-    return { tone: 'warn', label: accuracy ? `GPS ${accuracy}` : 'GPS DÉGRADÉ', detail: accuracy ? `Précision horizontale ${accuracy}` : age };
-  }
-  if (gps.status === 'frozen') {
-    return { tone: 'warn', label: 'SIGNAL PERDU', detail: age };
-  }
-  if (gps.status === 'denied') {
-    return { tone: 'off', label: 'GPS REFUSÉ', detail: 'Autorisation de localisation refusée' };
-  }
-  if (gps.status === 'unavailable') {
-    return { tone: 'off', label: 'GPS PERDU', detail: age };
-  }
-  if (gps.status === 'saving') {
-    return { tone: 'warn', label: 'SAUVEGARDE', detail: 'Finalisation de la trace' };
-  }
-  if (gps.status === 'save-error') {
-    return { tone: 'warn', label: 'TRACE À SAUVER', detail: 'La sauvegarde doit être relancée' };
-  }
-  return { tone: 'off', label: 'GPS ARRÊTÉ', detail: 'Le suivi GPS est arrêté' };
-}
 
 function formatClock(date = new Date()): string {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -140,7 +99,8 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
   const [orientationMode, setOrientationMode] = useLocalStorageState<MapOrientationMode>('capclair.trackingMapOrientation.v1', 'north-up');
 
   const isRecording = gps.status === 'active' || gps.status === 'degraded' || gps.status === 'frozen' || gps.status === 'simulating';
-  const canStopTracking = isRecording || gps.status === 'simulation-complete' || gps.status === 'save-error';
+  const isAcquiring = gps.status === 'requesting';
+  const canStopTracking = isRecording || isAcquiring || gps.status === 'simulation-complete' || gps.status === 'save-error';
   const traceIsSavable = hasSavableTrace(gps.positions.length);
   const isSavedTrace = gps.status === 'stopped';
   const traceForMap = gps.positions;
@@ -157,7 +117,15 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
     ? (remainingDistanceNm / groundSpeed) * 60
     : null;
   const eta = eteMinutes !== null ? new Date(Date.now() + eteMinutes * 60000) : null;
-  const gpsMap = gpsMapState(gps);
+  const gpsMap = getGpsPositionUiState({
+    status: gps.status,
+    locating: gps.locating,
+    locationError: gps.locationError,
+    currentPosition: gps.currentPosition,
+    lastAccuracy: gps.lastAccuracy,
+    lastSignalAgeSec: gps.lastSignalAgeSec
+  });
+  const recordingUi = getRecordingUiState(gps.status, gps.recordingElapsedSec);
   const deviationSide = gps.crossTrack.side === 'sur_route' ? 'sur la route' : `à ${gps.crossTrack.side}`;
 
   useEffect(() => {
@@ -208,6 +176,14 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
           locating={gps.locating}
           locationError={gps.locationError}
           fullscreen={fullscreen}
+          recordingControlState={fullscreen ? recordingUi.controlState : undefined}
+          onRecordingControl={fullscreen
+            ? () => {
+                if (canStopTracking) setConfirmStop(true);
+                else if (gps.status !== 'saving') void gps.startGps();
+              }
+            : undefined}
+          recordingControlDisabled={gps.status === 'saving'}
         />
 
         {!fullscreen && gps.currentPosition && route.points.length >= 2 && (
@@ -252,10 +228,11 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
               <img src="/cap-clair-logo.svg" alt="" />
               <strong>CAP CLAIR</strong>
             </div>
-            <span className={`tracking-status-chip ${statusTone(gps.status)}`}>{statusLabel(gps.status)}</span>
+            <span className={`tracking-position-chip ${gpsMap.tone}`} title={gpsMap.detail}>{gpsMap.label}</span>
             <button type="button" className="tracking-orientation-chip" onClick={toggleOrientation}>
               {orientationMode === 'track-up' ? 'TRK UP' : 'NORD UP'}
             </button>
+            <span className={`tracking-recording-chip ${recordingUi.tone}`}>{recordingUi.label}</span>
           </div>
 
           <div className="tracking-fullscreen-hud" aria-label="Informations de navigation">
@@ -297,7 +274,7 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
             <strong>{metricNumber(groundSpeed, 'kt')}</strong>
           </div>
           <div className="tracking-live-metric">
-            <span>Altitude GPS</span>
+            <span>Alt GPS</span>
             <strong>{altitudeFt !== null ? `${altitudeFt.toLocaleString('fr-FR')} ft` : '--'}</strong>
           </div>
           <div className="tracking-live-metric">
@@ -352,12 +329,18 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
         )}
 
         <div className="tracking-actions tracking-actions-compact">
-          {!canStopTracking && gps.status !== 'saving' && <Button variant="primary" onClick={gps.startGps}>Démarrer GPS</Button>}
+          {!canStopTracking && gps.status !== 'saving' && <Button variant="primary" onClick={gps.startGps}>Démarrer l'enregistrement</Button>}
           {!canStopTracking && gps.status !== 'saving' && <Button variant="secondary" onClick={gps.startSimulation}>Tester simulation</Button>}
           {gps.status === 'saving' && <Button variant="secondary" disabled>Finalisation...</Button>}
           {canStopTracking && gps.status !== 'saving' && (
             <Button variant="danger" onClick={() => setConfirmStop(true)}>
-              {gps.status === 'save-error' ? 'Réessayer la sauvegarde' : traceIsSavable ? 'Arrêter et sauvegarder' : 'Arrêter le GPS'}
+              {gps.status === 'save-error'
+                ? 'Réessayer la sauvegarde'
+                : isAcquiring
+                  ? "Arrêter l'acquisition"
+                  : traceIsSavable
+                    ? 'Arrêter et sauvegarder'
+                    : "Arrêter l'enregistrement"}
             </Button>
           )}
         </div>
@@ -387,10 +370,12 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
 
       <ConfirmDialog
         open={confirmStop}
-        title="Arrêter le suivi ?"
+        title="Arrêter l’enregistrement ?"
         message={traceIsSavable
-          ? "La trace actuelle sera sauvegardée localement. Cette action met fin à l'enregistrement."
-          : "Le suivi GPS sera arrêté. La trace est trop courte pour être enregistrée."}
+          ? "La trace actuelle sera sauvegardée localement. Cette action met fin à l’enregistrement."
+          : isAcquiring
+            ? "L’acquisition GPS sera arrêtée. Aucune trace ne sera créée."
+            : "L’enregistrement sera arrêté. La trace est trop courte pour être sauvegardée."}
         confirmLabel="Arrêter"
         onCancel={() => setConfirmStop(false)}
         onConfirm={() => {
