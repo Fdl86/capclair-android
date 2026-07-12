@@ -3104,3 +3104,284 @@
 .route-actions-row-single .btn {
   width: 100%;
 }
+
+/* DEV15.2.2 - compact live tracking cockpit */
+.tracking-gps-map-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 9;
+  min-height: 34px;
+  max-width: 172px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(30, 49, 69, 0.92);
+  border-radius: 999px;
+  padding: 0 11px;
+  background: rgba(5, 11, 18, 0.9);
+  color: var(--text-2);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.tracking-gps-map-status i {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08);
+}
+
+.tracking-gps-map-status span {
+  overflow: hidden;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tracking-gps-map-status.ok {
+  border-color: rgba(61, 220, 132, 0.5);
+  color: var(--green);
+}
+
+.tracking-gps-map-status.warn {
+  border-color: rgba(255, 184, 77, 0.56);
+  color: var(--warn);
+}
+
+.tracking-gps-map-status.off {
+  border-color: rgba(255, 92, 92, 0.52);
+  color: var(--red);
+}
+
+.tracking-route-deviation-map {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 8;
+  min-width: 108px;
+  display: grid;
+  gap: 1px;
+  border: 1px solid rgba(30, 49, 69, 0.92);
+  border-radius: 11px;
+  padding: 7px 9px;
+  background: rgba(5, 11, 18, 0.88);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(9px);
+  pointer-events: none;
+}
+
+.tracking-route-deviation-map span {
+  color: var(--text-3);
+  font-size: 0.54rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tracking-route-deviation-map strong {
+  color: var(--cyan-soft);
+  font-size: 0.9rem;
+}
+
+.tracking-route-deviation-map small {
+  color: var(--text-3);
+  font-size: 0.55rem;
+}
+
+.tracking-live-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tracking-live-metric {
+  min-width: 0;
+  min-height: 68px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid rgba(30, 49, 69, 0.82);
+  border-radius: 13px;
+  padding: 8px 9px;
+  background: linear-gradient(180deg, rgba(12, 24, 37, 0.9), rgba(5, 11, 18, 0.8));
+}
+
+.tracking-live-metric span,
+.tracking-next-strip span {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tracking-live-metric strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: clamp(0.92rem, 4.2vw, 1.35rem);
+  font-weight: 950;
+  letter-spacing: -0.03em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tracking-live-metric.tracking-precision.ok strong { color: var(--green); }
+.tracking-live-metric.tracking-precision.warn strong { color: var(--warn); }
+.tracking-live-metric.tracking-precision.off strong { color: var(--red); }
+
+.tracking-next-strip {
+  display: grid;
+  grid-template-columns: 1.35fr repeat(3, minmax(0, 0.8fr));
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid rgba(30, 49, 69, 0.82);
+  border-radius: 13px;
+  background: rgba(7, 17, 28, 0.82);
+}
+
+.tracking-next-strip > div {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 10px;
+  border-left: 1px solid rgba(30, 49, 69, 0.66);
+}
+
+.tracking-next-strip > div:first-child {
+  border-left: 0;
+}
+
+.tracking-next-strip strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tracking-next-strip small {
+  color: var(--text-3);
+  font-size: 0.56rem;
+}
+
+.tracking-next-main strong {
+  color: var(--cyan-soft);
+}
+
+.tracking-actions-compact .btn {
+  min-height: 44px;
+}
+
+.tracking-alert-card {
+  padding: 10px 12px;
+}
+
+.tracking-diagnostics-panel {
+  overflow: hidden;
+  border: 1px solid rgba(30, 49, 69, 0.76);
+  border-radius: 13px;
+  background: rgba(7, 17, 28, 0.72);
+}
+
+.tracking-diagnostics-panel summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  color: var(--text-2);
+  font-size: 0.7rem;
+  font-weight: 850;
+  cursor: pointer;
+  list-style: none;
+}
+
+.tracking-diagnostics-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.tracking-diagnostics-panel summary::after {
+  content: '+';
+  color: var(--cyan-soft);
+  font-size: 1rem;
+}
+
+.tracking-diagnostics-panel[open] summary::after {
+  content: '−';
+}
+
+.tracking-diagnostics-panel summary strong {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.tracking-diagnostics-content {
+  display: grid;
+  gap: 6px;
+  padding: 0 12px 11px;
+}
+
+.tracking-diagnostics-content p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.tracking-diagnostic-badges {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.tracking-diagnostic-badges span {
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-3);
+  font-size: 0.56rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.tracking-diagnostic-badges .ok { color: var(--green); border-color: rgba(61, 220, 132, 0.38); }
+.tracking-diagnostic-badges .warn { color: var(--warn); border-color: rgba(255, 184, 77, 0.42); }
+.tracking-diagnostic-badges .rec { color: var(--trace-actual); border-color: rgba(255, 63, 164, 0.44); }
+.tracking-diagnostic-badges .off { color: var(--text-3); }
+
+@media (max-width: 390px) {
+  .tracking-live-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tracking-next-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tracking-next-strip > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid rgba(30, 49, 69, 0.66);
+  }
+
+  .tracking-next-strip > div:nth-child(4) {
+    border-top: 1px solid rgba(30, 49, 69, 0.66);
+  }
+}

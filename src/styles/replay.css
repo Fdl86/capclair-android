@@ -629,3 +629,125 @@
     min-height: 36px;
   }
 }
+
+/* DEV15.2.2 - landscape-only Replay density correction */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 760px) {
+  .replay-screen {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-rows: 46px 104px minmax(0, 1fr) 118px;
+    gap: 5px;
+  }
+
+  .replay-header {
+    min-height: 44px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .replay-metrics {
+    gap: 5px;
+  }
+
+  .replay-metrics > div {
+    min-height: 49px;
+    padding: 5px 7px;
+  }
+
+  .replay-metrics strong {
+    font-size: 0.92rem;
+  }
+
+  .replay-profile-card {
+    height: 118px;
+    padding-top: 6px;
+  }
+
+  .replay-profile-svg {
+    height: 90px;
+  }
+
+  .replay-speed-area {
+    align-content: start;
+  }
+
+  .replay-speed-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .replay-speed-grid button {
+    min-height: 36px;
+    padding: 0 4px;
+  }
+
+  .replay-playback-overlay {
+    min-height: 42px;
+    max-width: calc(100% - 164px);
+    bottom: 8px;
+  }
+
+  .replay-play-button {
+    width: 39px;
+    height: 39px;
+  }
+
+  .replay-play-icon {
+    border-top-width: 7px;
+    border-bottom-width: 7px;
+    border-left-width: 11px;
+  }
+
+  .replay-clock-inline strong {
+    font-size: 0.67rem;
+  }
+
+  .replay-clock-inline span,
+  .replay-restart {
+    font-size: 0.6rem;
+  }
+
+  .replay-map-modes {
+    top: 48px;
+  }
+
+  .replay-map-modes button {
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 0.58rem;
+  }
+
+  .replay-cross-track-map {
+    min-width: 98px;
+    padding: 5px 7px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .replay-screen {
+    grid-template-columns: minmax(0, 1fr) 286px;
+    grid-template-rows: 42px 96px minmax(0, 1fr) 108px;
+    padding-top: calc(4px + var(--safe-top));
+    padding-bottom: calc(4px + var(--safe-bottom));
+    gap: 4px;
+  }
+
+  .replay-header {
+    min-height: 40px;
+  }
+
+  .replay-profile-card {
+    height: 108px;
+  }
+
+  .replay-profile-svg {
+    height: 80px;
+  }
+
+  .replay-metrics > div {
+    min-height: 45px;
+  }
+
+  .replay-playback-overlay {
+    max-width: calc(100% - 150px);
+  }
+}

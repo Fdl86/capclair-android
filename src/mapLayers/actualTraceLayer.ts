@@ -43,9 +43,14 @@ export function createActualTraceLayer(positions: GpsPosition[] = []): ActualTra
 
   return new VectorLayer({
     source: new VectorSource({ features: [feature] }),
-    style: new Style({
-      stroke: new Stroke({ color: '#FF9A3D', width: 3, lineCap: 'round', lineJoin: 'round' })
-    }),
+    style: [
+      new Style({
+        stroke: new Stroke({ color: 'rgba(5, 11, 18, 0.82)', width: 7, lineCap: 'round', lineJoin: 'round' })
+      }),
+      new Style({
+        stroke: new Stroke({ color: '#FF3FA4', width: 4, lineCap: 'round', lineJoin: 'round' })
+      })
+    ],
     properties: { name: 'actual-trace' },
     renderBuffer: 32,
     zIndex: 21

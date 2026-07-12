@@ -167,3 +167,57 @@
     top: 54px;
   }
 }
+
+/* DEV15.2.2 - dense tracking sidebar in landscape */
+@media (orientation: landscape) and (max-height: 760px) {
+  .tracking-panel {
+    gap: 6px;
+  }
+
+  .tracking-live-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .tracking-live-metric {
+    min-height: 58px;
+    padding: 6px 8px;
+  }
+
+  .tracking-live-metric strong {
+    font-size: 1rem;
+  }
+
+  .tracking-next-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tracking-next-strip > div {
+    min-height: 48px;
+    padding: 6px 8px;
+  }
+
+  .tracking-next-strip > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid rgba(30, 49, 69, 0.66);
+  }
+
+  .tracking-next-strip > div:nth-child(4) {
+    border-top: 1px solid rgba(30, 49, 69, 0.66);
+  }
+
+  .tracking-actions-compact .btn {
+    min-height: 39px;
+    padding: 0 9px;
+    font-size: 0.68rem;
+  }
+
+  .tracking-diagnostics-panel summary {
+    min-height: 36px;
+  }
+
+  .tracking-gps-map-status {
+    top: 10px;
+    left: 10px;
+  }
+}

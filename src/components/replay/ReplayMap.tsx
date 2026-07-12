@@ -41,7 +41,10 @@ function createTraceLayer(): TraceLayer {
   feature.setId('replay-trace');
   return new VectorLayer({
     source: new VectorSource({ features: [feature] }),
-    style: new Style({ stroke: new Stroke({ color: '#FF9A3D', width: 4, lineCap: 'round', lineJoin: 'round' }) }),
+    style: [
+      new Style({ stroke: new Stroke({ color: 'rgba(5, 11, 18, 0.82)', width: 8, lineCap: 'round', lineJoin: 'round' }) }),
+      new Style({ stroke: new Stroke({ color: '#FF3FA4', width: 4.5, lineCap: 'round', lineJoin: 'round' }) })
+    ],
     properties: { name: 'replay-actual-trace' },
     renderBuffer: 48,
     zIndex: 32

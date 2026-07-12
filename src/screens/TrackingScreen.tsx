@@ -3,9 +3,6 @@ import type { NavPoint, NavRoute } from '../domain/navigation.types';
 import type { GpsTrackingState } from '../hooks/useGpsTracking';
 import { OpenLayersMap } from '../components/map/OpenLayersMap';
 import { MapLayerToggle } from '../components/map/MapLayerToggle';
-import { CockpitBadge } from '../components/cockpit/CockpitBadge';
-import { MetricCard } from '../components/cockpit/MetricCard';
-import { RouteDeviationGauge } from '../components/cockpit/RouteDeviationGauge';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Card } from '../components/ui/Card';
@@ -46,6 +43,49 @@ function statusTone(status: string): 'ok' | 'warn' | 'off' {
   if (status === 'active' || status === 'simulating' || status === 'stopped') return 'ok';
   if (status === 'degraded' || status === 'frozen' || status === 'requesting' || status === 'simulation-complete' || status === 'saving' || status === 'save-error') return 'warn';
   return 'off';
+}
+
+
+interface GpsMapState {
+  tone: 'ok' | 'warn' | 'off';
+  label: string;
+  detail: string;
+}
+
+function gpsMapState(gps: GpsTrackingState): GpsMapState {
+  const accuracy = gps.lastAccuracy !== null && Number.isFinite(gps.lastAccuracy)
+    ? `${Math.round(gps.lastAccuracy)} m`
+    : null;
+  const age = gps.lastSignalAgeSec !== null ? `dernier fix ${gps.lastSignalAgeSec} s` : 'aucun fix récent';
+
+  if (gps.locating || gps.status === 'requesting') {
+    return { tone: 'warn', label: 'RECHERCHE GPS', detail: 'Acquisition de la position en cours' };
+  }
+  if (gps.status === 'simulating') {
+    return { tone: 'ok', label: 'SIMULATION', detail: 'Position simulée' };
+  }
+  if (gps.status === 'active') {
+    return { tone: 'ok', label: accuracy ? `GPS ${accuracy}` : 'GPS ACTIF', detail: accuracy ? `Précision horizontale ${accuracy}` : age };
+  }
+  if (gps.status === 'degraded') {
+    return { tone: 'warn', label: accuracy ? `GPS ${accuracy}` : 'GPS DÉGRADÉ', detail: accuracy ? `Précision horizontale ${accuracy}` : age };
+  }
+  if (gps.status === 'frozen') {
+    return { tone: 'warn', label: 'SIGNAL PERDU', detail: age };
+  }
+  if (gps.status === 'denied') {
+    return { tone: 'off', label: 'GPS REFUSÉ', detail: 'Autorisation de localisation refusée' };
+  }
+  if (gps.status === 'unavailable') {
+    return { tone: 'off', label: 'GPS PERDU', detail: age };
+  }
+  if (gps.status === 'saving') {
+    return { tone: 'warn', label: 'SAUVEGARDE', detail: 'Finalisation de la trace' };
+  }
+  if (gps.status === 'save-error') {
+    return { tone: 'warn', label: 'TRACE À SAUVER', detail: 'La sauvegarde doit être relancée' };
+  }
+  return { tone: 'off', label: 'GPS ARRÊTÉ', detail: 'Le suivi GPS est arrêté' };
 }
 
 function formatClock(date = new Date()): string {
@@ -117,6 +157,8 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
     ? (remainingDistanceNm / groundSpeed) * 60
     : null;
   const eta = eteMinutes !== null ? new Date(Date.now() + eteMinutes * 60000) : null;
+  const gpsMap = gpsMapState(gps);
+  const deviationSide = gps.crossTrack.side === 'sur_route' ? 'sur la route' : `à ${gps.crossTrack.side}`;
 
   useEffect(() => {
     if (!fullscreen) return undefined;
@@ -146,6 +188,12 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
     <section className={`tracking-screen ${fullscreen ? 'is-fullscreen' : ''}`}>
       <div className="tracking-map-panel">
         <MapLayerToggle baseLayer={mapBaseLayer} onChange={onMapBaseLayerChange} />
+        {!fullscreen && (
+          <div className={`tracking-gps-map-status ${gpsMap.tone}`} title={gpsMap.detail} aria-label={`${gpsMap.label}. ${gpsMap.detail}`}>
+            <i aria-hidden="true" />
+            <span>{gpsMap.label}</span>
+          </div>
+        )}
         <OpenLayersMap
           route={route}
           trace={traceForMap}
@@ -161,6 +209,14 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
           locationError={gps.locationError}
           fullscreen={fullscreen}
         />
+
+        {!fullscreen && gps.currentPosition && route.points.length >= 2 && (
+          <div className="tracking-route-deviation-map" aria-label={`Écart route ${gps.crossTrack.distanceNm.toFixed(1)} mille nautique ${deviationSide}`}>
+            <span>Écart route</span>
+            <strong>{gps.crossTrack.distanceNm.toFixed(1).replace('.', ',')} NM</strong>
+            <small>{deviationSide}</small>
+          </div>
+        )}
 
         <div className="tracking-map-mode-controls" aria-label="Modes de la carte">
           <button
@@ -235,85 +291,67 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
       )}
 
       <aside className="tracking-panel">
-        <div className="cockpit-badges">
-          <CockpitBadge
-            label={statusLabel(gps.status)}
-            state={gps.status === 'active' || gps.status === 'simulating' || gps.status === 'stopped' ? 'ok' : gps.status === 'degraded' || gps.status === 'frozen' || gps.status === 'requesting' || gps.status === 'simulation-complete' || gps.status === 'saving' || gps.status === 'save-error' ? 'warn' : 'off'}
-          />
-          <CockpitBadge
-            label={isRecording ? 'Trace REC' : gps.status === 'simulation-complete' ? 'Trace à sauver' : gps.status === 'stopped-no-trace' ? 'Aucune trace' : 'Trace prête'}
-            state={isRecording ? 'rec' : gps.status === 'simulation-complete' ? 'warn' : 'off'}
-          />
-          <CockpitBadge label={wakeLockActive ? 'Écran actif' : isRecording ? 'Écran veille?' : 'Écran prêt'} state={wakeLockActive ? 'ok' : isRecording ? 'warn' : 'off'} />
+        <div className="tracking-live-grid" aria-label="Données GPS principales">
+          <div className="tracking-live-metric">
+            <span>Vitesse sol</span>
+            <strong>{metricNumber(groundSpeed, 'kt')}</strong>
+          </div>
+          <div className="tracking-live-metric">
+            <span>Altitude GPS</span>
+            <strong>{altitudeFt !== null ? `${altitudeFt.toLocaleString('fr-FR')} ft` : '--'}</strong>
+          </div>
+          <div className="tracking-live-metric">
+            <span>Route GPS</span>
+            <strong>{currentTrack !== null ? `${Math.round(currentTrack)}°` : '--'}</strong>
+          </div>
+          <div className={`tracking-live-metric tracking-precision ${gpsMap.tone}`}>
+            <span>Précision</span>
+            <strong>{gps.lastAccuracy !== null ? `${Math.round(gps.lastAccuracy)} m` : '--'}</strong>
+          </div>
         </div>
 
-        {(gps.status === 'requesting' || gps.lastAccuracy !== null || gps.lastSignalAgeSec !== null || isSavedTrace) && (
-          <Card className="gps-signal-card">
-            <strong>{gps.status === 'requesting' ? 'Recherche position GPS...' : isSavedTrace ? 'Trace sauvegardée' : statusLabel(gps.status)}</strong>
-            {isSavedTrace ? (
-              <p>
-                {gps.positions.length} points · {gps.distanceTravelledNm.toFixed(2).replace('.', ',')} NM · export disponible dans Mes traces.
-              </p>
-            ) : (
-              <p>
-                {gps.lastAccuracy !== null
-                  ? `Précision H ${Math.round(gps.lastAccuracy)} m${gps.lastAltitudeAccuracy !== null ? ` · V ${Math.round(gps.lastAltitudeAccuracy)} m` : ' · V inconnue'}${gps.lastSignalAgeSec !== null ? ` · dernier fix ${gps.lastSignalAgeSec} s` : ''}`
-                  : 'Acquisition haute précision en cours. Le premier fix peut prendre quelques secondes.'}
-              </p>
-            )}
-            <p className="gps-provider-line">
-              Source {gps.providerLabel} · seuil trace {gps.traceMaxSpeedKt} kt · {gps.nativeRuntime ? 'shell native' : 'web'}
-            </p>
-            {(isRecording || isSavedTrace) && (
-              <p className="gps-diagnostics">
-                Reçus {gps.diagnostics.rawReceived} · trace {gps.diagnostics.tracePoints} · précision {gps.diagnostics.rejectedPrecision} · saut {gps.diagnostics.rejectedSpeed} · gel {gps.diagnostics.gpsGaps} · reprise {gps.diagnostics.gpsResumptions} · alt. non fiable {gps.diagnostics.unreliableAltitude}
-              </p>
-            )}
-          </Card>
-        )}
-
-        <div className="tracking-metrics-top">
-          <MetricCard
-            label="Prochain point"
-            value={gps.nextPoint?.nom ?? '--'}
-            detail={gps.nextPointDistance !== null ? `${gps.nextPointDistance.toFixed(1).replace('.', ',')} NM` : '--'}
-            strong
-          />
-          <MetricCard label="Cap magnétique" value={magneticHeading !== null ? `${magneticHeading}°` : '--'} strong />
-          <MetricCard label="ETA" value={eta ? formatClock(eta) : '--'} detail={eteMinutes !== null ? `dans ${formatDuration(eteMinutes)}` : '--'} strong />
+        <div className="tracking-next-strip" aria-label="Prochaine étape">
+          <div className="tracking-next-main">
+            <span>Prochain point</span>
+            <strong>{gps.nextPoint?.nom ?? '--'}</strong>
+          </div>
+          <div>
+            <span>Distance</span>
+            <strong>{gps.nextPointDistance !== null ? `${gps.nextPointDistance.toFixed(1).replace('.', ',')} NM` : '--'}</strong>
+          </div>
+          <div>
+            <span>Cap mag</span>
+            <strong>{magneticHeading !== null ? `${magneticHeading}°` : '--'}</strong>
+          </div>
+          <div>
+            <span>ETA</span>
+            <strong>{eta ? formatClock(eta) : '--'}</strong>
+            <small>{eteMinutes !== null ? formatDuration(eteMinutes) : ''}</small>
+          </div>
         </div>
-
-        <RouteDeviationGauge result={gps.crossTrack} />
 
         {gps.notificationWarning && (
-          <Card className="gps-warning">
+          <Card className="gps-warning tracking-alert-card">
             <strong>Notification Android</strong>
             <p>{gps.notificationWarning}</p>
           </Card>
         )}
 
         {gps.noticeMessage && (
-          <Card className="gps-signal-card">
+          <Card className="gps-signal-card tracking-alert-card">
             <strong>Suivi</strong>
             <p>{gps.noticeMessage}</p>
           </Card>
         )}
 
         {gps.errorMessage && (
-          <Card className="gps-warning">
+          <Card className="gps-warning tracking-alert-card">
             <strong>État GPS</strong>
             <p>{gps.errorMessage}</p>
           </Card>
         )}
 
-        <div className="cockpit-value-grid">
-          <MetricCard label="GS" value={metricNumber(groundSpeed, 'kt')} />
-          <MetricCard label="ALT" value={altitudeFt !== null ? `${altitudeFt.toLocaleString('fr-FR')} ft` : '--'} />
-          <MetricCard label="TRK GPS" value={currentTrack !== null ? `${Math.round(currentTrack)}°` : '--'} />
-          <MetricCard label="ETE dest" value={eteMinutes !== null ? formatDuration(eteMinutes) : '--'} />
-        </div>
-
-        <div className="tracking-actions">
+        <div className="tracking-actions tracking-actions-compact">
           {!canStopTracking && gps.status !== 'saving' && <Button variant="primary" onClick={gps.startGps}>Démarrer GPS</Button>}
           {!canStopTracking && gps.status !== 'saving' && <Button variant="secondary" onClick={gps.startSimulation}>Tester simulation</Button>}
           {gps.status === 'saving' && <Button variant="secondary" disabled>Finalisation...</Button>}
@@ -323,6 +361,28 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
             </Button>
           )}
         </div>
+
+        <details className="tracking-diagnostics-panel">
+          <summary>
+            <span>Détails GPS et trace</span>
+            <strong>{statusLabel(gps.status)}</strong>
+          </summary>
+          <div className="tracking-diagnostics-content">
+            <div className="tracking-diagnostic-badges">
+              <span className={statusTone(gps.status)}>{statusLabel(gps.status)}</span>
+              <span className={isRecording ? 'rec' : 'off'}>{isRecording ? 'Trace REC' : isSavedTrace ? 'Trace sauvée' : 'Trace prête'}</span>
+              <span className={wakeLockActive ? 'ok' : isRecording ? 'warn' : 'off'}>{wakeLockActive ? 'Écran actif' : 'Écran prêt'}</span>
+            </div>
+            <p>{gpsMap.detail}</p>
+            <p>Source {gps.providerLabel} · seuil trace {gps.traceMaxSpeedKt} kt · {gps.nativeRuntime ? 'shell native' : 'web'}</p>
+            {(isRecording || isSavedTrace) && (
+              <p>Reçus {gps.diagnostics.rawReceived} · trace {gps.diagnostics.tracePoints} · précision {gps.diagnostics.rejectedPrecision} · saut {gps.diagnostics.rejectedSpeed} · gel {gps.diagnostics.gpsGaps} · reprise {gps.diagnostics.gpsResumptions} · alt. non fiable {gps.diagnostics.unreliableAltitude}</p>
+            )}
+            {isSavedTrace && (
+              <p>{gps.positions.length} points · {gps.distanceTravelledNm.toFixed(2).replace('.', ',')} NM · export disponible dans Mes traces.</p>
+            )}
+          </div>
+        </details>
       </aside>
 
       <ConfirmDialog
