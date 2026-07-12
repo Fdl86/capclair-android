@@ -8,6 +8,7 @@ interface MapControlsProps {
   onToggleOrientation?: () => void;
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  locating?: boolean;
 }
 
 function FullscreenIcon({ active }: { active: boolean }) {
@@ -38,7 +39,8 @@ export function MapControls({
   orientationMode,
   onToggleOrientation,
   fullscreen = false,
-  onToggleFullscreen
+  onToggleFullscreen,
+  locating = false
 }: MapControlsProps) {
   return (
     <div className={`map-controls ${onToggleOrientation || onToggleFullscreen ? 'map-controls-flight' : ''}`} aria-label="Contrôles carte">
@@ -54,7 +56,14 @@ export function MapControls({
         </button>
       )}
 
-      <button type="button" className="map-control-icon" onClick={onRecenter} aria-label="Recentrer la carte" title="Centrer sur l'avion">
+      <button
+        type="button"
+        className={`map-control-icon ${locating ? 'is-locating' : ''}`}
+        onClick={() => { void onRecenter(); }}
+        disabled={locating}
+        aria-label={locating ? 'Recherche de la position GPS' : 'Recentrer la carte'}
+        title={locating ? 'Recherche GPS...' : "Centrer sur l'avion"}
+      >
         <RecenterIcon />
       </button>
 

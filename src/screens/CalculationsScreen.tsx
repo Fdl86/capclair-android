@@ -188,9 +188,9 @@ export function CalculationsScreen({
               <div className="cockpit-stepper">
                 <span>Alt défaut</span>
                 <div>
-                  <button type="button" onClick={() => onSetDefaultAltitudeFt(route.profile.defaultAltitudeFt - 500)} aria-label="Réduire l'altitude">-</button>
+                  <button type="button" onClick={() => onSetDefaultAltitudeFt(route.profile.defaultAltitudeFt - 100)} aria-label="Réduire l'altitude">-</button>
                   <strong>{route.profile.defaultAltitudeFt}</strong>
-                  <button type="button" onClick={() => onSetDefaultAltitudeFt(route.profile.defaultAltitudeFt + 500)} aria-label="Augmenter l'altitude">+</button>
+                  <button type="button" onClick={() => onSetDefaultAltitudeFt(route.profile.defaultAltitudeFt + 100)} aria-label="Augmenter l'altitude">+</button>
                 </div>
               </div>
             </div>
@@ -255,7 +255,6 @@ export function CalculationsScreen({
           <Button variant="secondary" onClick={onBackPlanning}>Retour planification</Button>
           <div>
             <Button variant="secondary" onClick={onExport}>Exporter PDF</Button>
-            <Button variant="secondary" onClick={() => window.print()}>Imprimer</Button>
             <Button variant="primary" onClick={onValidate}>Valider et passer au suivi</Button>
           </div>
         </div>

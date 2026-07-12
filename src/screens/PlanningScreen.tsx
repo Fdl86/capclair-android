@@ -27,6 +27,9 @@ interface PlanningScreenProps {
   mapBaseLayer: MapBaseLayer;
   onMapBaseLayerChange: (value: MapBaseLayer) => void;
   aircraftPosition: GpsPosition | null;
+  onRequestPosition: () => Promise<GpsPosition | null>;
+  locating: boolean;
+  locationError: string | null;
 }
 
 function endpointCode(route: NavRoute, type: 'depart' | 'destination') {
@@ -67,7 +70,10 @@ export function PlanningScreen({
   onCalculations,
   mapBaseLayer,
   onMapBaseLayerChange,
-  aircraftPosition
+  aircraftPosition,
+  onRequestPosition,
+  locating,
+  locationError
 }: PlanningScreenProps) {
   const [addWaypointMode, setAddWaypointMode] = useState(false);
   const [departureInput, setDepartureInput] = useState(endpointCode(route, 'depart'));
@@ -131,7 +137,6 @@ export function PlanningScreen({
 
   const handleAddWaypoint = useCallback((longitude: number, latitude: number) => {
     onAddWaypointAt(longitude, latitude);
-    setAddWaypointMode(false);
   }, [onAddWaypointAt]);
 
   return (
@@ -147,7 +152,19 @@ export function PlanningScreen({
             baseLayer={mapBaseLayer}
             addWaypointMode={addWaypointMode}
             onMapAddWaypoint={handleAddWaypoint}
+            allowUserRotation={false}
+            onRequestPosition={onRequestPosition}
+            locating={locating}
+            locationError={locationError}
           />
+          <button
+            type="button"
+            className={`planning-map-add-button ${addWaypointMode ? 'active' : ''}`}
+            onClick={() => setAddWaypointMode((value) => !value)}
+            aria-pressed={addWaypointMode}
+          >
+            {addWaypointMode ? 'Terminer' : '+ Point'}
+          </button>
         </div>
 
         <Card className="route-panel compact-route-panel">
@@ -236,11 +253,8 @@ export function PlanningScreen({
 
           <div className="route-hint">{routeMessage}</div>
 
-          <div className="route-actions-row route-actions-row-two">
-            <Button variant={addWaypointMode ? 'danger' : 'primary'} onClick={() => setAddWaypointMode((value) => !value)}>
-              {addWaypointMode ? 'Annuler' : '+ Point'}
-            </Button>
-            <Button variant="secondary" onClick={onResetRoute}>Nouvelle nav</Button>
+          <div className="route-actions-row route-actions-row-single">
+            <Button variant="secondary" onClick={() => { setAddWaypointMode(false); onResetRoute(); }}>Nouvelle nav</Button>
           </div>
         </Card>
       </div>

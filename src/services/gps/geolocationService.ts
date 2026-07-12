@@ -32,6 +32,11 @@ export function toGpsPosition(position: GeolocationPosition): GpsPosition {
   };
 }
 
+export function isRecentGpsPosition(position: GpsPosition | null, now = Date.now(), maxAgeMs = 15_000): boolean {
+  if (!position || !Number.isFinite(position.timestamp)) return false;
+  return Math.abs(now - position.timestamp) <= maxAgeMs;
+}
+
 export function isPlausibleGpsPosition(position: GpsPosition): boolean {
   if (!Number.isFinite(position.latitude) || !Number.isFinite(position.longitude)) return false;
   if (position.latitude < -90 || position.latitude > 90) return false;

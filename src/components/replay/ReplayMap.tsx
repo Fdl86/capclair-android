@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Feature from 'ol/Feature';
 import Map from 'ol/Map';
+import { defaults as defaultInteractions } from 'ol/interaction/defaults';
 import View from 'ol/View';
 import LineString from 'ol/geom/LineString';
 import MultiLineString from 'ol/geom/MultiLineString';
@@ -119,8 +120,9 @@ export function ReplayMap({ model, aircraft, plannedRoute, showPlannedRoute, bas
     const map = new Map({
       target: elementRef.current,
       controls: [],
+      interactions: defaultInteractions({ altShiftDragRotate: false, pinchRotate: false }),
       layers: [freeLayer, oaciLayer, openAipLayer, routeLayer, waypointLayer, traceLayer, aircraftLayer],
-      view: new View({ center: initialMapCenter, zoom: initialMapZoom, minZoom: 6, maxZoom: 14, smoothResolutionConstraint: false })
+      view: new View({ center: initialMapCenter, zoom: initialMapZoom, minZoom: 6, maxZoom: 14, rotation: 0, smoothResolutionConstraint: false })
     });
     mapRef.current = map;
 
@@ -194,8 +196,18 @@ export function ReplayMap({ model, aircraft, plannedRoute, showPlannedRoute, bas
     const layer = aircraftLayerRef.current;
     if (!layer) return;
     updateAircraftLayer(layer, aircraft, map?.getView().getZoom());
-    if (followAircraft && aircraft && map) map.getView().setCenter(fromLonLat([aircraft.longitude, aircraft.latitude]));
+    if (!map) return;
+    map.getView().setRotation(0);
+    if (followAircraft && aircraft) {
+      const view = map.getView();
+      view.setCenter(fromLonLat([aircraft.longitude, aircraft.latitude]));
+      if ((view.getZoom() ?? 0) < 10) view.setZoom(10);
+    }
   }, [aircraft, followAircraft]);
+
+  useEffect(() => {
+    if (!followAircraft) fitTrace();
+  }, [followAircraft]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -210,14 +222,15 @@ export function ReplayMap({ model, aircraft, plannedRoute, showPlannedRoute, bas
     const map = mapRef.current;
     if (!map || model.points.length === 0) return;
     const coordinates = model.points.map((point) => fromLonLat([point.position.longitude, point.position.latitude]));
-    map.getView().fit(boundingExtent(coordinates), { padding: [54, 46, 54, 46], duration: 180, maxZoom: 12 });
+    map.getView().setRotation(0);
+    map.getView().fit(boundingExtent(coordinates), { padding: [54, 46, 86, 46], duration: 180, maxZoom: 12 });
   };
 
   const recenter = () => {
     const map = mapRef.current;
     if (!map) return;
     if (followAircraft && aircraft) {
-      map.getView().animate({ center: fromLonLat([aircraft.longitude, aircraft.latitude]), zoom: Math.max(10, map.getView().getZoom() ?? 10), duration: 160 });
+      map.getView().animate({ center: fromLonLat([aircraft.longitude, aircraft.latitude]), zoom: Math.max(10, map.getView().getZoom() ?? 10), rotation: 0, duration: 160 });
       return;
     }
     fitTrace();

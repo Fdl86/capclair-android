@@ -19,6 +19,7 @@ export interface NativeGpsPointPayload {
   precision?: number | null;
   provider?: string;
   native?: boolean;
+  cached?: boolean;
 }
 
 export interface NativeGpsStatusPayload {
@@ -53,6 +54,7 @@ export interface NativeRecoverableSessionPayload {
 
 interface NativeGpsNativePlugin {
   start(options?: GpsProviderStartOptions): Promise<NativeGpsStatusPayload & { started?: boolean }>;
+  getCurrentPosition(options?: { timeoutMs?: number }): Promise<NativeGpsPointPayload>;
   stop(): Promise<NativeGpsStatusPayload & { stopped?: boolean; points?: NativeGpsPointPayload[] }>;
   getStatus(): Promise<NativeGpsStatusPayload>;
   getPointsSince(options: { sinceTimestamp: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[] }>;
@@ -207,4 +209,44 @@ export async function getNativeGpsRuntimeStatus(): Promise<NativeGpsStatusPayloa
   } catch {
     return null;
   }
+}
+
+
+export async function requestCurrentGpsPosition(timeoutMs = 12000): Promise<GpsPosition> {
+  if (isAndroidNativeGpsAvailable()) {
+    const payload = await NativeGps.getCurrentPosition({ timeoutMs });
+    const position = nativePayloadToGpsPosition(payload);
+    if (!position) throw new Error('Position GPS Android invalide.');
+    return position;
+  }
+
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    throw new Error('Géolocalisation indisponible sur cet appareil.');
+  }
+
+  return new Promise<GpsPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          altitude: position.coords.altitude,
+          altitudeAccuracy: position.coords.altitudeAccuracy,
+          vitesse: position.coords.speed === null ? null : position.coords.speed * 1.94384,
+          track: position.coords.heading,
+          timestamp: position.timestamp,
+          precision: position.coords.accuracy
+        });
+      },
+      (error) => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Permission GPS refusée.'
+          : error.code === error.TIMEOUT
+            ? 'Délai de localisation GPS dépassé.'
+            : 'Position GPS indisponible.';
+        reject(new Error(message));
+      },
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 15000 }
+    );
+  });
 }

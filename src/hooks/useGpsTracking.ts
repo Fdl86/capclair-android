@@ -10,11 +10,12 @@ import {
   getMaxTraceSpeedKtForAircraft,
   isDegradedGpsPosition,
   isPlausibleGpsPosition,
+  isRecentGpsPosition,
   isReliableGpsAltitude
 } from '../services/gps/geolocationService';
 import { createGpsProviderSelection, type GpsProviderSelection } from '../services/gps/gpsProviderFactory';
 import type { GpsProviderWatch } from '../services/gps/gpsProvider';
-import { getNativeGpsRuntimeStatus } from '../services/gps/nativeGpsProvider';
+import { getNativeGpsRuntimeStatus, requestCurrentGpsPosition } from '../services/gps/nativeGpsProvider';
 import { markNativeSessionDeleted } from '../services/gps/nativeGpsSession';
 import { hasSavableTrace } from '../services/traces/traceCollection';
 import {
@@ -69,6 +70,8 @@ export function useGpsTracking(
   const [lastSignalAtState, setLastSignalAtState] = useState<number | null>(null);
   const [lastSignalAgeSec, setLastSignalAgeSec] = useState<number | null>(null);
   const [providerSelection, setProviderSelection] = useState<GpsProviderSelection>(() => createGpsProviderSelection());
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const gpsWatch = useRef<GpsProviderWatch | null>(null);
   const simTimer = useRef<number | null>(null);
@@ -89,6 +92,7 @@ export function useGpsTracking(
   const freezeRecorded = useRef(false);
   const [diagnostics, setDiagnostics] = useState<GpsTraceDiagnostics>(() => emptyDiagnostics(traceMaxSpeedKt));
   const diagnosticsRef = useRef<GpsTraceDiagnostics>(emptyDiagnostics(traceMaxSpeedKt));
+  const locatePromiseRef = useRef<Promise<GpsPosition | null> | null>(null);
 
   const bumpDiagnostics = (key: keyof Omit<GpsTraceDiagnostics, 'maxTraceSpeedKt'>) => {
     diagnosticsRef.current = { ...diagnosticsRef.current, [key]: diagnosticsRef.current[key] + 1 };
@@ -286,6 +290,7 @@ export function useGpsTracking(
     setErrorMessage(null);
     setNoticeMessage(null);
     setNotificationWarning(null);
+    setLocationError(null);
     resetTrackingData();
     startTime.current = Date.now();
     sessionId.current = null;
@@ -358,6 +363,7 @@ export function useGpsTracking(
     setErrorMessage(null);
     setNoticeMessage(null);
     setNotificationWarning(null);
+    setLocationError(null);
     resetTrackingData();
     startTime.current = Date.now();
     sessionId.current = null;
@@ -505,6 +511,45 @@ export function useGpsTracking(
     };
   }, []);
 
+  const requestCurrentPosition = (): Promise<GpsPosition | null> => {
+    if (locatePromiseRef.current) return locatePromiseRef.current;
+
+    const liveTracking = statusRef.current === 'active'
+      || statusRef.current === 'degraded'
+      || statusRef.current === 'frozen'
+      || statusRef.current === 'simulating';
+    const recentPosition = isRecentGpsPosition(currentPosition);
+    if (currentPosition && (liveTracking || recentPosition)) {
+      setLocationError(null);
+      return Promise.resolve(currentPosition);
+    }
+
+    setLocating(true);
+    setLocationError(null);
+    const request = requestCurrentGpsPosition(12_000)
+      .then((position) => {
+        if (!isPlausibleGpsPosition(position)) throw new Error('Position GPS trop imprécise pour le centrage.');
+        setCurrentPosition(position);
+        setCrossTrack(getProgressiveCrossTrackError(position, route.points, activeSegmentIndex.current));
+        setLastAccuracy(position.precision);
+        setLastAltitudeAccuracy(position.altitudeAccuracy);
+        setLocationError(null);
+        return position;
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Localisation GPS impossible.';
+        setLocationError(message);
+        return null;
+      })
+      .finally(() => {
+        setLocating(false);
+        locatePromiseRef.current = null;
+      });
+
+    locatePromiseRef.current = request;
+    return request;
+  };
+
   const nextPoint = route.points[crossTrack.segmentIndex + 1] ?? route.points.at(-1) ?? null;
   const nextPointDistance = currentPosition && nextPoint ? distanceNm(currentPosition, nextPoint) : null;
 
@@ -531,6 +576,9 @@ export function useGpsTracking(
     providerKind: providerSelection.provider.kind,
     nativeRuntime: providerSelection.nativeRuntime,
     nativeProviderPrepared: providerSelection.nativeProviderPrepared,
+    locating,
+    locationError,
+    requestCurrentPosition,
     startGps,
     startSimulation,
     stopAndSave

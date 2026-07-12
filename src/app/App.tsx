@@ -106,6 +106,9 @@ export function App() {
           mapBaseLayer={mapBaseLayer}
           onMapBaseLayerChange={setMapBaseLayer}
           aircraftPosition={gpsState.currentPosition}
+          onRequestPosition={gpsState.requestCurrentPosition}
+          locating={gpsState.locating}
+          locationError={gpsState.locationError}
         />
       )}
       {currentScreen === 'calculations' && (

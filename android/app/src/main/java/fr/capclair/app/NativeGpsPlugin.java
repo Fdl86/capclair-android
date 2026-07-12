@@ -1,9 +1,16 @@
 package fr.capclair.app;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -23,6 +30,11 @@ import org.json.JSONArray;
 )
 public class NativeGpsPlugin extends Plugin {
     private PluginCall pendingStartCall;
+    private PluginCall pendingPositionCall;
+    private LocationManager oneShotLocationManager;
+    private LocationListener oneShotLocationListener;
+    private Handler oneShotHandler;
+    private Runnable oneShotTimeout;
 
     @Override
     public void load() {
@@ -56,6 +68,31 @@ public class NativeGpsPlugin extends Plugin {
     @PermissionCallback
     public void notificationPermissionCallback(PluginCall call) {
         startService(call);
+    }
+
+
+    @PluginMethod
+    public void getCurrentPosition(PluginCall call) {
+        if (pendingPositionCall != null) {
+            call.reject("Une localisation GPS ponctuelle est déjà en cours.", "busy");
+            return;
+        }
+        pendingPositionCall = call;
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            requestPermissionForAlias("location", call, "currentPositionPermissionCallback");
+            return;
+        }
+        startOneShotLocation(call);
+    }
+
+    @PermissionCallback
+    public void currentPositionPermissionCallback(PluginCall call) {
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            pendingPositionCall = null;
+            call.reject("Permission GPS Android refusée.", "denied");
+            return;
+        }
+        startOneShotLocation(call);
     }
 
     @PluginMethod
@@ -109,6 +146,119 @@ public class NativeGpsPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("deleted", deleted);
         call.resolve(result);
+    }
+
+
+    private void startOneShotLocation(PluginCall call) {
+        LocationManager manager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+        if (manager == null) {
+            rejectOneShot(call, "LocationManager Android indisponible.", "unavailable");
+            return;
+        }
+
+        String provider = chooseOneShotProvider(manager);
+        if (provider == null) {
+            rejectOneShot(call, "Aucun provider GPS Android actif.", "unavailable");
+            return;
+        }
+
+        Long requestedTimeout = call.getLong("timeoutMs", 12000L);
+        long timeoutMs = requestedTimeout == null ? 12000L : Math.max(3000L, Math.min(20000L, requestedTimeout));
+        Location fallbackLocation = null;
+        try {
+            fallbackLocation = manager.getLastKnownLocation(provider);
+        } catch (SecurityException ignored) {}
+        final Location cachedFallback = fallbackLocation;
+
+        oneShotLocationManager = manager;
+        oneShotHandler = new Handler(Looper.getMainLooper());
+        oneShotLocationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                resolveOneShot(location, false);
+            }
+
+            @Override public void onProviderDisabled(String providerName) {}
+            @Override public void onProviderEnabled(String providerName) {}
+            @Override public void onStatusChanged(String providerName, int status, Bundle extras) {}
+        };
+        oneShotTimeout = () -> {
+            if (isUsableCachedLocation(cachedFallback)) {
+                resolveOneShot(cachedFallback, true);
+            } else {
+                rejectOneShot(pendingPositionCall, "Délai de localisation GPS dépassé.", "timeout");
+            }
+        };
+
+        try {
+            manager.requestSingleUpdate(provider, oneShotLocationListener, Looper.getMainLooper());
+            oneShotHandler.postDelayed(oneShotTimeout, timeoutMs);
+        } catch (SecurityException error) {
+            rejectOneShot(call, "Permission GPS Android refusée.", "denied");
+        } catch (RuntimeException error) {
+            rejectOneShot(call, error.getMessage() == null ? "Localisation GPS Android impossible." : error.getMessage(), "unavailable");
+        }
+    }
+
+    private boolean isUsableCachedLocation(Location location) {
+        if (location == null) return false;
+        long ageMs = Math.abs(System.currentTimeMillis() - location.getTime());
+        boolean accurateEnough = !location.hasAccuracy() || location.getAccuracy() <= 150f;
+        return ageMs <= 30000L && accurateEnough;
+    }
+
+    private String chooseOneShotProvider(LocationManager manager) {
+        try {
+            if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) return LocationManager.GPS_PROVIDER;
+            if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) return LocationManager.NETWORK_PROVIDER;
+        } catch (RuntimeException ignored) {}
+        return null;
+    }
+
+    private void resolveOneShot(Location location, boolean cached) {
+        PluginCall call = pendingPositionCall;
+        if (call == null) return;
+        clearOneShotListener();
+        JSObject point = toPoint(location);
+        point.put("cached", cached);
+        pendingPositionCall = null;
+        call.resolve(point);
+    }
+
+    private void rejectOneShot(PluginCall call, String message, String code) {
+        clearOneShotListener();
+        pendingPositionCall = null;
+        if (call != null) call.reject(message, code);
+    }
+
+    private void clearOneShotListener() {
+        if (oneShotHandler != null && oneShotTimeout != null) oneShotHandler.removeCallbacks(oneShotTimeout);
+        if (oneShotLocationManager != null && oneShotLocationListener != null) {
+            try { oneShotLocationManager.removeUpdates(oneShotLocationListener); } catch (SecurityException ignored) {}
+        }
+        oneShotLocationManager = null;
+        oneShotLocationListener = null;
+        oneShotHandler = null;
+        oneShotTimeout = null;
+    }
+
+    private JSObject toPoint(Location location) {
+        JSObject point = new JSObject();
+        point.put("latitude", location.getLatitude());
+        point.put("longitude", location.getLongitude());
+        point.put("altitude", location.hasAltitude() ? location.getAltitude() : null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
+            point.put("altitudeAccuracy", location.getVerticalAccuracyMeters());
+        } else {
+            point.put("altitudeAccuracy", null);
+        }
+        point.put("vitesse", location.hasSpeed() ? location.getSpeed() * 1.94384 : null);
+        point.put("track", location.hasBearing() ? location.getBearing() : null);
+        point.put("timestamp", location.getTime() > 0 ? location.getTime() : System.currentTimeMillis());
+        point.put("precision", location.hasAccuracy() ? location.getAccuracy() : null);
+        point.put("provider", location.getProvider());
+        point.put("native", true);
+        return point;
     }
 
     private void requestNotificationThenStart(PluginCall call) {

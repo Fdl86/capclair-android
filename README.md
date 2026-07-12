@@ -1,73 +1,74 @@
-# CAP CLAIR DEV15.2.0 - GPX REPLAY
+# CAP CLAIR DEV15.2.1 - REPLAY UX
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.2.0 ajoute un module de Replay / Débrief aux traces sauvegardées, sans modifier le GPS natif, le filtrage, le mode TRK UP, le plein écran, la signature ni le stockage validé de DEV15.1.5.
+DEV15.2.1 améliore l'ergonomie du Replay, verrouille correctement les orientations de carte, facilite la création des routes et ajoute une localisation GPS ponctuelle pour le bouton Centrer, sans démarrer le service de suivi ni créer de trace.
 
-## Replay et débrief
+## Replay
 
-- ouverture directe d'une trace depuis `Mes traces` ;
-- lecture, pause, retour au début et vitesses x1, x5, x10 et x20 ;
-- déplacement manuel depuis le profil d'altitude ou le curseur temporel ;
-- carte OpenAIP ou OACI 1/500k ;
-- trace réelle ambre et route prévue cyan ;
-- avion Evektor V4 orienté uniquement depuis la trajectoire ;
-- heure, vitesse sol, altitude GPS, distance et écart à la route prévue ;
-- portrait et paysage ;
-- chronologie compressée : les coupures GPS ne créent ni attente ni fausse ligne droite.
+- bouton `Replay` depuis `Mes traces` ;
+- suivi de l'avion activé par défaut ;
+- lecture et pause directement sur la carte ;
+- temps courant, durée totale et retour au début dans une commande compacte ;
+- suppression du curseur temporel redondant ;
+- déplacement manuel conservé sur le profil d'altitude ;
+- vitesses x1, x5, x10 et x20 ;
+- carte plus grande en portrait et en paysage ;
+- profil d'altitude plus compact ;
+- écart à la route affiché uniquement sur la carte ;
+- Replay verrouillé en nord en haut ;
+- route prévue cyan, trace réelle ambre et coupures GPS conservées.
 
-## Route prévue
+## Planification et cartes
 
-- un instantané minimal de la route est figé au démarrage du suivi ;
-- modifier ensuite l'onglet `Planifier` ne change pas le débrief historique ;
-- le champ `plannedRoute` est optionnel et conserve la compatibilité des anciennes traces ;
-- les traces antérieures restent rejouables sans superposition de route ;
-- la reprise d'une session native réutilise l'instantané temporaire lorsqu'il est disponible.
+- écran Planifier verrouillé à 0 degré ;
+- mode Suivi TRK UP conservé indépendamment lors des changements d'écran ;
+- rotation tactile désactivée en TRK UP ;
+- rotation tactile autorisée en NORD UP dans Suivi ;
+- bouton flottant `+ Point` sur la carte ;
+- ajout continu de plusieurs points jusqu'au bouton `Terminer` ;
+- suppression des points toujours disponible dans la liste ;
+- altitude par défaut réglable par pas de 100 ft ;
+- bouton Imprimer supprimé ;
+- bouton Exporter PDF conservé pour le futur module dédié.
 
-## Compatibilité et optimisation
+## Localisation ponctuelle
 
-- aucune nouvelle dépendance graphique ;
-- profil SVG décimé selon la largeur disponible ;
-- marqueur OpenLayers mis à jour impérativement à cadence limitée ;
-- segmentation à 12 secondes et prise en charge des limites explicites ;
-- vitesse et route recalculées uniquement en secours ;
-- altitude legacy conservée si la précision verticale est inconnue ;
-- distance des coupures exclue du débrief ;
-- module Replay chargé à la demande.
+- le bouton Centrer utilise une position récente si elle existe ;
+- en suivi actif, la position courante est réutilisée ;
+- sinon, une acquisition Android native ponctuelle est demandée ;
+- aucun service de suivi n'est lancé ;
+- aucune session, aucun point de trace et aucune notification persistante ne sont créés ;
+- repli web disponible hors Android natif ;
+- délai maximal et message d'erreur gérés dans la carte.
+
+## Compatibilité et sécurité
+
+- stockage des traces existant inchangé ;
+- exports GPX et JSON inchangés ;
+- service Android de suivi en arrière-plan inchangé ;
+- signature et workflow GitHub Actions conservés ;
+- anciennes traces compatibles ;
+- aucune nouvelle dépendance graphique lourde ;
+- aucun service worker dans le build Android.
 
 ## Version et identification du build
 
 ```text
 applicationId fr.capclair.app
-versionCode 15020
-versionName 15.2.0
+versionCode 15021
+versionName 15.2.1
 ```
 
 Le bandeau affiche :
 
 ```text
-CAP CLAIR DEV15.2.0 - GPX REPLAY - build <hash court>
+CAP CLAIR DEV15.2.1 - REPLAY UX - build <hash court>
 ```
 
-Le hash court provient du commit GitHub Actions. Il permet de vérifier immédiatement que l'appareil exécute bien l'APK du dernier run.
+Le hash court provient du commit GitHub Actions.
 
-## Versionnement automatisé
-
-```bash
-npm run version:bump -- 15.2.1 "NOM DE VERSION"
-npm run version:check
-```
-
-Le script met à jour :
-
-- `package.json` ;
-- `package-lock.json` ;
-- `android/app/build.gradle` ;
-- `src/app/version.ts` ;
-- `index.html` ;
-- le nom de l'artifact GitHub Actions.
-
-## Scripts
+## Scripts de contrôle
 
 ```bash
 npm ci
@@ -77,25 +78,29 @@ npm run build:android
 npx cap sync android
 ```
 
-Le dossier `android/app/src/main/assets/public/` ne doit jamais être modifié manuellement. Il est produit uniquement par le build Vite natif puis `cap sync`.
+Le dossier `android/app/src/main/assets/public/` ne doit jamais être modifié manuellement. Il est produit uniquement par le build Vite natif puis `cap sync android`.
 
 ## Livraison APK
 
-1. Pousser le projet sur `main` dans `capclair-android`.
-2. Attendre le dernier run vert `Android Debug APK`.
-3. Télécharger uniquement l'artifact du dernier run : `cap-clair-dev15-2-0-debug-apk`.
-4. Installer l'APK par-dessus DEV15.1.5. Le `versionCode 15020` autorise la mise à jour avec la même signature CI.
-5. Vérifier dans le bandeau : `DEV15.2.0` et le hash court du commit attendu.
-6. Si la version affichée ne correspond pas, ne pas déboguer le code : vérifier l'artifact et l'installation.
+1. Vider le dossier local de la branche Android en conservant uniquement `.git`.
+2. Copier le contenu complet de ce ZIP dans le dossier.
+3. Vérifier les changements dans GitHub Desktop et pousser sur `main`.
+4. Attendre le dernier run vert `Android Debug APK`.
+5. Télécharger uniquement l'artifact `cap-clair-dev15-2-1-debug-apk` du dernier run.
+6. Installer l'APK puis vérifier dans le bandeau `DEV15.2.1` et le hash court attendu.
+7. Ne diagnostiquer aucune anomalie avant cette vérification de version.
 
 ## Tests téléphone prioritaires
 
-1. Ouvrir une ancienne trace et vérifier carte, lecture, curseur et profil.
-2. Ouvrir une trace DEV15.2.0 et afficher/masquer la route prévue.
-3. Tester OpenAIP puis OACI 1/500k pendant la lecture.
-4. Tester x1, x5, x10, x20, pause, retour au début et déplacement manuel.
-5. Faire pivoter le téléphone et vérifier le paysage sans perte de position.
-6. Vérifier une coupure GPS : aucune ligne fictive et saut instantané avec message.
-7. Enregistrer puis supprimer une trace et confirmer les comportements validés de DEV15.1.5.
-8. Vérifier le plein écran Suivi et NORD UP / TRK UP.
-9. Vérifier que l'empreinte SHA-256 de `apk-signature.txt` reste inchangée.
+1. Ouvrir une ancienne trace, lancer Replay et vérifier le suivi avion par défaut.
+2. Tester lecture, pause, retour au début, x1, x5, x10 et x20.
+3. Déplacer le curseur directement sur le profil d'altitude.
+4. Tester portrait et paysage sans perte de position.
+5. Vérifier que Planifier reste strictement au nord.
+6. Sélectionner TRK UP dans Suivi, ouvrir Planifier, puis revenir dans Suivi et confirmer que TRK UP est conservé.
+7. En NORD UP dans Suivi, vérifier que la carte peut être tournée manuellement.
+8. En TRK UP, vérifier que la rotation manuelle est bloquée.
+9. Dans Planifier, activer `+ Point`, ajouter plusieurs points sans quitter le mode, puis appuyer sur `Terminer`.
+10. Avec le GPS de suivi arrêté, appuyer sur Centrer dans Planifier puis dans Suivi et confirmer qu'aucune trace parasite n'est créée.
+11. Vérifier les pas de 100 ft sur l'altitude par défaut.
+12. Enregistrer, exporter puis supprimer une trace pour confirmer les non-régressions de DEV15.1.5.

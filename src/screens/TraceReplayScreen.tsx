@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Trace } from '../domain/trace.types';
 import type { MapBaseLayer } from '../mapEngine/mapTypes';
 import { AltitudeProfile } from '../components/replay/AltitudeProfile';
-import { ReplayControls } from '../components/replay/ReplayControls';
+import { ReplayPlaybackOverlay, ReplaySpeedControls } from '../components/replay/ReplayControls';
 import { ReplayMap } from '../components/replay/ReplayMap';
 import { MapLayerToggle } from '../components/map/MapLayerToggle';
 import { useTraceReplay } from '../hooks/useTraceReplay';
@@ -33,7 +33,7 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
   const replay = useTraceReplay(model);
   const hasPlannedRoute = (trace.plannedRoute?.points.length ?? 0) >= 2;
   const [showPlannedRoute, setShowPlannedRoute] = useState(hasPlannedRoute);
-  const [followAircraft, setFollowAircraft] = useState(false);
+  const [followAircraft, setFollowAircraft] = useState(true);
   const plannedPoints = trace.plannedRoute?.points ?? [];
   const crossTrack = replay.sample && hasPlannedRoute ? getCrossTrackError(replay.sample.position, plannedPoints) : null;
   const traceDate = new Date(trace.startedAt ?? trace.date);
@@ -46,7 +46,7 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
       <section className="replay-screen replay-unavailable">
         <header className="replay-header">
           <button type="button" className="replay-back" onClick={onBack} aria-label="Retour aux traces">‹</button>
-          <div><span>Débrief vol</span><strong>{trace.routeName}</strong></div>
+          <div><span>Replay</span><strong>{trace.routeName}</strong></div>
         </header>
         <div className="replay-empty">
           <strong>Replay indisponible</strong>
@@ -62,7 +62,7 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
       <header className="replay-header">
         <button type="button" className="replay-back" onClick={onBack} aria-label="Retour aux traces">‹</button>
         <div className="replay-title">
-          <span>Débrief vol</span>
+          <span>Replay</span>
           <strong>{trace.routeName}</strong>
         </div>
         <div className="replay-date">
@@ -86,6 +86,7 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
             className={showPlannedRoute ? 'active' : ''}
             disabled={!hasPlannedRoute}
             aria-pressed={showPlannedRoute}
+            title={hasPlannedRoute ? 'Afficher ou masquer la route prévue' : 'Route prévue non enregistrée pour cette trace'}
             onClick={() => setShowPlannedRoute((current) => !current)}
           >
             <i /> Route prévue
@@ -111,8 +112,16 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
           <div className="replay-cross-track-map">
             <span>Écart route</span>
             <strong>{crossTrack.distanceNm.toFixed(1).replace('.', ',')} NM</strong>
+            <small>{crossTrack.side === 'gauche' ? 'à gauche' : crossTrack.side === 'droite' ? 'à droite' : 'sur la route'}</small>
           </div>
         )}
+        <ReplayPlaybackOverlay
+          activeTimeMs={replay.activeTimeMs}
+          totalTimeMs={model.totalActiveTimeMs}
+          playing={replay.playing}
+          onTogglePlayback={replay.togglePlayback}
+          onRestart={replay.restart}
+        />
         {replay.gapNoticeMs !== null && (
           <div className="replay-gap-notice">Coupure GPS · {formatGap(replay.gapNoticeMs)} ignorée</div>
         )}
@@ -120,32 +129,10 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
 
       <AltitudeProfile model={model} sample={replay.sample} onSeekDistance={replay.seekDistance} />
 
-      <aside className="replay-control-panel">
-        {hasPlannedRoute ? (
-          <div className="replay-route-debrief">
-            <span>Écart à la route prévue</span>
-            <strong>{crossTrack ? `${crossTrack.distanceNm.toFixed(1).replace('.', ',')} NM` : '--'}</strong>
-            <small>{crossTrack?.side === 'gauche' ? 'à gauche de la route' : crossTrack?.side === 'droite' ? 'à droite de la route' : 'sur la route'}</small>
-          </div>
-        ) : (
-          <div className="replay-route-debrief unavailable">
-            <span>Route prévue</span>
-            <strong>Non enregistrée</strong>
-            <small>Trace antérieure au module Replay.</small>
-          </div>
-        )}
-        <ReplayControls
-          activeTimeMs={replay.activeTimeMs}
-          totalTimeMs={model.totalActiveTimeMs}
-          playing={replay.playing}
-          speed={replay.speed}
-          onTogglePlayback={replay.togglePlayback}
-          onRestart={replay.restart}
-          onSeek={replay.seek}
-          onSpeedChange={replay.changeSpeed}
-        />
+      <div className="replay-speed-area">
+        <ReplaySpeedControls speed={replay.speed} onSpeedChange={replay.changeSpeed} />
         {model.discardedPointCount > 0 && <p className="replay-data-warning">{model.discardedPointCount} point(s) invalide(s) ignoré(s).</p>}
-      </aside>
+      </div>
     </section>
   );
 }

@@ -155,6 +155,10 @@ export function TrackingScreen({ route, mapBaseLayer, onMapBaseLayerChange, gps,
           baseLayer={mapBaseLayer}
           followAircraft={isRecording}
           orientationMode={orientationMode}
+          allowUserRotation={orientationMode === 'north-up'}
+          onRequestPosition={gps.requestCurrentPosition}
+          locating={gps.locating}
+          locationError={gps.locationError}
           fullscreen={fullscreen}
         />
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GpsPosition } from '../../../domain/gps.types';
-import { classifyGpsPosition, getMaxTraceSpeedKtForAircraft } from '../geolocationService';
+import { classifyGpsPosition, getMaxTraceSpeedKtForAircraft, isRecentGpsPosition } from '../geolocationService';
 
 const base: GpsPosition = {
   latitude: 46,
@@ -21,5 +21,13 @@ describe('GPS plausibility', () => {
 
   it('uses the C150 hard limit', () => {
     expect(getMaxTraceSpeedKtForAircraft({ id: 'c150', model: 'Cessna 150', label: 'C150', cruiseTasKt: 95 })).toBe(145);
+  });
+
+  it('reuses a recent position for map centering', () => {
+    expect(isRecentGpsPosition({ ...base, timestamp: 1_000_000 }, 1_012_000)).toBe(true);
+  });
+
+  it('requests a new position when the cached fix is stale', () => {
+    expect(isRecentGpsPosition({ ...base, timestamp: 1_000_000 }, 1_030_000)).toBe(false);
   });
 });

@@ -47,7 +47,7 @@ export function TraceListItem({ trace, replayDisabled, onOpenReplay, onDelete }:
         <div><dt>Points</dt><dd>{trace.positions.length}</dd></div>
       </dl>
       <div className="trace-actions">
-        <Button variant="primary" disabled={replayDisabled || isExporting} onClick={() => onOpenReplay(trace.id)} title={replayDisabled ? 'Arrêtez le suivi GPS pour lancer le débrief.' : 'Ouvrir le débrief'}>Débriefer</Button>
+        <Button variant="primary" disabled={replayDisabled || isExporting} onClick={() => onOpenReplay(trace.id)} title={replayDisabled ? 'Arrêtez le suivi GPS pour lancer le replay.' : 'Ouvrir le replay'}>Replay</Button>
         <Button variant="secondary" disabled={isExporting} onClick={() => runExport('gpx')}>Exporter GPX</Button>
         <Button variant="ghost" disabled={isExporting} onClick={() => runExport('json')}>JSON secours</Button>
         <Button variant="ghost" disabled={isExporting} onClick={() => onDelete(trace.id)}>Supprimer</Button>

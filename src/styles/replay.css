@@ -15,7 +15,7 @@
 .replay-screen {
   min-height: 100vh;
   min-height: 100dvh;
-  padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(10px + var(--safe-left));
+  padding: calc(8px + var(--safe-top)) calc(8px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left));
   display: grid;
   grid-template-areas:
     "header"
@@ -23,22 +23,22 @@
     "map"
     "profile"
     "controls";
-  grid-template-rows: auto auto minmax(320px, 45dvh) auto auto;
-  gap: 10px;
+  grid-template-rows: auto auto minmax(370px, 51dvh) auto auto;
+  gap: 8px;
   background: var(--bg);
 }
 
 .replay-header {
   grid-area: header;
   min-width: 0;
-  min-height: 58px;
+  min-height: 56px;
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(30, 49, 69, 0.76);
   border-radius: 15px;
-  padding: 7px 10px;
+  padding: 6px 10px;
   background: rgba(7, 17, 28, 0.94);
 }
 
@@ -63,7 +63,6 @@
 
 .replay-title span,
 .replay-metrics span,
-.replay-route-debrief span,
 .replay-profile-heading span {
   color: var(--text-3);
   font-size: 0.62rem;
@@ -98,25 +97,25 @@
   grid-area: metrics;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  gap: 6px;
 }
 
 .replay-metrics > div {
   min-width: 0;
-  min-height: 68px;
+  min-height: 64px;
   display: grid;
   align-content: center;
-  gap: 5px;
+  gap: 4px;
   border: 1px solid var(--border);
   border-radius: 13px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   background: var(--surface);
 }
 
 .replay-metrics strong {
   overflow: hidden;
   color: var(--text);
-  font-size: clamp(0.86rem, 3.5vw, 1.2rem);
+  font-size: clamp(0.84rem, 3.4vw, 1.16rem);
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -144,9 +143,17 @@
   inset: 0;
 }
 
+.replay-map-panel .map-layer-toggle span {
+  display: none;
+}
+
+.replay-map-panel .map-layer-toggle {
+  top: 10px;
+}
+
 .replay-map-modes {
   position: absolute;
-  top: 54px;
+  top: 53px;
   left: 10px;
   right: 10px;
   z-index: 7;
@@ -157,7 +164,7 @@
 }
 
 .replay-map-modes button {
-  min-height: 30px;
+  min-height: 31px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -200,43 +207,130 @@
   position: absolute;
   left: 10px;
   bottom: 10px;
-  z-index: 6;
-  min-width: 132px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  z-index: 8;
+  min-width: 112px;
+  display: grid;
+  gap: 1px;
   border: 1px solid rgba(30, 49, 69, 0.9);
-  border-radius: 10px;
+  border-radius: 11px;
   padding: 7px 9px;
-  background: rgba(5, 11, 18, 0.86);
+  background: rgba(5, 11, 18, 0.88);
   backdrop-filter: blur(9px);
 }
 
 .replay-cross-track-map span {
   color: var(--text-3);
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .replay-cross-track-map strong {
   color: var(--cyan-soft);
-  font-size: 0.76rem;
+  font-size: 0.88rem;
+}
+
+.replay-cross-track-map small {
+  color: var(--text-3);
+  font-size: 0.54rem;
+}
+
+.replay-playback-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 9;
+  transform: translateX(-50%);
+  min-height: 48px;
+  max-width: calc(100% - 178px);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(30, 49, 69, 0.92);
+  border-radius: 999px;
+  padding: 4px 6px 4px 4px;
+  background: rgba(5, 11, 18, 0.9);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+}
+
+.replay-play-button {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(89, 207, 255, 0.72);
+  border-radius: 50%;
+  background: rgba(6, 29, 44, 0.96);
+  color: white;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(24, 174, 239, 0.18);
+}
+
+.replay-play-icon {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 14px solid var(--cyan);
+}
+
+.replay-pause-icon {
+  color: var(--cyan);
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: -0.18em;
+}
+
+.replay-clock-inline {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.replay-clock-inline strong {
+  color: var(--text);
+  font-size: 0.73rem;
+}
+
+.replay-clock-inline span {
+  color: var(--text-3);
+  font-size: 0.65rem;
+}
+
+.replay-restart {
+  min-height: 34px;
+  border: 0;
+  border-left: 1px solid rgba(111, 125, 141, 0.28);
+  padding: 0 7px 0 9px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.66rem;
+  font-weight: 850;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.replay-restart span {
+  font-size: 0.9rem;
 }
 
 .replay-gap-notice {
   position: absolute;
   left: 50%;
-  bottom: 52px;
-  z-index: 9;
+  bottom: 68px;
+  z-index: 10;
   transform: translateX(-50%);
   border: 1px solid rgba(255, 154, 61, 0.72);
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 7px 11px;
   background: rgba(5, 11, 18, 0.92);
   color: #FFD6AC;
-  font-size: 0.72rem;
+  font-size: 0.69rem;
   font-weight: 850;
   white-space: nowrap;
 }
@@ -247,7 +341,7 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 15px;
-  padding: 9px 10px 4px;
+  padding: 8px 9px 3px;
   background: var(--surface);
 }
 
@@ -255,11 +349,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 3px 2px;
+  padding: 0 3px 1px;
 }
 
 .replay-profile-heading strong {
-  font-size: 0.72rem;
+  font-size: 0.71rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -267,7 +361,7 @@
 .replay-profile-svg {
   display: block;
   width: 100%;
-  height: 160px;
+  height: 132px;
   outline: none;
   touch-action: none;
   cursor: ew-resize;
@@ -312,118 +406,22 @@
 }
 
 .replay-profile-empty {
-  min-height: 145px;
+  min-height: 120px;
   display: grid;
   place-items: center;
   color: var(--text-3);
   font-size: 0.8rem;
 }
 
-.replay-control-panel {
+.replay-speed-area {
   grid-area: controls;
   min-width: 0;
   display: grid;
-  align-content: start;
-  gap: 10px;
-  border: 1px solid var(--border);
-  border-radius: 15px;
-  padding: 10px;
-  background: var(--cockpit);
-}
-
-.replay-route-debrief {
-  min-height: 58px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 3px 10px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 9px 11px;
-  background: var(--surface);
-}
-
-.replay-route-debrief strong {
-  color: var(--cyan-soft);
-  font-size: 1.18rem;
-}
-
-.replay-route-debrief small {
-  grid-column: 1 / -1;
-  color: var(--text-3);
-  font-size: 0.64rem;
-}
-
-.replay-route-debrief.unavailable strong {
-  color: var(--text-2);
-  font-size: 0.86rem;
+  gap: 4px;
 }
 
 .replay-controls {
-  display: grid;
-  gap: 11px;
-}
-
-.replay-play-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 11px;
-}
-
-.replay-play-button {
-  width: 58px;
-  height: 58px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: var(--cyan);
-  color: white;
-  cursor: pointer;
-}
-
-.replay-play-icon {
-  width: 0;
-  height: 0;
-  margin-left: 4px;
-  border-top: 11px solid transparent;
-  border-bottom: 11px solid transparent;
-  border-left: 17px solid white;
-}
-
-.replay-pause-icon {
-  font-size: 1.35rem;
-  font-weight: 900;
-  letter-spacing: -0.18em;
-}
-
-.replay-clock {
-  display: grid;
-  gap: 2px;
-}
-
-.replay-clock strong {
-  font-size: 1.05rem;
-}
-
-.replay-clock span,
-.replay-scrub-help,
-.replay-data-warning {
-  color: var(--text-3);
-  font-size: 0.66rem;
-}
-
-.replay-restart {
-  min-height: 38px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0 10px;
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 0.7rem;
-  font-weight: 850;
-  cursor: pointer;
+  min-width: 0;
 }
 
 .replay-speed-grid {
@@ -435,10 +433,10 @@
 .replay-speed-grid button {
   min-height: 42px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 11px;
   background: var(--surface);
   color: var(--text-2);
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   font-weight: 900;
   cursor: pointer;
 }
@@ -449,20 +447,10 @@
   color: var(--cyan-soft);
 }
 
-.replay-time-slider {
-  width: 100%;
-  height: 24px;
-  margin: 0;
-  accent-color: var(--amber);
-  cursor: ew-resize;
-}
-
-.replay-scrub-help {
-  margin-top: -8px;
-}
-
 .replay-data-warning {
+  margin: 0;
   color: var(--warn);
+  font-size: 0.64rem;
 }
 
 .replay-empty,
@@ -490,14 +478,16 @@
 
 @media (max-width: 430px) {
   .replay-screen {
-    padding-left: calc(7px + var(--safe-left));
-    padding-right: calc(7px + var(--safe-right));
-    gap: 7px;
+    padding-left: calc(6px + var(--safe-left));
+    padding-right: calc(6px + var(--safe-right));
+    grid-template-rows: auto auto minmax(360px, 50dvh) auto auto;
+    gap: 6px;
   }
 
   .replay-header {
     grid-template-columns: 34px minmax(0, 1fr) auto;
-    padding: 6px 8px;
+    min-height: 53px;
+    padding: 5px 8px;
   }
 
   .replay-back {
@@ -510,25 +500,41 @@
   }
 
   .replay-metrics {
-    gap: 5px;
+    gap: 4px;
   }
 
   .replay-metrics > div {
-    min-height: 62px;
-    padding: 7px;
+    min-height: 58px;
+    padding: 6px;
   }
 
   .replay-metrics span {
-    font-size: 0.52rem;
+    font-size: 0.5rem;
   }
 
   .replay-metrics strong {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
+  }
+
+  .replay-metrics small {
+    font-size: 0.52rem;
   }
 
   .replay-map-modes button {
     padding: 0 8px;
-    font-size: 0.58rem;
+    font-size: 0.57rem;
+  }
+
+  .replay-cross-track-map {
+    bottom: 66px;
+  }
+
+  .replay-playback-overlay {
+    max-width: calc(100% - 86px);
+  }
+
+  .replay-profile-svg {
+    height: 124px;
   }
 }
 
@@ -537,18 +543,18 @@
     height: 100vh;
     height: 100dvh;
     min-height: 0;
-    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-columns: minmax(0, 1fr) 330px;
     grid-template-areas:
       "header header"
       "map metrics"
       "map controls"
       "profile controls";
-    grid-template-rows: auto auto minmax(0, 1fr) 178px;
+    grid-template-rows: auto auto minmax(0, 1fr) 150px;
     overflow: hidden;
   }
 
   .replay-header {
-    min-height: 54px;
+    min-height: 50px;
   }
 
   .replay-metrics {
@@ -556,61 +562,67 @@
   }
 
   .replay-metrics > div {
-    min-height: 72px;
+    min-height: 64px;
   }
 
   .replay-profile-card {
-    height: 178px;
+    height: 150px;
   }
 
   .replay-profile-svg {
-    height: 145px;
+    height: 120px;
   }
 
-  .replay-control-panel {
-    overflow-y: auto;
+  .replay-speed-area {
+    align-content: start;
+  }
+
+  .replay-speed-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .replay-speed-grid button {
+    min-height: 40px;
   }
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
   .replay-screen {
-    grid-template-columns: minmax(0, 1fr) 305px;
-    grid-template-rows: 48px 126px minmax(0, 1fr) 146px;
-    padding-top: calc(6px + var(--safe-top));
-    padding-bottom: calc(6px + var(--safe-bottom));
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-rows: 46px 116px minmax(0, 1fr) 132px;
+    padding-top: calc(5px + var(--safe-top));
+    padding-bottom: calc(5px + var(--safe-bottom));
+    gap: 5px;
   }
 
   .replay-header {
-    min-height: 46px;
+    min-height: 44px;
   }
 
-  .replay-date span,
-  .replay-route-debrief small,
-  .replay-scrub-help {
+  .replay-date span {
     display: none;
   }
 
   .replay-metrics > div {
-    min-height: 57px;
-    padding: 6px 8px;
+    min-height: 54px;
+    padding: 5px 7px;
   }
 
   .replay-profile-card {
-    height: 146px;
+    height: 132px;
   }
 
   .replay-profile-svg {
-    height: 115px;
-  }
-
-  .replay-route-debrief {
-    min-height: 48px;
+    height: 102px;
   }
 
   .replay-play-button {
-    width: 48px;
-    height: 48px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .replay-playback-overlay {
+    min-height: 44px;
   }
 
   .replay-speed-grid button {

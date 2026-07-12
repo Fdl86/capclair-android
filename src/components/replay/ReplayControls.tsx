@@ -1,13 +1,15 @@
 import type { ReplaySpeed } from '../../domain/replay.types';
 
-interface ReplayControlsProps {
+interface ReplayPlaybackOverlayProps {
   activeTimeMs: number;
   totalTimeMs: number;
   playing: boolean;
-  speed: ReplaySpeed;
   onTogglePlayback: () => void;
   onRestart: () => void;
-  onSeek: (activeTimeMs: number) => void;
+}
+
+interface ReplaySpeedControlsProps {
+  speed: ReplaySpeed;
   onSpeedChange: (speed: ReplaySpeed) => void;
 }
 
@@ -21,29 +23,37 @@ function duration(valueMs: number): string {
 
 const SPEEDS: ReplaySpeed[] = [1, 5, 10, 20];
 
-export function ReplayControls({
+export function ReplayPlaybackOverlay({
   activeTimeMs,
   totalTimeMs,
   playing,
-  speed,
   onTogglePlayback,
-  onRestart,
-  onSeek,
-  onSpeedChange
-}: ReplayControlsProps) {
+  onRestart
+}: ReplayPlaybackOverlayProps) {
+  return (
+    <div className="replay-playback-overlay" aria-label="Commandes de lecture du replay">
+      <button
+        type="button"
+        className="replay-play-button"
+        onClick={onTogglePlayback}
+        aria-label={playing ? 'Mettre le replay en pause' : 'Lire le replay'}
+      >
+        {playing ? <span className="replay-pause-icon">Ⅱ</span> : <span className="replay-play-icon" />}
+      </button>
+      <div className="replay-clock-inline">
+        <strong>{duration(activeTimeMs)}</strong>
+        <span>/ {duration(totalTimeMs)}</span>
+      </div>
+      <button type="button" className="replay-restart" onClick={onRestart} aria-label="Revenir au début du replay">
+        <span aria-hidden="true">↶</span> Début
+      </button>
+    </div>
+  );
+}
+
+export function ReplaySpeedControls({ speed, onSpeedChange }: ReplaySpeedControlsProps) {
   return (
     <div className="replay-controls">
-      <div className="replay-play-row">
-        <button type="button" className="replay-play-button" onClick={onTogglePlayback} aria-label={playing ? 'Mettre le replay en pause' : 'Lire le replay'}>
-          {playing ? <span className="replay-pause-icon">Ⅱ</span> : <span className="replay-play-icon" />}
-        </button>
-        <div className="replay-clock">
-          <strong>{duration(activeTimeMs)}</strong>
-          <span>sur {duration(totalTimeMs)}</span>
-        </div>
-        <button type="button" className="replay-restart" onClick={onRestart}>Début</button>
-      </div>
-
       <div className="replay-speed-grid" aria-label="Vitesse du replay">
         {SPEEDS.map((value) => (
           <button
@@ -57,18 +67,6 @@ export function ReplayControls({
           </button>
         ))}
       </div>
-
-      <input
-        className="replay-time-slider"
-        type="range"
-        min={0}
-        max={Math.max(1, totalTimeMs)}
-        step={100}
-        value={Math.min(activeTimeMs, Math.max(1, totalTimeMs))}
-        onChange={(event) => onSeek(Number(event.target.value))}
-        aria-label="Position dans le replay"
-      />
-      <p className="replay-scrub-help">Touchez le profil ou déplacez le curseur pour examiner le vol.</p>
     </div>
   );
 }

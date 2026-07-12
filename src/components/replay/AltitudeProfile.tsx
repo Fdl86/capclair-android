@@ -13,9 +13,9 @@ interface ProfilePoint {
   index: number;
 }
 
-const HEIGHT = 160;
-const TOP = 28;
-const BOTTOM = 132;
+const HEIGHT = 140;
+const TOP = 24;
+const BOTTOM = 114;
 const LEFT = 48;
 const RIGHT = 12;
 
@@ -173,9 +173,9 @@ export function AltitudeProfile({ model, sample, onSeekDistance }: AltitudeProfi
           {sample?.altitudeFt !== null && sample?.altitudeFt !== undefined && (
             <circle cx={cursorX} cy={yForAltitude(sample.altitudeFt)} r={5} className="replay-profile-dot" />
           )}
-          <text x={LEFT} y={151} className="replay-profile-axis">0</text>
-          <text x={LEFT + plotWidth / 2} y={151} textAnchor="middle" className="replay-profile-axis">{(model.totalDistanceNm / 2).toFixed(1).replace('.', ',')}</text>
-          <text x={width - RIGHT} y={151} textAnchor="end" className="replay-profile-axis">{model.totalDistanceNm.toFixed(1).replace('.', ',')} NM</text>
+          <text x={LEFT} y={132} className="replay-profile-axis">0</text>
+          <text x={LEFT + plotWidth / 2} y={132} textAnchor="middle" className="replay-profile-axis">{(model.totalDistanceNm / 2).toFixed(1).replace('.', ',')}</text>
+          <text x={width - RIGHT} y={132} textAnchor="end" className="replay-profile-axis">{model.totalDistanceNm.toFixed(1).replace('.', ',')} NM</text>
         </svg>
       )}
     </div>
