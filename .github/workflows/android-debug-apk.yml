@@ -45,8 +45,19 @@ jobs:
           registry-url: https://registry.npmjs.org/
           cache: npm
 
+      - name: Validate package lock registry
+        run: node tools/check-lockfile-registry.mjs
+
       - name: Install npm dependencies
-        run: npm ci --no-audit --no-fund
+        run: |
+          for attempt in 1 2 3; do
+            npm ci --no-audit --no-fund && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "npm ci failed on attempt $attempt - retrying..."
+              sleep $((attempt * 10))
+            fi
+          done
+          exit 1
 
       - name: Check version coherence
         run: npm run version:check
@@ -106,7 +117,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cap-clair-dev15-2-4-debug-apk
+          name: cap-clair-dev15-2-5-debug-apk
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             apk-signature.txt

@@ -1,8 +1,21 @@
-# CAP CLAIR DEV15.2.4 - LOG NAV PDF
+# CAP CLAIR DEV15.2.5 - PDF BUILD HOTFIX
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.2.4 conserve toutes les fonctions validées de DEV15.1.5 à DEV15.2.3 et ajoute le véritable export PDF du Log nav. Le document est généré localement à partir d'un instantané structuré, sans capture d'écran et sans envoi de la navigation vers un serveur.
+DEV15.2.5 conserve l'export PDF du Log nav validé en DEV15.2.4 et corrige exclusivement la génération de l'APK GitHub Actions. Le document reste généré localement à partir d'un instantané structuré, sans capture d'écran et sans envoi de la navigation vers un serveur.
+
+
+## Hotfix génération APK
+
+Le premier ZIP DEV15.2.4 contenait 7 URL `resolved` de `package-lock.json` pointant vers un registre npm privé de l'environnement de génération. GitHub Actions ne pouvait pas joindre ce registre et `npm ci` échouait avant les tests avec `ETIMEDOUT`.
+
+DEV15.2.5 corrige ce point :
+
+- toutes les URL de verrouillage concernées pointent vers `https://registry.npmjs.org/` ;
+- un contrôle automatique refuse désormais toute référence à un registre privé dans `package-lock.json` ;
+- le workflow exécute ce contrôle avant `npm ci` ;
+- `npm ci` dispose de trois tentatives pour les pannes réseau transitoires ;
+- aucune logique de génération PDF, de GPS, de trace, de Replay ou de Suivi n'est modifiée.
 
 ## Export PDF du Log nav
 
@@ -137,14 +150,14 @@ Les exports existants GPX et JSON restent inchangés.
 
 ```text
 applicationId fr.capclair.app
-versionCode 15024
-versionName 15.2.4
+versionCode 15025
+versionName 15.2.5
 ```
 
 Le bandeau affiche :
 
 ```text
-CAP CLAIR DEV15.2.4 - LOG NAV PDF - build <hash court>
+CAP CLAIR DEV15.2.5 - PDF BUILD HOTFIX - build <hash court>
 ```
 
 Le hash court provient du commit GitHub Actions.
@@ -185,12 +198,12 @@ Le dossier `android/app/src/main/assets/public/` est produit uniquement par `npm
 1. Vider le dossier local Android en conservant uniquement `.git`.
 2. Copier le contenu complet de ce ZIP dans le dossier.
 3. Vérifier dans GitHub Desktop que la branche active est `main`.
-4. Utiliser le commit `DEV15.2.4 - Export PDF Log nav`.
+4. Utiliser le commit `DEV15.2.5 - PDF build hotfix`.
 5. Pousser sur GitHub.
 6. Attendre le dernier run vert `Android Debug APK`.
-7. Télécharger uniquement l'artifact `cap-clair-dev15-2-4-debug-apk` du dernier run vert.
+7. Télécharger uniquement l'artifact `cap-clair-dev15-2-5-debug-apk` du dernier run vert.
 8. Installer l'APK par-dessus la version précédente.
-9. Vérifier `DEV15.2.4` et le hash court affiché avant tout diagnostic.
+9. Vérifier `DEV15.2.5` et le hash court affiché avant tout diagnostic.
 
 Ne désinstaller l'ancienne application qu'en cas de problème confirmé de `versionCode` ou de signature.
 
