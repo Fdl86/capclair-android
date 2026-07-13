@@ -71,6 +71,8 @@ export interface NavBranch {
   capVrai: number;
   capCorrige: number;
   vitesseSol: number;
+  windCalculationValid?: boolean;
+  windCalculationWarning?: string;
   tempsSansVentMin: number;
   tempsBrancheMin: number;
   estimatedStartIso: string;
@@ -88,6 +90,7 @@ export interface NavRoute {
   distanceTotale: number;
   tempsEstimeMin: number;
   vitesseSolKt: number;
+  hasWindCalculationError?: boolean;
   profile: FlightProfile;
   branchAltitudeById: Record<string, number>;
   branchWindById: Record<string, BranchWind>;

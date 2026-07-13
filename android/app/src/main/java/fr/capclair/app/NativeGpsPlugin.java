@@ -135,8 +135,10 @@ public class NativeGpsPlugin extends Plugin {
 
     @PluginMethod
     public void getRecoverableSessions(PluginCall call) {
+        Boolean requestedIncludeSaved = call.getBoolean("includeSaved", false);
+        boolean includeSaved = requestedIncludeSaved != null && requestedIncludeSaved;
         JSObject result = new JSObject();
-        result.put("sessions", NativeGpsStore.getRecoverableSessions());
+        result.put("sessions", NativeGpsStore.getRecoverableSessions(includeSaved));
         call.resolve(result);
     }
 

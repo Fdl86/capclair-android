@@ -60,6 +60,11 @@ function FuelRow({ line, strong = false }: { line: FuelLine; strong?: boolean })
 export function FuelPlanningPanel({ fuel, config, onChangeConfig }: FuelPlanningPanelProps) {
   return (
     <div className="fuel-planning-panel fuel-planning-panel-compact">
+      {!fuel.calculationValid && (
+        <div className="fuel-calculation-warning" role="alert">
+          {fuel.calculationWarning ?? 'Devis carburant non calculable.'}
+        </div>
+      )}
       <div className="fuel-premium-head">
         <div>
           <span>Devis carburant</span>

@@ -245,13 +245,17 @@ export function PlanningScreen({
 
           <div className="route-summary-line">
             <strong>{route.distanceTotale.toFixed(1).replace('.', ',')} NM</strong>
-            <span>{formatDuration(route.tempsEstimeMin)}</span>
-            <span>GS moy. {route.vitesseSolKt} kt</span>
+            <span>{route.hasWindCalculationError ? 'Vent incompatible' : formatDuration(route.tempsEstimeMin)}</span>
+            <span>{route.hasWindCalculationError ? 'GS à vérifier' : `GS moy. ${route.vitesseSolKt} kt`}</span>
           </div>
 
           <RoutePointList points={route.points} selectedPointId={selectedPointId} onSelect={onSelectPoint} onRemove={onRemovePoint} />
 
-          <div className="route-hint">{routeMessage}</div>
+          <div className={`route-hint ${route.hasWindCalculationError ? 'is-danger' : ''}`}>
+            {route.hasWindCalculationError
+              ? 'Vent incompatible avec la TAS sur au moins une branche : temps et carburant non calculables.'
+              : routeMessage}
+          </div>
 
           <div className="route-actions-row route-actions-row-single">
             <Button variant="secondary" onClick={() => { setAddWaypointMode(false); onResetRoute(); }}>Nouvelle nav</Button>

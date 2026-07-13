@@ -107,7 +107,7 @@ export function BranchTable({ route, zoneProfiles = {}, onSetBranchAltitude }: B
         const profile = zoneProfiles[branch.id];
         const label = `Altitude ${pointName(route, branch.from)} vers ${pointName(route, branch.to)}`;
         return (
-          <div key={branch.id} className="branch-row" role="row">
+          <div key={branch.id} className={`branch-row ${branch.windCalculationValid === false ? 'wind-invalid' : ''}`} role="row">
             <span>{pointName(route, branch.from)} - {pointName(route, branch.to)}</span>
             <span>
               {onSetBranchAltitude ? (
@@ -125,10 +125,10 @@ export function BranchTable({ route, zoneProfiles = {}, onSetBranchAltitude }: B
             <span>{String(branch.routeMagnetique).padStart(3, '0')}</span>
             <span>{branch.derive > 0 ? '+' : ''}{branch.derive}</span>
             <span>{String(branch.capCorrige).padStart(3, '0')}</span>
-            <span>{branch.vitesseSol}</span>
+            <span title={branch.windCalculationWarning}>{branch.windCalculationValid === false ? 'IMP' : branch.vitesseSol}</span>
             <span>{branch.distanceNm.toFixed(1)}</span>
             <span>{minutesToClock(branch.tempsSansVentMin)}</span>
-            <span>{minutesToClock(branch.tempsBrancheMin)}</span>
+            <span title={branch.windCalculationWarning}>{branch.windCalculationValid === false ? 'IMP' : minutesToClock(branch.tempsBrancheMin)}</span>
             <span>{profile?.frequencyLabel ?? branch.frequencyMhz ?? 'À confirmer'}</span>
             <span>{zoneRemark(profile)}</span>
           </div>
@@ -139,7 +139,7 @@ export function BranchTable({ route, zoneProfiles = {}, onSetBranchAltitude }: B
         <span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span>
         <span>{route.distanceTotale.toFixed(1)}</span>
         <span>{minutesToClock(totalTsv)}</span>
-        <span>{minutesToClock(route.tempsEstimeMin)}</span>
+        <span>{route.hasWindCalculationError ? 'IMP' : minutesToClock(route.tempsEstimeMin)}</span>
         <span>-</span><span>-</span>
       </div>
     </div>

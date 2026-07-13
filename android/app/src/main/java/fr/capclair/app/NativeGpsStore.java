@@ -211,7 +211,7 @@ final class NativeGpsStore {
         return persistentPointCount;
     }
 
-    static synchronized JSONArray getRecoverableSessions() {
+    static synchronized JSONArray getRecoverableSessions(boolean includeSaved) {
         ensureInitialized();
         JSONArray result = new JSONArray();
         File[] files = sessionsDir.listFiles((dir, name) -> name.startsWith("session-") && name.endsWith(".json"));
@@ -222,6 +222,7 @@ final class NativeGpsStore {
             try {
                 JSONObject metadata = readJson(metadataFile);
                 if (metadata.optBoolean("deleted", false)) continue;
+                if (!includeSaved && metadata.optBoolean("saved", false)) continue;
                 String sessionId = metadata.optString("sessionId", "");
                 if (sessionId.isEmpty()) continue;
                 if (running && sessionId.equals(activeSessionId)) continue;
@@ -332,8 +333,14 @@ final class NativeGpsStore {
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
                 String utf8Line = new String(line.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
-                JSObject point = new JSObject(utf8Line);
-                if (!timestampFallback || point.optLong("timestamp", 0L) > sinceTimestamp) result.put(point);
+                try {
+                    JSObject point = new JSObject(utf8Line);
+                    if (!timestampFallback || point.optLong("timestamp", 0L) > sinceTimestamp) result.put(point);
+                } catch (Exception malformedLine) {
+                    // A partially written/corrupted JSONL line must never pin the incremental offset.
+                    // Skip only this line and keep scanning later valid points.
+                    lastError = "Ligne journal GPS illisible ignorée.";
+                }
             }
             return new PointReadResult(result, reader.getFilePointer());
         } catch (Exception error) {
@@ -349,7 +356,13 @@ final class NativeGpsStore {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (!line.trim().isEmpty()) result.put(new JSObject(line));
+                if (line.trim().isEmpty()) continue;
+                try {
+                    result.put(new JSObject(line));
+                } catch (Exception malformedLine) {
+                    // Keep every valid point around a damaged/truncated JSONL line.
+                    lastError = "Ligne journal GPS illisible ignorée.";
+                }
             }
         } catch (Exception ignored) {}
         return result;

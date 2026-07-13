@@ -99,20 +99,32 @@ function computeWindCorrection(routeVraie: number, tasKt: number, wind?: BranchW
     return {
       derive: 0,
       capVrai: normalizeHeading(routeVraie),
-      vitesseSol: tasKt
+      vitesseSol: tasKt,
+      windCalculationValid: true,
+      windCalculationWarning: undefined
     };
   }
 
   const angle = toRad(wind.directionDeg - routeVraie);
-  const driftRad = Math.asin(clamp((wind.speedKt * Math.sin(angle)) / tasKt, -0.95, 0.95));
+  const crosswindRatio = (wind.speedKt * Math.sin(angle)) / tasKt;
+  const hasHeadingSolution = Math.abs(crosswindRatio) < 1;
+  const driftRad = Math.asin(clamp(crosswindRatio, -0.999999, 0.999999));
   const driftDeg = toDeg(driftRad);
   const capVrai = normalizeHeading(routeVraie + driftDeg);
-  const vitesseSol = Math.max(35, Math.round(tasKt * Math.cos(driftRad) - wind.speedKt * Math.cos(angle)));
+  const rawGroundSpeed = tasKt * Math.cos(driftRad) - wind.speedKt * Math.cos(angle);
+  const windCalculationValid = hasHeadingSolution && rawGroundSpeed > 0.5;
 
   return {
     derive: Math.round(driftDeg),
     capVrai,
-    vitesseSol
+    // A real positive GS is kept even below 35 kt. When the wind makes the
+    // branch impossible, 1 kt is used only as a conservative arithmetic guard;
+    // the branch is explicitly marked invalid and never presented as valid.
+    vitesseSol: windCalculationValid ? Math.max(1, Math.round(rawGroundSpeed)) : 1,
+    windCalculationValid,
+    windCalculationWarning: windCalculationValid
+      ? undefined
+      : 'Vent incompatible avec la route et la TAS : temps et carburant non calculables.'
   };
 }
 
@@ -200,6 +212,8 @@ export function buildBranches(points: NavPoint[], options: RouteBuildOptions = {
       capVrai: windCorrection.capVrai,
       capCorrige,
       vitesseSol: windCorrection.vitesseSol,
+      windCalculationValid: windCorrection.windCalculationValid,
+      windCalculationWarning: windCorrection.windCalculationWarning,
       tempsSansVentMin,
       tempsBrancheMin,
       estimatedStartIso,
@@ -222,9 +236,12 @@ export function buildRoute(points: NavPoint[], options: RouteBuildOptions = {}):
 
   const totalTimeMinutes = branches.reduce((sum, branch) => sum + branch.tempsBrancheMin, 0);
   const totalDistance = Number(branches.reduce((sum, branch) => sum + branch.distanceNm, 0).toFixed(1));
-  const averageGroundSpeedKt = totalTimeMinutes > 0
-    ? Math.max(0, Math.round((totalDistance / totalTimeMinutes) * 60))
-    : profile.tasKt;
+  const hasWindCalculationError = branches.some((branch) => branch.windCalculationValid === false);
+  const averageGroundSpeedKt = hasWindCalculationError
+    ? 0
+    : totalTimeMinutes > 0
+      ? Math.max(0, Math.round((totalDistance / totalTimeMinutes) * 60))
+      : profile.tasKt;
 
   return {
     id: normalizeRouteId(options.routeId),
@@ -234,6 +251,7 @@ export function buildRoute(points: NavPoint[], options: RouteBuildOptions = {}):
     distanceTotale: totalDistance,
     tempsEstimeMin: totalTimeMinutes,
     vitesseSolKt: averageGroundSpeedKt,
+    hasWindCalculationError,
     profile,
     branchAltitudeById: Object.fromEntries(branches.map((branch) => [branch.id, branch.altitudeFt])),
     branchWindById: Object.fromEntries(branches.filter((branch) => branch.wind).map((branch) => [branch.id, branch.wind as BranchWind])),

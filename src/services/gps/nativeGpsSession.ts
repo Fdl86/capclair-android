@@ -13,6 +13,16 @@ export interface NativeTraceRecoveryResult {
   sessionIds: string[];
 }
 
+export function selectRecoverableSessions(sessions: NativeRecoverableSessionPayload[]): NativeRecoverableSessionPayload[] {
+  return [...sessions]
+    .filter((session) => session.running !== true && session.saved !== true)
+    .sort((left, right) => {
+      const leftTime = left.endedAt ?? left.startedAt ?? 0;
+      const rightTime = right.endedAt ?? right.startedAt ?? 0;
+      return rightTime - leftTime;
+    });
+}
+
 function recoveredSessionToTrace(session: NativeRecoverableSessionPayload, pendingRoute?: PlannedRouteSnapshot): Trace | null {
   const positions = (session.positions ?? [])
     .map(nativePayloadToGpsPosition)
@@ -53,19 +63,14 @@ function recoveredSessionToTrace(session: NativeRecoverableSessionPayload, pendi
 
 export async function recoverNativeTraces(): Promise<NativeTraceRecoveryResult> {
   if (!isAndroidNativeGpsAvailable()) return { traces: [], sessionIds: [] };
-  const result = await NativeGps.getRecoverableSessions();
+  const result = await NativeGps.getRecoverableSessions({ includeSaved: false });
   const traces: Trace[] = [];
   const sessionIds: string[] = [];
   const pendingRoute = readPendingPlannedRoute();
 
-  const sessions = [...(result.sessions ?? [])].sort((left, right) => {
-    const leftTime = left.endedAt ?? left.startedAt ?? 0;
-    const rightTime = right.endedAt ?? right.startedAt ?? 0;
-    return rightTime - leftTime;
-  });
+  const sessions = selectRecoverableSessions(result.sessions ?? []);
 
   for (const session of sessions) {
-    if (session.running) continue;
     const trace = recoveredSessionToTrace(session, pendingRoute);
     if (!trace || !session.sessionId) continue;
     traces.push(trace);

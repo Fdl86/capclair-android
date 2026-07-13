@@ -64,7 +64,7 @@ interface NativeGpsNativePlugin {
   stop(options?: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { stopped?: boolean; points?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getStatus(): Promise<NativeGpsStatusPayload>;
   getPointsSince(options: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[]; nextOffset?: number }>;
-  getRecoverableSessions(): Promise<{ sessions?: NativeRecoverableSessionPayload[] }>;
+  getRecoverableSessions(options?: { includeSaved?: boolean }): Promise<{ sessions?: NativeRecoverableSessionPayload[] }>;
   markSessionSaved(options: { sessionId: string; traceId: string }): Promise<{ saved?: boolean }>;
   deleteSession(options: { sessionId: string }): Promise<{ deleted?: boolean }>;
   addListener(eventName: 'nativeGpsPoint', listenerFunc: (point: NativeGpsPointPayload) => void): Promise<PluginListenerHandle>;

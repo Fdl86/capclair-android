@@ -3542,3 +3542,29 @@
   border-color: rgba(255, 99, 110, 0.5);
   color: #FFB6BC;
 }
+
+
+/* DEV15.2.7 - explicit wind calculation failures */
+.route-hint.is-danger {
+  color: #ff9b9b;
+  font-weight: 850;
+}
+
+.branch-row.wind-invalid {
+  background: rgba(110, 18, 24, 0.20);
+}
+
+.branch-row.wind-invalid span {
+  color: #ff9b9b;
+}
+
+.fuel-calculation-warning {
+  border: 1px solid rgba(255, 92, 92, 0.75);
+  border-radius: 12px;
+  background: rgba(110, 18, 24, 0.28);
+  color: #ffb0b0;
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1.35;
+  padding: 9px 11px;
+}

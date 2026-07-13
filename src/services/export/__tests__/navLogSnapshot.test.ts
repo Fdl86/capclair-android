@@ -155,6 +155,31 @@ describe('nav log export snapshot', () => {
     );
   });
 
+
+  it('leaves wind-dependent PDF fields empty when a branch is not calculable', () => {
+    const invalidRoute = routeWithBranchCount(1);
+    invalidRoute.branches[0] = {
+      ...invalidRoute.branches[0],
+      vitesseSol: 1,
+      tempsBrancheMin: 600,
+      windCalculationValid: false,
+      windCalculationWarning: 'Vent incompatible'
+    };
+    invalidRoute.hasWindCalculationError = true;
+
+    const snapshot = buildNavLogSnapshot({
+      route: invalidRoute,
+      aircraft,
+      fuelPlanConfig: fuelConfig,
+      alternateCode: ''
+    });
+
+    expect(snapshot.branches[0].factorBaseWind).toBeNull();
+    expect(snapshot.branches[0].timeWithWindMinutes).toBeNull();
+    expect(snapshot.totals.timeWithWindMinutes).toBeNull();
+    expect(snapshot.warnings.join(' ')).toContain('Vent incompatible');
+  });
+
   it('handles incomplete routes without inventing values', () => {
     const emptyRoute = routeWithBranchCount(1);
     emptyRoute.points = [];

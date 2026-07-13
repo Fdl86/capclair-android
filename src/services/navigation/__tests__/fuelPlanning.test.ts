@@ -46,6 +46,15 @@ describe('fuel planning', () => {
     expect(result.remainingUsableFuelL).toBe(0);
   });
 
+
+  it('marks the fuel plan unusable when a route contains an impossible wind calculation', () => {
+    const invalidRoute = { ...route, hasWindCalculationError: true } as NavRoute;
+    const result = computeFuelPlan(invalidRoute, aircraft, config, 15);
+
+    expect(result.calculationValid).toBe(false);
+    expect(result.calculationWarning).toContain('Vent incompatible');
+  });
+
   it('does not flag a plan at or below usable capacity', () => {
     const result = computeFuelPlan(route, aircraft, config, 15);
 

@@ -1,10 +1,20 @@
-# CAP CLAIR DEV15.2.6 - GPS SAFETY OPTIMIZATION
+# CAP CLAIR DEV15.2.7 - GPS ROBUSTNESS HOTFIX
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.2.6 conserve intégralement le PDF Log nav validé en DEV15.2.5 et applique l'audit optimisation, intégrité des traces et cohérence des calculs.
+DEV15.2.7 conserve toutes les optimisations de DEV15.2.6 et corrige trois défauts de robustesse identifiés lors du contre-audit : ligne JSONL illisible, oscillation des traces sauvegardées et plancher optimiste de vitesse sol.
 
 ## Corrections principales
+
+
+### Correctifs DEV15.2.7
+
+- Une ligne JSONL tronquée ou corrompue est ignorée sans bloquer l'offset de lecture incrémentale.
+- Les points valides placés après une ligne endommagée restent récupérés.
+- Les sessions déjà sauvegardées ne sont plus réinjectées automatiquement dans `Mes traces`.
+- Le plancher de vitesse sol à 35 kt est supprimé : toute vitesse positive réelle est conservée.
+- Une branche sans solution de cap ou sans vitesse sol positive est marquée `IMP` et les calculs temps/carburant sont signalés non exploitables.
+- Le PDF laisse Fbw et TAV vides pour une branche impossible.
 
 ### Journal GPS Android incrémental
 
@@ -85,10 +95,10 @@ Le PDF conserve notamment :
 
 ```text
 applicationId fr.capclair.app
-versionCode 1502006
-versionName 15.2.6
-APP_VERSION CAP CLAIR DEV15.2.6 - GPS SAFETY OPTIMIZATION
-artifact cap-clair-dev15-2-6-debug-apk
+versionCode 1502007
+versionName 15.2.7
+APP_VERSION CAP CLAIR DEV15.2.7 - GPS ROBUSTNESS HOTFIX
+artifact cap-clair-dev15-2-7-debug-apk
 ```
 
 Le bandeau affiche également le hash court du commit GitHub Actions.
@@ -111,12 +121,12 @@ Le dossier `android/app/src/main/assets/public/` doit toujours provenir de `npm 
 1. Vider le dossier local de la branche APK en conservant uniquement `.git`.
 2. Copier tout le contenu du ZIP dans ce dossier.
 3. Ouvrir GitHub Desktop et vérifier la branche `main`.
-4. Créer le commit `DEV15.2.6 - GPS safety optimization`.
+4. Créer le commit `DEV15.2.7 - GPS robustness hotfix`.
 5. Pousser sur GitHub.
 6. Attendre le dernier run vert `Android Debug APK`.
-7. Télécharger uniquement `cap-clair-dev15-2-6-debug-apk`.
+7. Télécharger uniquement `cap-clair-dev15-2-7-debug-apk`.
 8. Installer l'APK par-dessus la version précédente.
-9. Vérifier `DEV15.2.6` et le hash court avant tout diagnostic.
+9. Vérifier `DEV15.2.7` et le hash court avant tout diagnostic.
 
 Ne désinstaller l'ancienne version qu'en cas de problème confirmé de signature ou de versionCode.
 

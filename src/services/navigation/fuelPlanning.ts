@@ -110,7 +110,13 @@ export function computeFuelPlan(
   const rawCapacityBalanceL = usableFuelL - emportLiters;
   const fuelDeficitL = rawCapacityBalanceL < 0 ? safeLiter(Math.abs(rawCapacityBalanceL)) : 0;
 
+  const calculationValid = route.hasWindCalculationError !== true;
+
   return {
+    calculationValid,
+    calculationWarning: calculationValid
+      ? undefined
+      : 'Vent incompatible sur au moins une branche : le devis carburant ne doit pas être utilisé.',
     fuelPerHourL,
     fuelPerMinuteL,
     unusableFuelL: safeLiter(aircraft.unusableFuelL ?? 0),

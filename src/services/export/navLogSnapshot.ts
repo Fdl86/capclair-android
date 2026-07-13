@@ -60,7 +60,8 @@ function branchSnapshot(
   const wind = branch.wind && Number.isFinite(branch.wind.speedKt) && branch.wind.speedKt >= 0
     ? branch.wind
     : null;
-  const factorBaseWind = branch.vitesseSol > 0 ? 60 / branch.vitesseSol : null;
+  const windCalculationValid = branch.windCalculationValid !== false;
+  const factorBaseWind = windCalculationValid && branch.vitesseSol > 0 ? 60 / branch.vitesseSol : null;
   const maxDrift = wind && factorBase !== null ? factorBase * wind.speedKt : null;
   const windAngle = wind ? windAngleDeg(branch.routeVraie, wind.directionDeg) : null;
 
@@ -78,7 +79,9 @@ function branchSnapshot(
     factorBaseWind: finiteOrNull(factorBaseWind),
     distanceNm: Number.isFinite(branch.distanceNm) ? Math.round(branch.distanceNm) : null,
     timeStillAirMinutes: Number.isFinite(branch.tempsSansVentMin) ? Math.round(branch.tempsSansVentMin) : null,
-    timeWithWindMinutes: Number.isFinite(branch.tempsBrancheMin) ? Math.round(branch.tempsBrancheMin) : null,
+    timeWithWindMinutes: windCalculationValid && Number.isFinite(branch.tempsBrancheMin)
+      ? Math.round(branch.tempsBrancheMin)
+      : null,
     estimatedPassageTime: null,
     actualPassageTime: null,
     radio: null,
@@ -111,6 +114,9 @@ export function buildNavLogSnapshot({
   }
   if (omittedBranchCount > 0) {
     warnings.push(`Navigation limitée aux 8 premières branches (${omittedBranchCount} branche${omittedBranchCount > 1 ? 's' : ''} non imprimée${omittedBranchCount > 1 ? 's' : ''}).`);
+  }
+  if (route.hasWindCalculationError) {
+    warnings.push('Vent incompatible sur au moins une branche : Fbw et TAV laissés vides dans le PDF.');
   }
 
   const total = (selector: (branch: NavLogBranchSnapshot) => number | null) => {

@@ -33,6 +33,8 @@ export interface FuelLine {
 }
 
 export interface FuelPlanSummary {
+  calculationValid: boolean;
+  calculationWarning?: string;
   fuelPerHourL: number;
   fuelPerMinuteL: number;
   unusableFuelL: number;

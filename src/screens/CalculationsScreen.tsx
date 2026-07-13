@@ -177,10 +177,22 @@ export function CalculationsScreen({
           <SummaryCard label="TAS" value={`${route.profile.tasKt} kt`} />
           <SummaryCard label="Altitude défaut" value={`${route.profile.defaultAltitudeFt} ft`} />
           <SummaryCard label="Distance totale" value={`${route.distanceTotale.toFixed(1)} NM`} />
-          <SummaryCard label="Temps estimé" value={formatDuration(route.tempsEstimeMin)} />
+          <SummaryCard
+            label="Temps estimé"
+            value={route.hasWindCalculationError ? 'NON CALCULABLE' : formatDuration(route.tempsEstimeMin)}
+            detail={route.hasWindCalculationError ? 'Vent incompatible sur une branche' : undefined}
+          />
           <SummaryCard label="Vent modèle" value={windModelTime ? timeZulu(windModelTime) : 'À charger'} detail={weatherStatus} />
           <SummaryCard label="Avion" value={activeAircraft.label} detail={`${activeAircraft.fuelBurnLh} L/h`} />
-          <SummaryCard label={fuel.isOverCapacity ? "Carburant impossible" : "Emport carburant"} value={`${fuel.lines.fuelRequired.liters.toFixed(0)} L`} detail={fuel.isOverCapacity ? `Dépasse la capacité utile de ${fuel.fuelDeficitL.toFixed(0)} L` : `Total nécessaire ${fuel.lines.totalNecessary.minutes} min`} />
+          <SummaryCard
+            label={!fuel.calculationValid ? 'Carburant non calculable' : fuel.isOverCapacity ? 'Carburant impossible' : 'Emport carburant'}
+            value={!fuel.calculationValid ? '-' : `${fuel.lines.fuelRequired.liters.toFixed(0)} L`}
+            detail={!fuel.calculationValid
+              ? 'Vent incompatible sur une branche'
+              : fuel.isOverCapacity
+                ? `Dépasse la capacité utile de ${fuel.fuelDeficitL.toFixed(0)} L`
+                : `Total nécessaire ${fuel.lines.totalNecessary.minutes} min`}
+          />
         </div>
 
         <Card className="navlog-prep-card">

@@ -59,6 +59,52 @@ describe('route builder', () => {
     expect(route.vitesseSolKt).toBeLessThan(route.profile.tasKt);
   });
 
+
+  it('keeps a real ground speed below 35 kt instead of applying an optimistic floor', () => {
+    const baseline = buildRoute([departure, destination], {
+      routeId: 'route-low-gs-test',
+      profile: { tasKt: 100, defaultAltitudeFt: 2500, departureTimeIso: '2026-07-13T10:00:00.000Z' }
+    });
+    const branch = baseline.branches[0];
+    const route = buildRoute([departure, destination], {
+      routeId: baseline.id,
+      profile: baseline.profile,
+      branchWindById: {
+        [branch.id]: {
+          directionDeg: branch.routeVraie,
+          speedKt: 80
+        }
+      }
+    });
+
+    expect(route.branches[0].vitesseSol).toBe(20);
+    expect(route.branches[0].windCalculationValid).toBe(true);
+    expect(route.hasWindCalculationError).toBe(false);
+  });
+
+  it('marks a branch non calculable when headwind removes all positive ground speed', () => {
+    const baseline = buildRoute([departure, destination], {
+      routeId: 'route-impossible-wind-test',
+      profile: { tasKt: 100, defaultAltitudeFt: 2500, departureTimeIso: '2026-07-13T10:00:00.000Z' }
+    });
+    const branch = baseline.branches[0];
+    const route = buildRoute([departure, destination], {
+      routeId: baseline.id,
+      profile: baseline.profile,
+      branchWindById: {
+        [branch.id]: {
+          directionDeg: branch.routeVraie,
+          speedKt: 120
+        }
+      }
+    });
+
+    expect(route.branches[0].windCalculationValid).toBe(false);
+    expect(route.branches[0].vitesseSol).toBe(1);
+    expect(route.hasWindCalculationError).toBe(true);
+    expect(route.vitesseSolKt).toBe(0);
+  });
+
   it('keeps departure time separate from weather analysis time', () => {
     const departureTimeIso = '2026-07-13T10:00:00.000Z';
     const weatherAnalysisTimeIso = '2026-07-13T08:45:00.000Z';
