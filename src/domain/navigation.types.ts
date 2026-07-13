@@ -54,6 +54,7 @@ export interface FlightProfile {
   tasKt: number;
   defaultAltitudeFt: number;
   departureTimeIso: string;
+  weatherAnalysisTimeIso?: string;
 }
 
 export interface NavBranch {

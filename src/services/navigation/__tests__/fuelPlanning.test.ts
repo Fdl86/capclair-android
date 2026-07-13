@@ -36,4 +36,20 @@ describe('fuel planning', () => {
     expect(result.lines.timeLimit.label).toBe('Autonomie de l’emport calculé');
     expect(result.remainingUsableFuelL).toBeGreaterThanOrEqual(0);
   });
+
+  it('flags a required fuel load that exceeds usable capacity', () => {
+    const constrainedAircraft = { ...aircraft, usableFuelL: 20 };
+    const result = computeFuelPlan(route, constrainedAircraft, config, 15);
+
+    expect(result.isOverCapacity).toBe(true);
+    expect(result.fuelDeficitL).toBeGreaterThan(0);
+    expect(result.remainingUsableFuelL).toBe(0);
+  });
+
+  it('does not flag a plan at or below usable capacity', () => {
+    const result = computeFuelPlan(route, aircraft, config, 15);
+
+    expect(result.isOverCapacity).toBe(false);
+    expect(result.fuelDeficitL).toBe(0);
+  });
 });

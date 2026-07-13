@@ -11,7 +11,7 @@ if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) {
 }
 
 const [major, minor, patch] = version.split('.').map(Number);
-const versionCode = major * 1000 + minor * 10 + patch;
+const versionCode = major * 100000 + minor * 1000 + patch;
 const devVersion = `DEV${version}`;
 const displayBase = `CAP CLAIR ${devVersion} - ${label.toUpperCase()}`;
 

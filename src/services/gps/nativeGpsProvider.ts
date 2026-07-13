@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 import type { GpsPosition } from '../../domain/gps.types';
+import type { PlannedRouteSnapshot } from '../../domain/trace.types';
 import type {
   GpsProvider,
   GpsProviderError,
@@ -20,6 +21,7 @@ export interface NativeGpsPointPayload {
   provider?: string;
   native?: boolean;
   cached?: boolean;
+  persisted?: boolean;
 }
 
 export interface NativeGpsStatusPayload {
@@ -36,6 +38,9 @@ export interface NativeGpsStatusPayload {
   saved?: boolean;
   resumed?: boolean;
   notificationPermissionGranted?: boolean;
+  journalWriteHealthy?: boolean;
+  journalOffset?: number;
+  plannedRoute?: PlannedRouteSnapshot;
 }
 
 export interface NativeRecoverableSessionPayload {
@@ -50,14 +55,15 @@ export interface NativeRecoverableSessionPayload {
   saved?: boolean;
   traceId?: string;
   positions?: NativeGpsPointPayload[];
+  plannedRoute?: PlannedRouteSnapshot;
 }
 
 interface NativeGpsNativePlugin {
   start(options?: GpsProviderStartOptions): Promise<NativeGpsStatusPayload & { started?: boolean }>;
   getCurrentPosition(options?: { timeoutMs?: number }): Promise<NativeGpsPointPayload>;
-  stop(): Promise<NativeGpsStatusPayload & { stopped?: boolean; points?: NativeGpsPointPayload[] }>;
+  stop(options?: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { stopped?: boolean; points?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getStatus(): Promise<NativeGpsStatusPayload>;
-  getPointsSince(options: { sinceTimestamp: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[] }>;
+  getPointsSince(options: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getRecoverableSessions(): Promise<{ sessions?: NativeRecoverableSessionPayload[] }>;
   markSessionSaved(options: { sessionId: string; traceId: string }): Promise<{ saved?: boolean }>;
   deleteSession(options: { sessionId: string }): Promise<{ deleted?: boolean }>;
@@ -104,9 +110,12 @@ export function nativePayloadToGpsPosition(payload: NativeGpsPointPayload): GpsP
 function toSessionInfo(payload: NativeGpsStatusPayload): GpsProviderSessionInfo {
   return {
     sessionId: typeof payload.sessionId === 'string' && payload.sessionId ? payload.sessionId : null,
+    routeId: typeof payload.routeId === 'string' && payload.routeId ? payload.routeId : undefined,
+    routeName: typeof payload.routeName === 'string' && payload.routeName ? payload.routeName : undefined,
     startedAt: typeof payload.startedAt === 'number' && Number.isFinite(payload.startedAt) ? payload.startedAt : Date.now(),
     resumed: payload.resumed === true,
-    notificationPermissionGranted: payload.notificationPermissionGranted
+    notificationPermissionGranted: payload.notificationPermissionGranted,
+    plannedRoute: payload.plannedRoute
   };
 }
 
@@ -123,11 +132,22 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
     startWatching: (onPosition, onError, options): GpsProviderWatch => {
       let detached = false;
       let lastNativeTimestamp = 0;
+      let lastNativeOffset = 0;
+      let lastNativeEventAt = 0;
       const seenPoints = new Set<string>();
       const handles: Promise<PluginListenerHandle>[] = [];
       const emittedOnStop: GpsPosition[] = [];
+      let storageWarningEmitted = false;
 
       const emitPosition = (payload: NativeGpsPointPayload, collectOnStop = false) => {
+        if (payload.persisted === false && !storageWarningEmitted) {
+          storageWarningEmitted = true;
+          onError({
+            code: 'storage',
+            message: 'Journal GPS Android non sécurisé : écriture locale impossible. Libérez de l’espace avant de poursuivre.',
+            recoverable: true
+          });
+        }
         const position = nativePayloadToGpsPosition(payload);
         if (!position) return;
         const key = `${position.timestamp}:${position.latitude.toFixed(7)}:${position.longitude.toFixed(7)}`;
@@ -140,7 +160,13 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
       };
 
       const pollNativeBuffer = async (collectOnStop = false) => {
-        const result = await NativeGps.getPointsSince({ sinceTimestamp: lastNativeTimestamp });
+        const result = await NativeGps.getPointsSince({
+          sinceOffset: lastNativeOffset,
+          sinceTimestamp: lastNativeTimestamp
+        });
+        if (typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)) {
+          lastNativeOffset = Math.max(0, result.nextOffset);
+        }
         for (const point of result.points ?? []) emitPosition(point, collectOnStop);
       };
 
@@ -151,20 +177,31 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
       };
 
       handles.push(NativeGps.addListener('nativeGpsPoint', (point) => {
+        lastNativeEventAt = Date.now();
         if (!detached) emitPosition(point);
       }));
       handles.push(NativeGps.addListener('nativeGpsStatus', (payload) => {
         if (detached || payload.status !== 'error') return;
+        const storageError = payload.journalWriteHealthy === false
+          || (payload.lastError ?? '').toLowerCase().includes('écriture journal');
+        if (storageError && storageWarningEmitted) return;
+        if (storageError) storageWarningEmitted = true;
         onError({
-          code: 'unavailable',
-          message: payload.lastError || 'Signal GPS Android momentanément indisponible.',
+          code: storageError ? 'storage' : 'unavailable',
+          message: payload.lastError || (storageError
+            ? 'Journal GPS Android non sécurisé.'
+            : 'Signal GPS Android momentanément indisponible.'),
           recoverable: true
         });
       }));
 
       const sessionInfo = NativeGps.start(options)
         .then(async (result) => {
-          await pollNativeBuffer();
+          try {
+            await pollNativeBuffer();
+          } catch (error) {
+            onError(toProviderError(error));
+          }
           return toSessionInfo(result);
         })
         .catch((error) => {
@@ -174,6 +211,8 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
 
       const pollId = window.setInterval(() => {
         if (detached) return;
+        const nativeEventsAreFlowing = lastNativeEventAt > 0 && Date.now() - lastNativeEventAt < POLL_NATIVE_BUFFER_MS * 2;
+        if (nativeEventsAreFlowing) return;
         pollNativeBuffer().catch((error) => onError(toProviderError(error)));
       }, POLL_NATIVE_BUFFER_MS);
 
@@ -189,7 +228,13 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
           window.clearInterval(pollId);
           try {
             await pollNativeBuffer(true);
-            const result = await NativeGps.stop();
+            const result = await NativeGps.stop({
+              sinceOffset: lastNativeOffset,
+              sinceTimestamp: lastNativeTimestamp
+            });
+            if (typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)) {
+              lastNativeOffset = Math.max(0, result.nextOffset);
+            }
             for (const point of result.points ?? []) emitPosition(point, true);
           } finally {
             detached = true;

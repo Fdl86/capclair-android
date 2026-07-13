@@ -1,223 +1,132 @@
-# CAP CLAIR DEV15.2.5 - PDF BUILD HOTFIX
+# CAP CLAIR DEV15.2.6 - GPS SAFETY OPTIMIZATION
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.2.5 conserve l'export PDF du Log nav validé en DEV15.2.4 et corrige exclusivement la génération de l'APK GitHub Actions. Le document reste généré localement à partir d'un instantané structuré, sans capture d'écran et sans envoi de la navigation vers un serveur.
+DEV15.2.6 conserve intégralement le PDF Log nav validé en DEV15.2.5 et applique l'audit optimisation, intégrité des traces et cohérence des calculs.
 
+## Corrections principales
 
-## Hotfix génération APK
+### Journal GPS Android incrémental
 
-Le premier ZIP DEV15.2.4 contenait 7 URL `resolved` de `package-lock.json` pointant vers un registre npm privé de l'environnement de génération. GitHub Actions ne pouvait pas joindre ce registre et `npm ci` échouait avant les tests avec `ETIMEDOUT`.
+- Le journal JSONL n'est plus relu intégralement toutes les 4 secondes.
+- Le bridge conserve un offset binaire et ne récupère que les nouveaux points.
+- Le polling de secours est suspendu tant que les événements natifs arrivent normalement.
+- Une lecture complète reste possible uniquement lors d'une récupération après redémarrage.
 
-DEV15.2.5 corrige ce point :
+### Trace affichée incrémentalement
 
-- toutes les URL de verrouillage concernées pointent vers `https://registry.npmjs.org/` ;
-- un contrôle automatique refuse désormais toute référence à un registre privé dans `package-lock.json` ;
-- le workflow exécute ce contrôle avant `npm ci` ;
-- `npm ci` dispose de trois tentatives pour les pannes réseau transitoires ;
-- aucune logique de génération PDF, de GPS, de trace, de Replay ou de Suivi n'est modifiée.
+- La géométrie OpenLayers n'est plus reconstruite à chaque point.
+- Les coordonnées sont ajoutées à la ligne active.
+- Les coupures GPS de plus de 15 secondes créent toujours des segments distincts.
+- La distance parcourue est cumulée au fil de l'eau au lieu d'être recalculée sur toute la trace.
+
+### Intégrité et récupération des traces
+
+- Une session native récupérée n'est marquée comme sauvegardée que si elle figure réellement dans la collection persistée.
+- En cas de saturation du stockage local, les journaux non sauvegardés restent récupérables.
+- Les sessions récupérables sont triées de la plus récente à la plus ancienne.
+- Les sessions courtes supprimées sont effacées physiquement du stockage Android.
+- La route prévue est maintenant enregistrée directement dans les métadonnées de la session native.
+- Chaque nouvelle navigation possède un identifiant unique. L'ancien identifiant `active-route` est migré automatiquement.
+- Après reprise d'une session native, la trace finale conserve l'identifiant et le nom de route de cette session.
+
+### Sécurité d'écriture native
+
+- Chaque point indique s'il a réellement été écrit dans le journal Android.
+- Un échec disque ou un stockage plein place le GPS en état dégradé et affiche un avertissement persistant.
+- Les points reçus restent visibles en mémoire, mais l'application ne prétend plus que le journal est sécurisé.
+
+### Planification et carburant
+
+- Modifier le départ ou l'arrivée conserve tous les points intermédiaires.
+- Un devis carburant supérieur à la capacité utile affiche maintenant le déficit en rouge.
+- La vitesse sol globale correspond à la moyenne réelle de la route, calculée depuis la distance et le temps avec vent.
+- Le rafraîchissement du vent utilise `weatherAnalysisTimeIso` et ne modifie plus l'heure prévue de départ.
+
+### Maintenance et livraison
+
+- Le `versionCode` utilise désormais `major * 100000 + minor * 1000 + patch` pour éviter la collision entre `15.2.10` et `15.3.0`.
+- Le contrôle de version vérifie aussi le nom exact de l'artifact GitHub Actions.
+- Le cache Android des exports reste strictement limité à 8 fichiers après création du nouvel export.
+- Le compteur de points de diagnostic augmente uniquement lorsqu'un point entre réellement dans la trace.
 
 ## Export PDF du Log nav
 
-Le bouton `Exporter PDF` du Log nav produit désormais la fiche de navigation A4 paysage validée visuellement.
+Le bouton `Exporter PDF` produit la fiche A4 paysage validée V5, sans changement visuel dans cette version.
 
-Le parcours est le suivant :
+Le PDF conserve notamment :
 
-1. préparer la navigation ;
-2. ouvrir le Log nav ;
-3. appuyer sur `Exporter PDF` ;
-4. attendre l'état `Préparation PDF...` ;
-5. partager ou enregistrer le document avec Android, ou le télécharger sur le web/PWA.
-
-Le rendu reprend fidèlement le document de référence :
-
-- structure générale et ordre des sections ;
-- devis carburant ;
-- tableau de navigation limité à 8 branches pour cette première version ;
-- check-lists et aides de calcul ;
-- gestion des réservoirs laissée vide ;
-- cases manuelles laissées vides ;
-- feuille A4 paysage imprimable ;
-- bordures finales validées sur les colonnes REPERE, TAV et TOTAL.
-
-## Données remplies automatiquement
-
-CAP CLAIR remplit uniquement les données dont la source et le calcul sont certains :
-
-- aérodrome de départ et altitude terrain ;
-- aérodrome d'arrivée et altitude terrain ;
-- facteur de base ;
-- consommation en L/h et L/min ;
-- essence inutilisable lorsqu'elle est renseignée dans le profil avion ;
-- temps du trajet avec vent ;
-- temps de déroutement lorsque le dégagement est défini ;
+- le tableau strictement conforme au document de référence ;
+- 8 branches maximum ;
+- distances arrondies au NM entier ;
 - arrivée déroutement fixée à 12 minutes ;
-- réserve finale ;
-- route magnétique ;
-- dérive selon la convention de la fiche ;
-- cap magnétique ;
-- dérive maximale ;
-- angle au vent ;
-- facteur de base avec vent ;
-- repère ;
-- distance arrondie au NM entier le plus proche ;
-- temps sans vent ;
-- temps avec vent ;
-- totaux distance, TSV et TAV.
-
-## Données volontairement laissées vides
-
-La règle appliquée est : en cas de doute, CAP CLAIR ne remplit pas la case.
-
-Restent vides :
-
-- pistes ;
-- QNH ;
-- fréquences radio et radionavigation ;
-- Zmini ;
-- Vs, Vs0, Vfe et VfinMax ;
-- horamètres ;
-- heures bloc ;
-- marge carburant ;
-- vol réglementaire ;
-- carburant à bord ;
-- temps de vol et heure limite ;
-- HE et HR ;
-- consommation et carburant restant par branche ;
-- ETA ;
-- gestion détaillée des réservoirs.
-
-## Architecture
-
-L'export repose sur les éléments suivants :
-
-- `buildNavLogSnapshot()` construit un instantané stable du log ;
-- les calculs sont centralisés et ne lisent pas directement les composants React ;
-- `renderNavLogPdf()` applique les données sur le gabarit PDF local validé ;
-- `pdf-lib` est chargé uniquement au moment de l'export ;
-- Android reçoit le PDF en Base64 puis le partage comme fichier binaire ;
-- le web/PWA télécharge le même tableau d'octets avec un Blob PDF ;
-- le gabarit est inclus dans les ressources de l'APK et dans le cache PWA.
-
-Le nom de fichier suit ce format :
-
-```text
-CAP-CLAIR_LOG-NAV_LFBI-LFOO_2026-07-12.pdf
-```
-
-Les caractères dangereux et les accents sont nettoyés uniquement dans le nom du fichier.
-
-## Routes de plus de 8 branches
-
-La première version imprime les 8 premières branches. L'export reste possible et affiche un avertissement indiquant le nombre de branches non imprimées. Les totaux du document correspondent uniquement aux branches effectivement affichées.
-
-## Export Android
-
-Le plugin `NativeTraceExportPlugin` conserve son comportement UTF-8 pour les exports GPX et JSON. Il accepte maintenant aussi un contenu Base64 pour écrire et partager un PDF binaire.
-
-Les exports existants GPX et JSON restent inchangés.
+- HE, HR, Conso, radios, QNH, Zmini, ETA et réservoirs laissés vides ;
+- bordures REPERE, TAV et TOTAL validées ;
+- génération locale et partage Android natif ;
+- export web/PWA avec le même moteur ;
+- exports GPX et JSON inchangés.
 
 ## Fonctions conservées
 
 - GPS Android natif précis ;
-- stockage, suppression et récupération des traces ;
+- sauvegarde, suppression et récupération des traces ;
 - export GPX et JSON ;
 - Replay des anciennes traces ;
 - route prévue superposée au vol réel ;
 - modes NORD UP et TRK UP ;
 - Suivi plein écran ;
 - bandeau cockpit ;
-- commandes d'enregistrement en plein écran ;
-- ajout continu de points dans Planifier ;
-- altitude par pas de 100 ft ;
 - localisation ponctuelle sans création de trace ;
 - signature Android stable ;
-- workflow GitHub Actions.
+- workflow GitHub Actions ;
+- compatibilité avec les anciennes traces.
 
-## Compatibilité et sécurité
-
-- aucun changement du GPS Android natif ;
-- aucun changement du format des traces ;
-- aucune modification du Replay ou du Suivi ;
-- aucune exécution de contenu utilisateur ;
-- aucune donnée de navigation envoyée vers un serveur ;
-- génération déterministe à données identiques ;
-- caractères français pris en charge ;
-- aucune édition manuelle de `android/app/src/main/assets/public/` ;
-- import GPX non inclus dans cette version.
-
-## Version et identification du build
+## Version et identification
 
 ```text
 applicationId fr.capclair.app
-versionCode 15025
-versionName 15.2.5
+versionCode 1502006
+versionName 15.2.6
+APP_VERSION CAP CLAIR DEV15.2.6 - GPS SAFETY OPTIMIZATION
+artifact cap-clair-dev15-2-6-debug-apk
 ```
 
-Le bandeau affiche :
+Le bandeau affiche également le hash court du commit GitHub Actions.
 
-```text
-CAP CLAIR DEV15.2.5 - PDF BUILD HOTFIX - build <hash court>
+## Commandes de contrôle
+
+```bash
+npm ci --no-audit --no-fund
+npm run lockfile:check
+npm run version:check
+npm test
+npm run build:android
+npx cap sync android
 ```
 
-Le hash court provient du commit GitHub Actions.
+Le dossier `android/app/src/main/assets/public/` doit toujours provenir de `npm run build:android` puis de `npx cap sync android`. Ne jamais le modifier manuellement.
 
-## Contrôles réalisés
+## Procédure GitHub Desktop
 
-```text
-13 fichiers de tests
-45 tests réussis
-npm run version:check réussi
-npm run build:android réussi
-npx cap sync android réussi
-npm run build:web réussi
-```
-
-Les tests couvrent notamment :
-
-- construction du modèle d'export ;
-- ordre des branches ;
-- calculs Rm, X, Cm, Xmax, aw et Fbw ;
-- arrondi des distances ;
-- valeurs manquantes ;
-- caractères accentués ;
-- noms longs ;
-- navigation courte ;
-- navigation longue ;
-- limite de 8 branches ;
-- totaux ;
-- nom de fichier ;
-- PDF A4 paysage d'une page ;
-- génération répétée déterministe ;
-- non-régression des tests GPS, traces, cartes, Replay et exports GPX.
-
-Le dossier `android/app/src/main/assets/public/` est produit uniquement par `npm run build:android`, puis synchronisé par `npx cap sync android`.
-
-## Livraison APK
-
-1. Vider le dossier local Android en conservant uniquement `.git`.
-2. Copier le contenu complet de ce ZIP dans le dossier.
-3. Vérifier dans GitHub Desktop que la branche active est `main`.
-4. Utiliser le commit `DEV15.2.5 - PDF build hotfix`.
+1. Vider le dossier local de la branche APK en conservant uniquement `.git`.
+2. Copier tout le contenu du ZIP dans ce dossier.
+3. Ouvrir GitHub Desktop et vérifier la branche `main`.
+4. Créer le commit `DEV15.2.6 - GPS safety optimization`.
 5. Pousser sur GitHub.
 6. Attendre le dernier run vert `Android Debug APK`.
-7. Télécharger uniquement l'artifact `cap-clair-dev15-2-5-debug-apk` du dernier run vert.
+7. Télécharger uniquement `cap-clair-dev15-2-6-debug-apk`.
 8. Installer l'APK par-dessus la version précédente.
-9. Vérifier `DEV15.2.5` et le hash court affiché avant tout diagnostic.
+9. Vérifier `DEV15.2.6` et le hash court avant tout diagnostic.
 
-Ne désinstaller l'ancienne application qu'en cas de problème confirmé de `versionCode` ou de signature.
+Ne désinstaller l'ancienne version qu'en cas de problème confirmé de signature ou de versionCode.
 
 ## Tests téléphone prioritaires
 
-1. Préparer une navigation standard de 5 à 8 branches.
-2. Ouvrir le Log nav et appuyer sur `Exporter PDF`.
-3. Vérifier l'état `Préparation PDF...` puis l'ouverture du partage Android.
-4. Enregistrer le PDF et l'ouvrir avec un lecteur indépendant.
-5. Vérifier le format A4 paysage et l'absence de débordement.
-6. Vérifier l'arrondi des distances au NM entier.
-7. Vérifier que HE, HR, Conso, radio, QNH, Zmini, ETA et réservoirs restent vides.
-8. Vérifier `Arr. Dérout.` à 12 minutes.
-9. Vérifier le centrage des totaux et la continuité des bordures REPERE, TAV et TOTAL.
-10. Tester une navigation de plus de 8 branches et vérifier l'avertissement.
-11. Tourner le téléphone avant un nouvel export et vérifier que les données sont conservées.
-12. Exporter ensuite une trace en GPX et JSON pour confirmer l'absence de régression.
+1. Ouvrir une navigation de 5 à 8 points, changer le départ puis l'arrivée et vérifier que les points intermédiaires restent présents.
+2. Lancer un enregistrement GPS de 20 à 30 minutes et surveiller fluidité, chauffe et compteur de points.
+3. Passer l'application en arrière-plan puis la rouvrir et vérifier la reprise de la même session.
+4. Arrêter et sauvegarder, puis contrôler la route prévue dans Replay.
+5. Créer une trace très courte, l'arrêter et vérifier qu'elle ne réapparaît pas après redémarrage.
+6. Tester un devis carburant dépassant la capacité utile et vérifier l'alerte rouge avec déficit.
+7. Rafraîchir le vent et vérifier que l'heure prévue de départ reste inchangée.
+8. Exporter le PDF Log nav, puis une trace GPX et JSON.

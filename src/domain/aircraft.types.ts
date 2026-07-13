@@ -54,6 +54,8 @@ export interface FuelPlanSummary {
   fuelRequiredL: number;
   enduranceMinutes: number;
   remainingUsableFuelL: number;
+  fuelDeficitL: number;
+  isOverCapacity: boolean;
 }
 
 export interface FuelSummary {

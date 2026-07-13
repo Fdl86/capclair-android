@@ -27,20 +27,25 @@ function recoveredSessionToTrace(session: NativeRecoverableSessionPayload, pendi
   const endedAtMs = typeof session.endedAt === 'number' && Number.isFinite(session.endedAt)
     ? session.endedAt
     : positions.at(-1)?.timestamp ?? startedAtMs;
-  const matchingPendingRoute = pendingRoute?.routeId === (session.routeId || 'recovered-route') ? pendingRoute : undefined;
+  const sessionRouteId = session.routeId || 'recovered-route';
+  const embeddedRoute = session.plannedRoute?.points?.length && session.plannedRoute.routeId === sessionRouteId
+    ? session.plannedRoute
+    : undefined;
+  const matchingPendingRoute = pendingRoute?.routeId === sessionRouteId ? pendingRoute : undefined;
+  const plannedRoute = embeddedRoute ?? matchingPendingRoute;
 
   return {
-    schemaVersion: matchingPendingRoute ? 3 : 2,
+    schemaVersion: plannedRoute ? 3 : 2,
     id: session.traceId || `recovered-${session.sessionId}`,
     sessionId: session.sessionId,
-    routeId: session.routeId || 'recovered-route',
+    routeId: sessionRouteId,
     routeName: session.routeName || 'Trace GPS récupérée',
     date: new Date(endedAtMs).toISOString(),
     startedAt: new Date(startedAtMs).toISOString(),
     endedAt: new Date(endedAtMs).toISOString(),
     source: 'android-native',
     positions,
-    plannedRoute: matchingPendingRoute,
+    plannedRoute,
     dureeSec: Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000)),
     distanceNm: Number(totalDistanceNm(positions).toFixed(2))
   };
@@ -53,7 +58,13 @@ export async function recoverNativeTraces(): Promise<NativeTraceRecoveryResult> 
   const sessionIds: string[] = [];
   const pendingRoute = readPendingPlannedRoute();
 
-  for (const session of result.sessions ?? []) {
+  const sessions = [...(result.sessions ?? [])].sort((left, right) => {
+    const leftTime = left.endedAt ?? left.startedAt ?? 0;
+    const rightTime = right.endedAt ?? right.startedAt ?? 0;
+    return rightTime - leftTime;
+  });
+
+  for (const session of sessions) {
     if (session.running) continue;
     const trace = recoveredSessionToTrace(session, pendingRoute);
     if (!trace || !session.sessionId) continue;

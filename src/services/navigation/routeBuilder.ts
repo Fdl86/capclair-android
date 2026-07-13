@@ -8,9 +8,22 @@ const DEFAULT_TAS_KT = 105;
 const DEFAULT_ALTITUDE_FT = 2500;
 
 export interface RouteBuildOptions {
+  routeId?: string;
   profile?: Partial<FlightProfile>;
   branchAltitudeById?: Record<string, number>;
   branchWindById?: Record<string, BranchWind>;
+}
+
+function createRouteId(): string {
+  const randomPart = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `route-${randomPart}`;
+}
+
+function normalizeRouteId(routeId?: string): string {
+  const trimmed = routeId?.trim();
+  return trimmed && trimmed !== 'active-route' ? trimmed : createRouteId();
 }
 
 function isoNowRoundedHour(): string {
@@ -74,8 +87,11 @@ function sanitizeProfile(profile?: Partial<FlightProfile>): FlightProfile {
   const departureTimeIso = profile?.departureTimeIso && !Number.isNaN(new Date(profile.departureTimeIso).getTime())
     ? profile.departureTimeIso
     : isoNowRoundedHour();
+  const weatherAnalysisTimeIso = profile?.weatherAnalysisTimeIso && !Number.isNaN(new Date(profile.weatherAnalysisTimeIso).getTime())
+    ? profile.weatherAnalysisTimeIso
+    : undefined;
 
-  return { tasKt, defaultAltitudeFt, departureTimeIso };
+  return { tasKt, defaultAltitudeFt, departureTimeIso, weatherAnalysisTimeIso };
 }
 
 function computeWindCorrection(routeVraie: number, tasKt: number, wind?: BranchWind | null) {
@@ -204,14 +220,20 @@ export function buildRoute(points: NavPoint[], options: RouteBuildOptions = {}):
     ? buildBranches(normalizedPoints, { profile, branchAltitudeById, branchWindById })
     : [];
 
+  const totalTimeMinutes = branches.reduce((sum, branch) => sum + branch.tempsBrancheMin, 0);
+  const totalDistance = Number(branches.reduce((sum, branch) => sum + branch.distanceNm, 0).toFixed(1));
+  const averageGroundSpeedKt = totalTimeMinutes > 0
+    ? Math.max(0, Math.round((totalDistance / totalTimeMinutes) * 60))
+    : profile.tasKt;
+
   return {
-    id: 'active-route',
+    id: normalizeRouteId(options.routeId),
     nom: routeName(normalizedPoints),
     points: normalizedPoints,
     branches,
-    distanceTotale: Number(branches.reduce((sum, branch) => sum + branch.distanceNm, 0).toFixed(1)),
-    tempsEstimeMin: branches.reduce((sum, branch) => sum + branch.tempsBrancheMin, 0),
-    vitesseSolKt: profile.tasKt,
+    distanceTotale: totalDistance,
+    tempsEstimeMin: totalTimeMinutes,
+    vitesseSolKt: averageGroundSpeedKt,
     profile,
     branchAltitudeById: Object.fromEntries(branches.map((branch) => [branch.id, branch.altitudeFt])),
     branchWindById: Object.fromEntries(branches.filter((branch) => branch.wind).map((branch) => [branch.id, branch.wind as BranchWind])),

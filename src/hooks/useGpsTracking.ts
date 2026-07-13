@@ -59,12 +59,14 @@ export function useGpsTracking(
 ) {
   const traceMaxSpeedKt = useMemo(() => getMaxTraceSpeedKtForAircraft(aircraft), [aircraft]);
   const [status, setStatus] = useState<GpsStatus>('idle');
-  const [positions, setPositions] = useState<GpsPosition[]>([]);
+  const [, setPositionsRevision] = useState(0);
+  const [distanceTravelledNm, setDistanceTravelledNm] = useState(0);
   const [currentPosition, setCurrentPosition] = useState<GpsPosition | null>(null);
   const [crossTrack, setCrossTrack] = useState<CrossTrackResult>(() => getCrossTrackError(null, route.points));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationWarning, setNotificationWarning] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
+  const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
   const [lastAccuracy, setLastAccuracy] = useState<number | null>(null);
   const [lastAltitudeAccuracy, setLastAltitudeAccuracy] = useState<number | null>(null);
   const [lastSignalAtState, setLastSignalAtState] = useState<number | null>(null);
@@ -80,9 +82,12 @@ export function useGpsTracking(
   const simStep = useRef(0);
   const startTime = useRef<number | null>(null);
   const sessionId = useRef<string | null>(null);
+  const recordingRouteId = useRef(route.id);
+  const recordingRouteName = useRef(route.nom);
   const traceSource = useRef<TraceSource>('legacy');
   const plannedRouteSnapshot = useRef<PlannedRouteSnapshot | undefined>(undefined);
   const positionsRef = useRef<GpsPosition[]>([]);
+  const distanceTravelledNmRef = useRef(0);
   const statusRef = useRef<GpsStatus>('idle');
   const lastSignalAt = useRef<number | null>(null);
   const lastLivePosition = useRef<GpsPosition | null>(null);
@@ -106,8 +111,6 @@ export function useGpsTracking(
     setStatus(next);
   };
 
-  const distanceTravelledNm = useMemo(() => totalDistanceNm(positions), [positions]);
-
   const detachGpsWatch = () => {
     gpsWatch.current?.detach();
     gpsWatch.current = null;
@@ -129,13 +132,16 @@ export function useGpsTracking(
 
   const resetTrackingData = () => {
     positionsRef.current = [];
-    setPositions([]);
+    distanceTravelledNmRef.current = 0;
+    setDistanceTravelledNm(0);
+    setPositionsRevision((revision) => revision + 1);
     setCurrentPosition(null);
     setLastAccuracy(null);
     setLastAltitudeAccuracy(null);
     setLastSignalAtState(null);
     setLastSignalAgeSec(null);
     setRecordingElapsedSec(0);
+    setPersistenceWarning(null);
     lastSignalAt.current = null;
     lastLivePosition.current = null;
     lastTraceSampleAt.current = null;
@@ -149,20 +155,26 @@ export function useGpsTracking(
     setCrossTrack(getCrossTrackError(null, route.points));
   };
 
-  const appendTraceSample = (position: GpsPosition, force = false) => {
+  const appendTraceSample = (position: GpsPosition, force = false): boolean => {
     const previousSampleAt = lastTraceSampleAt.current;
     const shouldSample = force || previousSampleAt === null || position.timestamp - previousSampleAt >= TRACE_SAMPLE_INTERVAL_MS;
-    if (!shouldSample) return;
+    if (!shouldSample) return false;
 
     if (positionsRef.current.length >= TRACE_MAX_POINTS) {
       setErrorMessage('Trace très longue : limite d’affichage atteinte. Le journal natif complet reste conservé sur disque.');
-      return;
+      return false;
     }
 
+    const previous = positionsRef.current.at(-1);
     lastTraceSampleAt.current = position.timestamp;
     lastTraceSample.current = position;
-    positionsRef.current = [...positionsRef.current, position];
-    setPositions(positionsRef.current);
+    positionsRef.current.push(position);
+    if (previous) {
+      distanceTravelledNmRef.current += distanceNm(previous, position);
+      setDistanceTravelledNm(distanceTravelledNmRef.current);
+    }
+    setPositionsRevision((revision) => revision + 1);
+    return true;
   };
 
   const enrichPositionTrack = (position: GpsPosition): GpsPosition => {
@@ -240,8 +252,7 @@ export function useGpsTracking(
       traceRejectionStreak.current = 0;
       groundAnchor.current = null;
       acceptLivePosition(position);
-      appendTraceSample(position, true);
-      bumpDiagnostics('tracePoints');
+      if (appendTraceSample(position, true)) bumpDiagnostics('tracePoints');
       return;
     }
 
@@ -260,8 +271,7 @@ export function useGpsTracking(
       traceRejectionStreak.current = 0;
       groundAnchor.current = isLowReportedSpeed ? position : null;
       acceptLivePosition(position);
-      appendTraceSample(position);
-      bumpDiagnostics('tracePoints');
+      if (appendTraceSample(position)) bumpDiagnostics('tracePoints');
       return;
     }
 
@@ -279,9 +289,9 @@ export function useGpsTracking(
           traceRejectionStreak.current = 0;
           groundAnchor.current = null;
           acceptLivePosition(position);
-          appendTraceSample(position, true);
+          const appended = appendTraceSample(position, true);
           bumpDiagnostics('forcedResync');
-          bumpDiagnostics('tracePoints');
+          if (appended) bumpDiagnostics('tracePoints');
         }
       }
     }
@@ -299,6 +309,8 @@ export function useGpsTracking(
     setRecordingStartedAt(startTime.current);
     setRecordingElapsedSec(0);
     sessionId.current = null;
+    recordingRouteId.current = route.id;
+    recordingRouteName.current = route.nom;
     plannedRouteSnapshot.current = resumeExistingSession
       ? readPendingPlannedRoute() ?? createPlannedRouteSnapshot(route)
       : createPlannedRouteSnapshot(route);
@@ -330,6 +342,12 @@ export function useGpsTracking(
           return;
         }
 
+        if (error.code === 'storage') {
+          updateStatus('degraded');
+          setPersistenceWarning(error.message || 'Journal GPS Android non sécurisé.');
+          return;
+        }
+
         const liveStatus = statusRef.current === 'active' || statusRef.current === 'degraded' || statusRef.current === 'frozen';
         if (!liveStatus && error.code === 'unavailable') updateStatus('unavailable');
         if (liveStatus && statusRef.current !== 'frozen') updateStatus('degraded');
@@ -340,14 +358,20 @@ export function useGpsTracking(
             : error.message || 'Recherche GPS en cours. Placez le téléphone près d’une fenêtre ou en extérieur si le signal tarde.'
         );
       },
-      { routeId: route.id, routeName: route.nom }
+      { routeId: route.id, routeName: route.nom, plannedRoute: plannedRouteSnapshot.current }
     );
 
     gpsWatch.current = watch;
     watch.sessionInfo?.then((info) => {
       sessionId.current = info.sessionId;
+      recordingRouteId.current = info.routeId ?? recordingRouteId.current;
+      recordingRouteName.current = info.routeName ?? recordingRouteName.current;
       startTime.current = info.startedAt;
       setRecordingStartedAt(info.startedAt);
+      if (info.resumed && info.plannedRoute?.points?.length) {
+        plannedRouteSnapshot.current = info.plannedRoute;
+        persistPendingPlannedRoute(info.plannedRoute);
+      }
       if (info.notificationPermissionGranted === false) {
         setNotificationWarning('Notifications Android refusées : le GPS peut continuer, mais l’indicateur système sera moins visible.');
       }
@@ -375,6 +399,8 @@ export function useGpsTracking(
     setRecordingStartedAt(startTime.current);
     setRecordingElapsedSec(0);
     sessionId.current = null;
+    recordingRouteId.current = route.id;
+    recordingRouteName.current = route.nom;
     traceSource.current = 'simulation';
     plannedRouteSnapshot.current = createPlannedRouteSnapshot(route);
     persistPendingPlannedRoute(plannedRouteSnapshot.current);
@@ -406,11 +432,14 @@ export function useGpsTracking(
       await stopGpsWatch();
       const currentPositions = positionsRef.current;
       const livePosition = lastLivePosition.current;
-      const finalPositions = livePosition && currentPositions.at(-1)?.timestamp !== livePosition.timestamp
-        ? [...currentPositions, livePosition]
-        : currentPositions;
-      positionsRef.current = finalPositions;
-      setPositions(finalPositions);
+      if (livePosition && currentPositions.at(-1)?.timestamp !== livePosition.timestamp && currentPositions.length < TRACE_MAX_POINTS) {
+        const previous = currentPositions.at(-1);
+        currentPositions.push(livePosition);
+        if (previous) distanceTravelledNmRef.current += distanceNm(previous, livePosition);
+        setDistanceTravelledNm(distanceTravelledNmRef.current);
+        setPositionsRevision((revision) => revision + 1);
+      }
+      const finalPositions = currentPositions;
 
       if (!hasSavableTrace(finalPositions.length)) {
         const nativeDeleted = await markNativeSessionDeleted(sessionId.current).catch(() => false);
@@ -432,8 +461,8 @@ export function useGpsTracking(
         schemaVersion: 3,
         id: `trace-${Date.now()}`,
         sessionId: sessionId.current,
-        routeId: route.id,
-        routeName: route.nom,
+        routeId: recordingRouteId.current,
+        routeName: recordingRouteName.current,
         date: new Date(endedAtMs).toISOString(),
         startedAt: new Date(startedAtMs).toISOString(),
         endedAt: new Date(endedAtMs).toISOString(),
@@ -583,6 +612,8 @@ export function useGpsTracking(
   const nextPoint = route.points[crossTrack.segmentIndex + 1] ?? route.points.at(-1) ?? null;
   const nextPointDistance = currentPosition && nextPoint ? distanceNm(currentPosition, nextPoint) : null;
 
+  const positions = positionsRef.current;
+
   return {
     status,
     positions,
@@ -591,7 +622,7 @@ export function useGpsTracking(
     distanceTravelledNm,
     nextPoint,
     nextPointDistance,
-    errorMessage,
+    errorMessage: persistenceWarning ?? errorMessage,
     notificationWarning,
     noticeMessage,
     lastAccuracy,

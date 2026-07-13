@@ -94,9 +94,9 @@ export function FuelPlanningPanel({ fuel, config, onChangeConfig }: FuelPlanning
           <span>Autonomie de l’emport</span>
           <strong>{formatMinutes(fuel.lines.timeLimit.minutes)}</strong>
         </div>
-        <div>
-          <span>Capacité encore disponible</span>
-          <strong>{formatLitersCompact(fuel.remainingUsableFuelL)}</strong>
+        <div className={fuel.isOverCapacity ? 'is-danger' : undefined}>
+          <span>{fuel.isOverCapacity ? 'Déficit capacité' : 'Capacité encore disponible'}</span>
+          <strong>{formatLitersCompact(fuel.isOverCapacity ? fuel.fuelDeficitL : fuel.remainingUsableFuelL)}</strong>
         </div>
       </div>
     </div>

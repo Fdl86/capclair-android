@@ -38,8 +38,21 @@ describe('actual trace layer', () => {
       point(0.41, 21_000)
     ]);
 
-    const feature = layer.getSource()?.getFeatureById('actual-trace-line');
-    const geometry = feature?.getGeometry();
-    expect(geometry?.getLineStrings()).toHaveLength(2);
+    const features = layer.getSource()?.getFeatures() ?? [];
+    expect(features).toHaveLength(2);
+    expect(features.map((feature) => feature.getGeometry()?.getCoordinates().length)).toEqual([2, 2]);
+  });
+
+  it('appends new coordinates without rebuilding the current line geometry', () => {
+    const positions = [point(0.30, 0), point(0.31, 1000)];
+    const layer = createActualTraceLayer(positions);
+    const geometryBefore = layer.getSource()?.getFeatureById('actual-trace-line')?.getGeometry();
+
+    positions.push(point(0.32, 2000));
+    updateActualTraceLayer(layer, positions);
+
+    const geometryAfter = layer.getSource()?.getFeatureById('actual-trace-line')?.getGeometry();
+    expect(geometryAfter).toBe(geometryBefore);
+    expect(geometryAfter?.getCoordinates()).toHaveLength(3);
   });
 });

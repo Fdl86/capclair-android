@@ -106,16 +106,22 @@ export function computeFuelPlan(
     liters: emportLiters
   };
 
+  const usableFuelL = safeLiter(aircraft.usableFuelL);
+  const rawCapacityBalanceL = usableFuelL - emportLiters;
+  const fuelDeficitL = rawCapacityBalanceL < 0 ? safeLiter(Math.abs(rawCapacityBalanceL)) : 0;
+
   return {
     fuelPerHourL,
     fuelPerMinuteL,
     unusableFuelL: safeLiter(aircraft.unusableFuelL ?? 0),
-    usableFuelL: safeLiter(aircraft.usableFuelL),
+    usableFuelL,
     routeMinutes,
     diversionMinutes: diversionMin,
     fuelRequiredL: emportLiters,
     enduranceMinutes: emportMinutes,
-    remainingUsableFuelL: safeLiter(aircraft.usableFuelL - emportLiters),
+    remainingUsableFuelL: safeLiter(Math.max(0, rawCapacityBalanceL)),
+    fuelDeficitL,
+    isOverCapacity: fuelDeficitL > 0,
     lines: {
       route: routeLine,
       taxiDeparture: taxiDepartureLine,

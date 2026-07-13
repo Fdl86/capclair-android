@@ -2317,6 +2317,17 @@
   font-weight: 1000;
 }
 
+
+.fuel-kpi-strip div.is-danger {
+  border-color: rgba(255, 92, 92, 0.75);
+  background: rgba(110, 18, 24, 0.28);
+}
+
+.fuel-kpi-strip div.is-danger span,
+.fuel-kpi-strip div.is-danger strong {
+  color: #ff9b9b;
+}
+
 .fuel-kpi-strip div:first-child strong,
 .fuel-kpi-strip div:last-child strong {
   color: var(--cyan-soft);

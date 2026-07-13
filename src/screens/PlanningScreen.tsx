@@ -246,7 +246,7 @@ export function PlanningScreen({
           <div className="route-summary-line">
             <strong>{route.distanceTotale.toFixed(1).replace('.', ',')} NM</strong>
             <span>{formatDuration(route.tempsEstimeMin)}</span>
-            <span>{route.vitesseSolKt} kt</span>
+            <span>GS moy. {route.vitesseSolKt} kt</span>
           </div>
 
           <RoutePointList points={route.points} selectedPointId={selectedPointId} onSelect={onSelectPoint} onRemove={onRemovePoint} />

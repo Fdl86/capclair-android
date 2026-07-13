@@ -39,8 +39,6 @@ public class NativeTraceExportPlugin extends Plugin {
                 call.reject("Impossible de créer le dossier d'export.", "directory_error");
                 return;
             }
-            cleanupExports(exportDir);
-
             File exportFile = new File(exportDir, fileName);
             byte[] payload;
             if ("base64".equalsIgnoreCase(encoding)) {
@@ -62,6 +60,7 @@ public class NativeTraceExportPlugin extends Plugin {
                 output.flush();
                 output.getFD().sync();
             }
+            cleanupExports(exportDir);
 
             Uri uri = FileProvider.getUriForFile(
                 getContext(),

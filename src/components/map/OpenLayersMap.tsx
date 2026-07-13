@@ -213,7 +213,7 @@ export function OpenLayersMap({
     const traceLayer = traceLayerRef.current;
     if (!traceLayer) return;
     updateActualTraceLayer(traceLayer, trace);
-  }, [trace]);
+  }, [trace, trace.length]);
 
   useEffect(() => {
     latestAircraftRef.current = aircraft;

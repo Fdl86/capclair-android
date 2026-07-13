@@ -1,7 +1,8 @@
 import type { GpsPosition } from '../../domain/gps.types';
+import type { PlannedRouteSnapshot } from '../../domain/trace.types';
 
 export type GpsProviderKind = 'web' | 'android-native' | 'native-placeholder';
-export type GpsProviderErrorCode = 'denied' | 'unavailable' | 'timeout' | 'unknown';
+export type GpsProviderErrorCode = 'denied' | 'unavailable' | 'timeout' | 'storage' | 'unknown';
 
 export interface GpsProviderError {
   code: GpsProviderErrorCode;
@@ -12,13 +13,17 @@ export interface GpsProviderError {
 export interface GpsProviderStartOptions {
   routeId?: string;
   routeName?: string;
+  plannedRoute?: PlannedRouteSnapshot;
 }
 
 export interface GpsProviderSessionInfo {
   sessionId: string | null;
+  routeId?: string;
+  routeName?: string;
   startedAt: number;
   resumed: boolean;
   notificationPermissionGranted?: boolean;
+  plannedRoute?: PlannedRouteSnapshot;
 }
 
 export interface GpsProviderWatch {

@@ -19,7 +19,6 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
-import org.json.JSONArray;
 
 @CapacitorPlugin(
     name = "NativeGps",
@@ -97,13 +96,22 @@ public class NativeGpsPlugin extends Plugin {
 
     @PluginMethod
     public void stop(PluginCall call) {
+        Long requestedOffset = call.getLong("sinceOffset", 0L);
+        Long requestedTimestamp = call.getLong("sinceTimestamp", 0L);
+        long sinceOffset = requestedOffset == null ? 0L : Math.max(0L, requestedOffset);
+        long sinceTimestamp = requestedTimestamp == null ? 0L : Math.max(0L, requestedTimestamp);
+
+        NativeGpsStore.finishCurrentSession();
+        NativeGpsStore.PointReadResult unread = NativeGpsStore.getPointsSince(sinceOffset, sinceTimestamp);
+
         Intent intent = new Intent(getContext(), NativeGpsForegroundService.class);
         intent.setAction(NativeGpsForegroundService.ACTION_STOP);
-        NativeGpsStore.finishCurrentSession();
         getContext().startService(intent);
+
         JSObject result = NativeGpsStore.getStatus();
         result.put("stopped", true);
-        result.put("points", NativeGpsStore.getAllCurrentPoints());
+        result.put("points", unread.points);
+        result.put("nextOffset", unread.nextOffset);
         call.resolve(result);
     }
 
@@ -114,10 +122,14 @@ public class NativeGpsPlugin extends Plugin {
 
     @PluginMethod
     public void getPointsSince(PluginCall call) {
-        Long since = call.getLong("sinceTimestamp", 0L);
-        JSONArray points = NativeGpsStore.getPointsSince(since == null ? 0L : since);
+        Long requestedOffset = call.getLong("sinceOffset", 0L);
+        Long requestedTimestamp = call.getLong("sinceTimestamp", 0L);
+        long sinceOffset = requestedOffset == null ? 0L : Math.max(0L, requestedOffset);
+        long sinceTimestamp = requestedTimestamp == null ? 0L : Math.max(0L, requestedTimestamp);
+        NativeGpsStore.PointReadResult unread = NativeGpsStore.getPointsSince(sinceOffset, sinceTimestamp);
         JSObject result = NativeGpsStore.getStatus();
-        result.put("points", points);
+        result.put("points", unread.points);
+        result.put("nextOffset", unread.nextOffset);
         call.resolve(result);
     }
 
@@ -273,7 +285,8 @@ public class NativeGpsPlugin extends Plugin {
     private void startService(PluginCall call) {
         String routeId = call.getString("routeId", "");
         String routeName = call.getString("routeName", "Trace GPS");
-        JSObject session = NativeGpsStore.beginSession(routeId, routeName);
+        JSObject plannedRoute = call.getObject("plannedRoute", null);
+        JSObject session = NativeGpsStore.beginSession(routeId, routeName, plannedRoute);
         Intent intent = new Intent(getContext(), NativeGpsForegroundService.class);
         intent.setAction(NativeGpsForegroundService.ACTION_START);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) getContext().startForegroundService(intent);
