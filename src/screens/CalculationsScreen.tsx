@@ -17,7 +17,8 @@ import { AircraftSelectorPanel } from '../components/flight/AircraftSelectorPane
 import { AerodromeWeatherPanel } from '../components/flight/AerodromeWeatherPanel';
 import { FuelPlanningPanel } from '../components/flight/FuelPlanningPanel';
 import { findAerodrome } from '../data/aerodromeCatalog';
-import { distanceNm } from '../services/geo/distance';
+import { diversionMinutes } from '../services/navigation/diversion';
+import type { NavLogExportResult } from '../services/export/navLogExport.types';
 
 interface CalculationsScreenProps {
   route: NavRoute;
@@ -37,7 +38,7 @@ interface CalculationsScreenProps {
   aerodromeWeatherUpdatedAt: string | null;
   onRefreshAerodromeWeather: () => void;
   onValidate: () => void;
-  onExport: () => void;
+  onExport: () => Promise<NavLogExportResult>;
   onBackPlanning: () => void;
 }
 
@@ -60,13 +61,6 @@ function timeZulu(iso?: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '-';
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}Z`;
-}
-
-function diversionMinutes(destinationCode: string | undefined, alternateCode: string, tasKt: number) {
-  const destination = destinationCode ? findAerodrome(destinationCode) : null;
-  const alternate = findAerodrome(alternateCode);
-  if (!destination || !alternate || tasKt <= 0) return 0;
-  return Math.round((distanceNm(destination, alternate) / tasKt) * 60);
 }
 
 function SummaryCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
@@ -107,6 +101,26 @@ export function CalculationsScreen({
   const [zoneStatus, setZoneStatus] = useState('Calcul zones...');
   const [terrain, setTerrain] = useState<TerrainSample[]>([]);
   const [shownZoneCount, setShownZoneCount] = useState(0);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfExportStatus, setPdfExportStatus] = useState<{ kind: 'success' | 'warning' | 'error'; message: string } | null>(null);
+
+  const handlePdfExport = async () => {
+    if (pdfExporting) return;
+    setPdfExporting(true);
+    setPdfExportStatus({ kind: 'warning', message: 'Préparation du PDF...' });
+    try {
+      const result = await onExport();
+      setPdfExportStatus({
+        kind: result.warnings.length ? 'warning' : 'success',
+        message: `${result.fileName} - ${result.message}`
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || 'Erreur inconnue');
+      setPdfExportStatus({ kind: 'error', message: `Génération PDF impossible : ${message}` });
+    } finally {
+      setPdfExporting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -254,10 +268,15 @@ export function CalculationsScreen({
         <div className="navlog-actions">
           <Button variant="secondary" onClick={onBackPlanning}>Retour planification</Button>
           <div>
-            <Button variant="secondary" onClick={onExport}>Exporter PDF</Button>
+            <Button variant="secondary" onClick={handlePdfExport} disabled={pdfExporting}>{pdfExporting ? 'Préparation PDF...' : 'Exporter PDF'}</Button>
             <Button variant="primary" onClick={onValidate}>Valider et passer au suivi</Button>
           </div>
         </div>
+        {pdfExportStatus && (
+          <p className={`navlog-pdf-status is-${pdfExportStatus.kind}`} role="status" aria-live="polite">
+            {pdfExportStatus.message}
+          </p>
+        )}
 
         <Card className="safety-card">
           <strong>Info frise</strong>

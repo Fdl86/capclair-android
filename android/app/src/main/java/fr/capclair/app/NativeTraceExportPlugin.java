@@ -2,6 +2,7 @@ package fr.capclair.app;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.util.Base64;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -25,6 +26,7 @@ public class NativeTraceExportPlugin extends Plugin {
         String content = call.getString("content", "");
         String mimeType = call.getString("mimeType", "application/octet-stream");
         String chooserTitle = call.getString("chooserTitle", "Partager la trace CAP CLAIR");
+        String encoding = call.getString("encoding", "utf8");
 
         if (content == null || content.isEmpty()) {
             call.reject("Contenu export vide.", "empty_content");
@@ -40,8 +42,23 @@ public class NativeTraceExportPlugin extends Plugin {
             cleanupExports(exportDir);
 
             File exportFile = new File(exportDir, fileName);
+            byte[] payload;
+            if ("base64".equalsIgnoreCase(encoding)) {
+                try {
+                    payload = Base64.decode(content, Base64.DEFAULT);
+                } catch (IllegalArgumentException error) {
+                    call.reject("Contenu Base64 invalide.", "invalid_base64", error);
+                    return;
+                }
+            } else {
+                payload = content.getBytes(StandardCharsets.UTF_8);
+            }
+            if (payload.length == 0) {
+                call.reject("Contenu export vide.", "empty_content");
+                return;
+            }
             try (FileOutputStream output = new FileOutputStream(exportFile, false)) {
-                output.write(content.getBytes(StandardCharsets.UTF_8));
+                output.write(payload);
                 output.flush();
                 output.getFD().sync();
             }

@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
   if (!nativeBuild) {
     plugins.push(VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png'],
+      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'templates/fiche-nav-a4-paysage-v5.pdf'],
       manifest: {
         name: 'CAP CLAIR - Navigation VFR',
         short_name: 'CAP CLAIR',
@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,pdf,webmanifest}']
       }
     }));
   }

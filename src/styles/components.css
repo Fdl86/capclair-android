@@ -3504,3 +3504,30 @@
     font-size: 0.56rem;
   }
 }
+
+/* DEV15.2.4 - local PDF export status */
+.navlog-pdf-status {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(30, 49, 69, 0.72);
+  border-radius: 10px;
+  background: rgba(7, 17, 28, 0.58);
+  color: var(--text-2);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.navlog-pdf-status.is-success {
+  border-color: rgba(89, 217, 154, 0.42);
+  color: #B8FFD7;
+}
+
+.navlog-pdf-status.is-warning {
+  border-color: rgba(242, 190, 72, 0.42);
+  color: #FFE1A0;
+}
+
+.navlog-pdf-status.is-error {
+  border-color: rgba(255, 99, 110, 0.5);
+  color: #FFB6BC;
+}

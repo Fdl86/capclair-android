@@ -14,6 +14,7 @@ import { DEFAULT_FUEL_PLAN_CONFIG } from '../domain/aircraft.types';
 import type { MapBaseLayer } from '../mapEngine/mapTypes';
 import { runStorageMaintenance } from '../services/storage/storageMaintenance';
 import { Button } from '../components/ui/Button';
+import { exportNavLogPdf } from '../services/export/navLogExport';
 
 
 const CalculationsScreen = lazy(() => import('../screens/CalculationsScreen').then((module) => ({ default: module.CalculationsScreen })));
@@ -130,7 +131,12 @@ export function App() {
           aerodromeWeatherUpdatedAt={aerodromeWeatherState.updatedAtIso}
           onRefreshAerodromeWeather={aerodromeWeatherState.refresh}
           onValidate={() => setCurrentScreen('tracking')}
-          onExport={() => setCurrentScreen('traces')}
+          onExport={() => exportNavLogPdf({
+            route: routeState.route,
+            aircraft: aircraftState.activeProfile,
+            fuelPlanConfig,
+            alternateCode: safeAlternateCode
+          })}
           onBackPlanning={() => setCurrentScreen('planning')}
         />
       )}

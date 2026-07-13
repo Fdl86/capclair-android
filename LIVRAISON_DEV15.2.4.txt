@@ -1,0 +1,74 @@
+CAP CLAIR DEV15.2.4 - LOG NAV PDF
+=================================
+
+Version
+-------
+versionName : 15.2.4
+versionCode : 15024
+APP_VERSION : CAP CLAIR DEV15.2.4 - LOG NAV PDF
+Artifact GitHub Actions : cap-clair-dev15-2-4-debug-apk
+Commit conseillé : DEV15.2.4 - Export PDF Log nav
+
+Journal des modifications
+-------------------------
+- Le bouton Exporter PDF du Log nav génère désormais un véritable PDF local.
+- Le rendu reprend le gabarit A4 paysage validé V5.
+- Le document est construit à partir d'un instantané structuré et stable.
+- Les distances sont arrondies au NM entier le plus proche.
+- Les colonnes HE, HR et Conso restent vides.
+- Les radios, QNH, Zmini, ETA et réservoirs restent vides.
+- Arrivée déroutement reste fixée à 12 minutes.
+- Les totaux distance, TSV et TAV sont centrés.
+- Les bordures droites de REPERE, TAV et TOTAL sont renforcées sans rupture blanche.
+- La première version est limitée à 8 branches avec avertissement au-delà.
+- Android partage le PDF comme fichier binaire via le plugin existant étendu en Base64.
+- Les exports GPX et JSON conservent leur fonctionnement UTF-8 existant.
+- Le web/PWA télécharge le même PDF avec un Blob local.
+- Le gabarit PDF est inclus dans l'APK et dans le cache PWA.
+
+Contrôles exécutés
+------------------
+- npm run version:check : réussi
+- npm test : réussi
+- 13 fichiers de tests : réussis
+- 45 tests : réussis
+- npm run build:web : réussi
+- npm run build:android : réussi
+- npx cap sync android : réussi
+- service worker absent du build Android : vérifié
+- gabarit PDF présent dans les assets Android : vérifié
+- aperçu PDF rendu et contrôlé en A4 paysage : réussi
+
+Avertissement non bloquant
+--------------------------
+Le build conserve l'avertissement déjà connu concernant la taille du catalogue des espaces aériens.
+
+APK
+---
+L'APK n'est pas compilé localement dans cette livraison, car la signature CAP CLAIR est fournie par les secrets GitHub Actions.
+Prendre uniquement l'artifact du dernier run vert sur la branche main.
+
+Procédure GitHub Desktop
+------------------------
+1. Vider le dossier local de la branche APK en conservant uniquement .git.
+2. Copier tout le contenu du ZIP dans ce dossier.
+3. Ouvrir GitHub Desktop et vérifier que la branche active est main.
+4. Créer le commit : DEV15.2.4 - Export PDF Log nav
+5. Pousser sur GitHub.
+6. Attendre le dernier run vert Android Debug APK.
+7. Télécharger uniquement : cap-clair-dev15-2-4-debug-apk
+8. Installer l'APK par-dessus la version précédente.
+9. Vérifier dans l'application : DEV15.2.4 et le hash court du build.
+10. Ne désinstaller qu'en cas de problème confirmé de versionCode ou de signature.
+
+Tests téléphone prioritaires
+----------------------------
+1. Exporter une navigation de 5 à 8 branches.
+2. Enregistrer le PDF depuis le partage Android.
+3. Vérifier le format A4 paysage et l'impression.
+4. Vérifier les distances entières et les totaux centrés.
+5. Vérifier que HE, HR, Conso, radio, QNH, Zmini, ETA et réservoirs sont vides.
+6. Vérifier Arr. Dérout. à 12 minutes.
+7. Vérifier les bordures REPERE, TAV et TOTAL.
+8. Tester une navigation de plus de 8 branches et l'avertissement.
+9. Exporter ensuite GPX et JSON pour confirmer l'absence de régression.

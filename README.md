@@ -1,50 +1,108 @@
-# CAP CLAIR DEV15.2.3 - SUIVI REC UX
+# CAP CLAIR DEV15.2.4 - LOG NAV PDF
 
 CAP CLAIR est une application VFR mobile-first en Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.2.3 conserve toutes les fonctions validées de DEV15.2.2 et clarifie la différence entre une localisation ponctuelle et l'enregistrement d'une trace. Elle ajoute les commandes d'enregistrement au Suivi plein écran et réorganise entièrement le Replay en paysage. L'import GPX est volontairement reporté à DEV15.3.0.
+DEV15.2.4 conserve toutes les fonctions validées de DEV15.1.5 à DEV15.2.3 et ajoute le véritable export PDF du Log nav. Le document est généré localement à partir d'un instantané structuré, sans capture d'écran et sans envoi de la navigation vers un serveur.
 
-## Position GPS et enregistrement
+## Export PDF du Log nav
 
-- la bulle de carte décrit désormais la position GPS, indépendamment de l'enregistrement ;
-- après un appui sur Centrer, une position ponctuelle récente est affichée sous la forme `POSITION 12 m` ;
-- une position devenue ancienne passe en jaune, puis devient inactive ;
-- les erreurs réelles restent rouges : GPS indisponible ou autorisation refusée ;
-- l'état d'enregistrement utilise une information séparée : `NON ENREGISTRÉ`, `ACQUISITION`, `REC hh:mm:ss`, `SAUVEGARDE` ou `TRACE SAUVÉE` ;
-- aucune localisation ponctuelle ne crée de trace.
+Le bouton `Exporter PDF` du Log nav produit désormais la fiche de navigation A4 paysage validée visuellement.
 
-## Suivi hors plein écran
+Le parcours est le suivant :
 
-- correction du chevauchement entre la bulle de position et le sélecteur OpenAIP / OACI 1/500k ;
-- bouton principal renommé `Démarrer l'enregistrement` ;
-- arrêt renommé selon le contexte : acquisition, enregistrement ou sauvegarde ;
-- libellé `Alt GPS` utilisé pour éviter la troncature sur téléphone étroit ;
-- disposition compacte DEV15.2.2 conservée ;
-- trace réelle magenta avec halo sombre conservée.
+1. préparer la navigation ;
+2. ouvrir le Log nav ;
+3. appuyer sur `Exporter PDF` ;
+4. attendre l'état `Préparation PDF...` ;
+5. partager ou enregistrer le document avec Android, ou le télécharger sur le web/PWA.
 
-## Suivi plein écran
+Le rendu reprend fidèlement le document de référence :
 
-- bulle de position GPS visible dans la barre supérieure ;
-- chip d'enregistrement placée à côté de NORD UP / TRK UP ;
-- chronomètre REC affiché pendant l'enregistrement ;
-- bouton Record ajouté sous le bouton de zoom arrière ;
-- cercle rouge pour démarrer ;
-- carré blanc sur fond rouge pour arrêter ;
-- état jaune pendant l'acquisition ou la sauvegarde ;
-- arrêt toujours protégé par la confirmation existante ;
-- bandeau cockpit et fonctionnement NORD UP / TRK UP conservés.
+- structure générale et ordre des sections ;
+- devis carburant ;
+- tableau de navigation limité à 8 branches pour cette première version ;
+- check-lists et aides de calcul ;
+- gestion des réservoirs laissée vide ;
+- cases manuelles laissées vides ;
+- feuille A4 paysage imprimable ;
+- bordures finales validées sur les colonnes REPERE, TAV et TOTAL.
 
-## Replay paysage
+## Données remplies automatiquement
 
-- carte placée sur toute la hauteur disponible à gauche ;
-- métriques regroupées en haut de la colonne droite ;
-- profil d'altitude déplacé sous les métriques dans la colonne droite ;
-- vitesses x1, x5, x10 et x20 conservées sous le profil ;
-- commandes lecture, pause et Début conservées sur la carte ;
-- distance totale conservée à la fin exacte du Replay ;
-- portrait DEV15.2.2 conservé sans modification.
+CAP CLAIR remplit uniquement les données dont la source et le calcul sont certains :
 
-Le profil d'altitude est volontairement plus compact en paysage. Une trace longue doit être contrôlée sur téléphone afin de confirmer la lisibilité du profil décimé et la précision du déplacement tactile.
+- aérodrome de départ et altitude terrain ;
+- aérodrome d'arrivée et altitude terrain ;
+- facteur de base ;
+- consommation en L/h et L/min ;
+- essence inutilisable lorsqu'elle est renseignée dans le profil avion ;
+- temps du trajet avec vent ;
+- temps de déroutement lorsque le dégagement est défini ;
+- arrivée déroutement fixée à 12 minutes ;
+- réserve finale ;
+- route magnétique ;
+- dérive selon la convention de la fiche ;
+- cap magnétique ;
+- dérive maximale ;
+- angle au vent ;
+- facteur de base avec vent ;
+- repère ;
+- distance arrondie au NM entier le plus proche ;
+- temps sans vent ;
+- temps avec vent ;
+- totaux distance, TSV et TAV.
+
+## Données volontairement laissées vides
+
+La règle appliquée est : en cas de doute, CAP CLAIR ne remplit pas la case.
+
+Restent vides :
+
+- pistes ;
+- QNH ;
+- fréquences radio et radionavigation ;
+- Zmini ;
+- Vs, Vs0, Vfe et VfinMax ;
+- horamètres ;
+- heures bloc ;
+- marge carburant ;
+- vol réglementaire ;
+- carburant à bord ;
+- temps de vol et heure limite ;
+- HE et HR ;
+- consommation et carburant restant par branche ;
+- ETA ;
+- gestion détaillée des réservoirs.
+
+## Architecture
+
+L'export repose sur les éléments suivants :
+
+- `buildNavLogSnapshot()` construit un instantané stable du log ;
+- les calculs sont centralisés et ne lisent pas directement les composants React ;
+- `renderNavLogPdf()` applique les données sur le gabarit PDF local validé ;
+- `pdf-lib` est chargé uniquement au moment de l'export ;
+- Android reçoit le PDF en Base64 puis le partage comme fichier binaire ;
+- le web/PWA télécharge le même tableau d'octets avec un Blob PDF ;
+- le gabarit est inclus dans les ressources de l'APK et dans le cache PWA.
+
+Le nom de fichier suit ce format :
+
+```text
+CAP-CLAIR_LOG-NAV_LFBI-LFOO_2026-07-12.pdf
+```
+
+Les caractères dangereux et les accents sont nettoyés uniquement dans le nom du fichier.
+
+## Routes de plus de 8 branches
+
+La première version imprime les 8 premières branches. L'export reste possible et affiche un avertissement indiquant le nombre de branches non imprimées. Les totaux du document correspondent uniquement aux branches effectivement affichées.
+
+## Export Android
+
+Le plugin `NativeTraceExportPlugin` conserve son comportement UTF-8 pour les exports GPX et JSON. Il accepte maintenant aussi un contenu Base64 pour écrire et partager un PDF binaire.
+
+Les exports existants GPX et JSON restent inchangés.
 
 ## Fonctions conservées
 
@@ -56,33 +114,37 @@ Le profil d'altitude est volontairement plus compact en paysage. Une trace longu
 - modes NORD UP et TRK UP ;
 - Suivi plein écran ;
 - bandeau cockpit ;
+- commandes d'enregistrement en plein écran ;
 - ajout continu de points dans Planifier ;
 - altitude par pas de 100 ft ;
 - localisation ponctuelle sans création de trace ;
-- signature Android et workflow GitHub Actions.
+- signature Android stable ;
+- workflow GitHub Actions.
 
 ## Compatibilité et sécurité
 
-- aucun changement du service Android de suivi en arrière-plan ;
-- aucun changement des fichiers Java du GPS natif ;
+- aucun changement du GPS Android natif ;
 - aucun changement du format des traces ;
-- aucune nouvelle dépendance ;
-- aucun service worker dans le build Android ;
-- dossier Android synchronisé inclus dans la livraison ;
+- aucune modification du Replay ou du Suivi ;
+- aucune exécution de contenu utilisateur ;
+- aucune donnée de navigation envoyée vers un serveur ;
+- génération déterministe à données identiques ;
+- caractères français pris en charge ;
+- aucune édition manuelle de `android/app/src/main/assets/public/` ;
 - import GPX non inclus dans cette version.
 
 ## Version et identification du build
 
 ```text
 applicationId fr.capclair.app
-versionCode 15023
-versionName 15.2.3
+versionCode 15024
+versionName 15.2.4
 ```
 
 Le bandeau affiche :
 
 ```text
-CAP CLAIR DEV15.2.3 - SUIVI REC UX - build <hash court>
+CAP CLAIR DEV15.2.4 - LOG NAV PDF - build <hash court>
 ```
 
 Le hash court provient du commit GitHub Actions.
@@ -90,36 +152,59 @@ Le hash court provient du commit GitHub Actions.
 ## Contrôles réalisés
 
 ```text
-10 fichiers de tests
-32 tests réussis
+13 fichiers de tests
+45 tests réussis
 npm run version:check réussi
 npm run build:android réussi
 npx cap sync android réussi
+npm run build:web réussi
 ```
 
-Le dossier `android/app/src/main/assets/public/` ne doit jamais être modifié manuellement. Il est produit uniquement par `npm run build:android`, puis synchronisé par `npx cap sync android`.
+Les tests couvrent notamment :
+
+- construction du modèle d'export ;
+- ordre des branches ;
+- calculs Rm, X, Cm, Xmax, aw et Fbw ;
+- arrondi des distances ;
+- valeurs manquantes ;
+- caractères accentués ;
+- noms longs ;
+- navigation courte ;
+- navigation longue ;
+- limite de 8 branches ;
+- totaux ;
+- nom de fichier ;
+- PDF A4 paysage d'une page ;
+- génération répétée déterministe ;
+- non-régression des tests GPS, traces, cartes, Replay et exports GPX.
+
+Le dossier `android/app/src/main/assets/public/` est produit uniquement par `npm run build:android`, puis synchronisé par `npx cap sync android`.
 
 ## Livraison APK
 
 1. Vider le dossier local Android en conservant uniquement `.git`.
 2. Copier le contenu complet de ce ZIP dans le dossier.
 3. Vérifier dans GitHub Desktop que la branche active est `main`.
-4. Utiliser le commit `DEV15.2.3 - Suivi REC et Replay paysage`.
+4. Utiliser le commit `DEV15.2.4 - Export PDF Log nav`.
 5. Pousser sur GitHub.
 6. Attendre le dernier run vert `Android Debug APK`.
-7. Télécharger uniquement l'artifact `cap-clair-dev15-2-3-debug-apk` de ce run.
-8. Installer l'APK et vérifier `DEV15.2.3` ainsi que le hash court avant tout diagnostic.
+7. Télécharger uniquement l'artifact `cap-clair-dev15-2-4-debug-apk` du dernier run vert.
+8. Installer l'APK par-dessus la version précédente.
+9. Vérifier `DEV15.2.4` et le hash court affiché avant tout diagnostic.
+
+Ne désinstaller l'ancienne application qu'en cas de problème confirmé de `versionCode` ou de signature.
 
 ## Tests téléphone prioritaires
 
-1. Appuyer sur Centrer avec l'enregistrement arrêté et vérifier `POSITION xx m`, sans trace créée.
-2. Vérifier qu'une position ancienne passe en jaune puis devient inactive.
-3. Vérifier l'absence de chevauchement avec OpenAIP / OACI 1/500k en portrait.
-4. Démarrer puis arrêter un enregistrement depuis l'écran normal.
-5. Passer en plein écran et vérifier le bouton Record sous le zoom arrière.
-6. Vérifier `REC hh:mm:ss` à côté de NORD UP / TRK UP.
-7. Arrêter depuis le plein écran, confirmer puis vérifier la sauvegarde.
-8. Ouvrir le Replay en paysage et vérifier que la carte occupe toute la hauteur gauche.
-9. Tester une trace longue dans le petit profil d'altitude à droite.
-10. Vérifier la distance à la fin exacte du Replay.
-11. Exporter GPX et JSON, supprimer la trace puis redémarrer l'application.
+1. Préparer une navigation standard de 5 à 8 branches.
+2. Ouvrir le Log nav et appuyer sur `Exporter PDF`.
+3. Vérifier l'état `Préparation PDF...` puis l'ouverture du partage Android.
+4. Enregistrer le PDF et l'ouvrir avec un lecteur indépendant.
+5. Vérifier le format A4 paysage et l'absence de débordement.
+6. Vérifier l'arrondi des distances au NM entier.
+7. Vérifier que HE, HR, Conso, radio, QNH, Zmini, ETA et réservoirs restent vides.
+8. Vérifier `Arr. Dérout.` à 12 minutes.
+9. Vérifier le centrage des totaux et la continuité des bordures REPERE, TAV et TOTAL.
+10. Tester une navigation de plus de 8 branches et vérifier l'avertissement.
+11. Tourner le téléphone avant un nouvel export et vérifier que les données sont conservées.
+12. Exporter ensuite une trace en GPX et JSON pour confirmer l'absence de régression.
