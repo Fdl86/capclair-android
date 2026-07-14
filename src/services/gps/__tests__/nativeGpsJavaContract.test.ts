@@ -45,4 +45,22 @@ describe('NativeGpsStore Java robustness contract', () => {
     expect(store).toContain('if (!includeSaved && metadata.optBoolean("saved", false)) continue;');
     expect(plugin).toContain('call.getBoolean("includeSaved", false)');
   });
+  it('records native service heartbeats and exports a raw diagnostic bundle', () => {
+    const store = fs.readFileSync(storePath, 'utf8');
+    const plugin = fs.readFileSync(pluginPath, 'utf8');
+    const service = fs.readFileSync(path.resolve(
+      process.cwd(),
+      'android/app/src/main/java/fr/capclair/app/NativeGpsForegroundService.java'
+    ), 'utf8');
+
+    expect(store).toContain('static synchronized JSObject getSessionDiagnostic(String sessionId)');
+    expect(store).toContain('static synchronized String getSessionJournalText(String sessionId)');
+    expect(store).toContain('static synchronized String getSessionEventsText(String sessionId)');
+    expect(service).toContain('NativeGpsStore.recordDiagnosticEvent("service_heartbeat"');
+    expect(service).toContain('NativeGpsStore.recordDiagnosticEvent("location_resumed_after_gap"');
+    expect(plugin).toContain('public void exportSessionDiagnostic(PluginCall call)');
+    expect(plugin).toContain('writeZipEntry(zip, "native-journal.jsonl"');
+    expect(plugin).toContain('writeZipEntry(zip, "native-events.jsonl"');
+  });
+
 });

@@ -7,10 +7,12 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import androidx.core.content.FileProvider;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -19,6 +21,11 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @CapacitorPlugin(
     name = "NativeGps",
@@ -154,6 +161,72 @@ public class NativeGpsPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getSessionDiagnostic(PluginCall call) {
+        String sessionId = call.getString("sessionId", "");
+        call.resolve(NativeGpsStore.getSessionDiagnostic(sessionId));
+    }
+
+    @PluginMethod
+    public void exportSessionDiagnostic(PluginCall call) {
+        String sessionId = call.getString("sessionId", "");
+        String localTraceJson = call.getString("localTraceJson", "");
+        String appVersion = call.getString("appVersion", "CAP CLAIR");
+        String requestedFileName = call.getString("fileName", "cap-clair-gps-diagnostic.zip");
+        JSObject diagnostic = NativeGpsStore.getSessionDiagnostic(sessionId);
+        if (!diagnostic.optBoolean("found", false)) {
+            call.reject("Journal GPS Android introuvable pour cette trace.", "journal_not_found");
+            return;
+        }
+
+        try {
+            File exportDir = new File(getContext().getCacheDir(), "capclair-exports");
+            if (!exportDir.exists() && !exportDir.mkdirs()) {
+                call.reject("Impossible de créer le dossier de diagnostic.", "directory_error");
+                return;
+            }
+            String fileName = sanitizeDiagnosticFileName(requestedFileName);
+            File exportFile = new File(exportDir, fileName);
+            try (FileOutputStream fileOutput = new FileOutputStream(exportFile, false);
+                 ZipOutputStream zip = new ZipOutputStream(fileOutput)) {
+                JSObject manifest = new JSObject();
+                manifest.put("exportedAt", System.currentTimeMillis());
+                manifest.put("appVersion", appVersion);
+                manifest.put("sessionId", sessionId);
+                manifest.put("diagnostic", diagnostic);
+                writeZipEntry(zip, "diagnostic.json", manifest.toString(2));
+                writeZipEntry(zip, "native-metadata.json", NativeGpsStore.getSessionMetadataText(sessionId));
+                writeZipEntry(zip, "native-journal.jsonl", NativeGpsStore.getSessionJournalText(sessionId));
+                writeZipEntry(zip, "native-events.jsonl", NativeGpsStore.getSessionEventsText(sessionId));
+                if (localTraceJson != null && !localTraceJson.trim().isEmpty()) {
+                    writeZipEntry(zip, "local-trace.json", localTraceJson);
+                }
+            }
+
+            Uri uri = FileProvider.getUriForFile(
+                getContext(),
+                getContext().getPackageName() + ".fileprovider",
+                exportFile
+            );
+            Intent sendIntent = new Intent(Intent.ACTION_SEND);
+            sendIntent.setType("application/zip");
+            sendIntent.putExtra(Intent.EXTRA_STREAM, uri);
+            sendIntent.putExtra(Intent.EXTRA_SUBJECT, fileName);
+            sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(sendIntent, "Partager le diagnostic GPS CAP CLAIR");
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(chooser);
+
+            JSObject result = new JSObject();
+            result.put("shared", true);
+            result.put("fileName", fileName);
+            result.put("diagnostic", diagnostic);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Export diagnostic GPS impossible : " + error.getMessage(), "diagnostic_export_failed", error);
+        }
+    }
+
+    @PluginMethod
     public void markSessionSaved(PluginCall call) {
         String sessionId = call.getString("sessionId", "");
         String traceId = call.getString("traceId", "");
@@ -284,6 +357,22 @@ public class NativeGpsPlugin extends Plugin {
         point.put("provider", location.getProvider());
         point.put("native", true);
         return point;
+    }
+
+    private void writeZipEntry(ZipOutputStream zip, String name, String content) throws Exception {
+        ZipEntry entry = new ZipEntry(name);
+        zip.putNextEntry(entry);
+        if (content != null && !content.isEmpty()) zip.write(content.getBytes(StandardCharsets.UTF_8));
+        zip.closeEntry();
+    }
+
+    private String sanitizeDiagnosticFileName(String value) {
+        String safe = value == null ? "cap-clair-gps-diagnostic.zip" : value.trim();
+        safe = safe.replaceAll("[^A-Za-z0-9._-]+", "-");
+        safe = safe.replaceAll("-+", "-");
+        if (!safe.toLowerCase().endsWith(".zip")) safe += ".zip";
+        if (safe.length() > 120) safe = safe.substring(0, 116) + ".zip";
+        return safe.isEmpty() ? "cap-clair-gps-diagnostic.zip" : safe;
     }
 
     private void requestNotificationThenStart(PluginCall call) {

@@ -15,6 +15,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import com.getcapacitor.JSObject;
@@ -26,22 +27,40 @@ public class NativeGpsForegroundService extends Service implements LocationListe
     private static final int NOTIFICATION_ID = 1512;
     private static final long MIN_TIME_MS = 1000L;
     private static final float MIN_DISTANCE_M = 0f;
+    private static final long HEARTBEAT_MS = 60_000L;
+    private static final long LOCATION_GAP_EVENT_MS = 30_000L;
 
     private LocationManager locationManager;
     private boolean listening = false;
     private String activeProvider = "none";
+    private Handler heartbeatHandler;
+    private Runnable heartbeatRunnable;
+    private long serviceCreatedAt = 0L;
+    private long lastLocationAt = 0L;
+    private long locationCallbackCount = 0L;
 
     @Override
     public void onCreate() {
         super.onCreate();
         NativeGpsStore.initialize(this);
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        serviceCreatedAt = System.currentTimeMillis();
+        heartbeatHandler = new Handler(Looper.getMainLooper());
         ensureNotificationChannel();
+        JSObject details = new JSObject();
+        details.put("serviceCreatedAt", serviceCreatedAt);
+        NativeGpsStore.recordDiagnosticEvent("service_created", details);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? ACTION_START : intent.getAction();
+        JSObject startDetails = new JSObject();
+        startDetails.put("action", action);
+        startDetails.put("flags", flags);
+        startDetails.put("startId", startId);
+        startDetails.put("serviceCreatedAt", serviceCreatedAt);
+        NativeGpsStore.recordDiagnosticEvent("service_start_command", startDetails);
         if (ACTION_STOP.equals(action)) {
             stopTracking(true);
             stopSelf();
@@ -50,6 +69,7 @@ public class NativeGpsForegroundService extends Service implements LocationListe
         NativeGpsStore.ensureActiveSession();
         startAsForeground();
         startTracking();
+        startHeartbeat();
         return START_STICKY;
     }
 
@@ -57,8 +77,17 @@ public class NativeGpsForegroundService extends Service implements LocationListe
 
     @Override
     public void onDestroy() {
+        stopHeartbeat();
+        JSObject details = serviceStateDetails();
+        NativeGpsStore.recordDiagnosticEvent("service_destroyed", details);
         stopTracking(false);
         super.onDestroy();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        NativeGpsStore.recordDiagnosticEvent("service_task_removed", serviceStateDetails());
+        super.onTaskRemoved(rootIntent);
     }
 
     private boolean hasLocationPermission() {
@@ -87,6 +116,7 @@ public class NativeGpsForegroundService extends Service implements LocationListe
             if (bestProvider == null) {
                 removeLocationUpdates();
                 activeProvider = "none";
+                NativeGpsStore.recordDiagnosticEvent("provider_unavailable", serviceStateDetails());
                 NativeGpsStore.setError("Aucun provider GPS Android actif.", activeProvider);
                 return;
             }
@@ -100,6 +130,7 @@ public class NativeGpsForegroundService extends Service implements LocationListe
             activeProvider = bestProvider;
             locationManager.requestLocationUpdates(activeProvider, MIN_TIME_MS, MIN_DISTANCE_M, this, Looper.getMainLooper());
             listening = true;
+            NativeGpsStore.recordDiagnosticEvent("provider_listening", serviceStateDetails());
             NativeGpsStore.setRunning(true, activeProvider);
         } catch (SecurityException error) {
             NativeGpsStore.setError("Permission GPS Android refusée.", activeProvider);
@@ -128,6 +159,7 @@ public class NativeGpsForegroundService extends Service implements LocationListe
     }
 
     private void stopTracking(boolean finishSession) {
+        stopHeartbeat();
         removeLocationUpdates();
         if (finishSession) NativeGpsStore.finishCurrentSession();
         NativeGpsStore.setRunning(false, activeProvider);
@@ -136,21 +168,75 @@ public class NativeGpsForegroundService extends Service implements LocationListe
 
     @Override
     public void onLocationChanged(Location location) {
+        long now = System.currentTimeMillis();
+        long previousLocationAt = lastLocationAt;
+        lastLocationAt = now;
+        locationCallbackCount += 1L;
+        if (locationCallbackCount == 1L) {
+            JSObject details = serviceStateDetails();
+            details.put("locationTimestamp", location.getTime());
+            NativeGpsStore.recordDiagnosticEvent("first_location", details);
+        } else if (previousLocationAt > 0L && now - previousLocationAt > LOCATION_GAP_EVENT_MS) {
+            JSObject details = serviceStateDetails();
+            details.put("gapMs", now - previousLocationAt);
+            details.put("previousLocationAt", previousLocationAt);
+            details.put("locationTimestamp", location.getTime());
+            NativeGpsStore.recordDiagnosticEvent("location_resumed_after_gap", details);
+        }
         NativeGpsStore.addPoint(toPoint(location));
     }
 
     @Override
     public void onProviderDisabled(String provider) {
+        JSObject details = serviceStateDetails();
+        details.put("changedProvider", provider);
+        NativeGpsStore.recordDiagnosticEvent("provider_disabled", details);
         switchToBestProvider();
     }
 
     @Override
     public void onProviderEnabled(String provider) {
+        JSObject details = serviceStateDetails();
+        details.put("changedProvider", provider);
+        NativeGpsStore.recordDiagnosticEvent("provider_enabled", details);
         // GPS always has priority over network when it becomes available.
         switchToBestProvider();
     }
 
     @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
+
+    private void startHeartbeat() {
+        if (heartbeatHandler == null) heartbeatHandler = new Handler(Looper.getMainLooper());
+        stopHeartbeat();
+        heartbeatRunnable = new Runnable() {
+            @Override public void run() {
+                NativeGpsStore.recordDiagnosticEvent("service_heartbeat", serviceStateDetails());
+                if (heartbeatHandler != null) heartbeatHandler.postDelayed(this, HEARTBEAT_MS);
+            }
+        };
+        heartbeatHandler.post(heartbeatRunnable);
+    }
+
+    private void stopHeartbeat() {
+        if (heartbeatHandler != null && heartbeatRunnable != null) heartbeatHandler.removeCallbacks(heartbeatRunnable);
+        heartbeatRunnable = null;
+    }
+
+    private JSObject serviceStateDetails() {
+        JSObject details = new JSObject();
+        details.put("provider", activeProvider);
+        details.put("listening", listening);
+        details.put("lastLocationAt", lastLocationAt > 0L ? lastLocationAt : null);
+        details.put("locationCallbackCount", locationCallbackCount);
+        details.put("serviceCreatedAt", serviceCreatedAt);
+        if (locationManager != null) {
+            try {
+                details.put("gpsEnabled", locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER));
+                details.put("networkEnabled", locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
+            } catch (RuntimeException ignored) {}
+        }
+        return details;
+    }
 
     private JSObject toPoint(Location location) {
         JSObject point = new JSObject();

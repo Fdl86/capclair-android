@@ -40,7 +40,7 @@ final class NativeGpsStore {
         }
     }
 
-    private static final int SCHEMA_VERSION = 3;
+    private static final int SCHEMA_VERSION = 4;
     private static EventSink sink = null;
     private static Context appContext;
     private static File sessionsDir;
@@ -86,6 +86,7 @@ final class NativeGpsStore {
                 writeMetadata();
             }
             refreshPersistentPointCount();
+            appendDiagnosticEvent("session_resumed", new JSObject(), true);
         } else {
             activeSessionId = UUID.randomUUID().toString();
             routeId = requestedRouteId == null ? "" : requestedRouteId;
@@ -100,6 +101,10 @@ final class NativeGpsStore {
             acceptingPoints = true;
             writeActivePointer();
             writeMetadata();
+            JSObject details = new JSObject();
+            details.put("routeId", routeId);
+            details.put("routeName", routeName);
+            appendDiagnosticEvent("session_started", details, true);
         }
         JSObject result = getStatus();
         result.put("resumed", resumed);
@@ -125,6 +130,10 @@ final class NativeGpsStore {
             if (isRunning && journalWriteHealthy) lastError = null;
             status = getStatus();
             status.put("status", isRunning ? "started" : "stopped");
+            JSObject details = new JSObject();
+            details.put("running", isRunning);
+            details.put("provider", provider);
+            appendDiagnosticEvent(isRunning ? "gps_running" : "gps_stopped", details, true);
             currentSink = sink;
         }
         if (currentSink != null) currentSink.onStatus(status);
@@ -138,6 +147,10 @@ final class NativeGpsStore {
             provider = activeProvider == null ? provider : activeProvider;
             status = getStatus();
             status.put("status", "error");
+            JSObject details = new JSObject();
+            details.put("message", message);
+            details.put("provider", provider);
+            appendDiagnosticEvent("gps_error", details, true);
             currentSink = sink;
         }
         if (currentSink != null) currentSink.onStatus(status);
@@ -176,6 +189,7 @@ final class NativeGpsStore {
         endedAt = System.currentTimeMillis();
         running = false;
         writeMetadata();
+        appendDiagnosticEvent("session_finished", new JSObject(), true);
     }
 
     static synchronized JSObject getStatus() {
@@ -210,6 +224,59 @@ final class NativeGpsStore {
     static synchronized JSONArray getSessionPoints(String sessionId) {
         ensureInitialized();
         return readPoints(sessionId);
+    }
+
+    static synchronized JSObject getSessionDiagnostic(String sessionId) {
+        ensureInitialized();
+        JSObject diagnostic = new JSObject();
+        String safeId = safeSessionId(sessionId);
+        diagnostic.put("sessionId", safeId);
+        if (safeId.isEmpty()) {
+            diagnostic.put("found", false);
+            diagnostic.put("error", "session_id_invalid");
+            return diagnostic;
+        }
+
+        File metadata = metadataFile(safeId);
+        File journal = pointsFile(safeId);
+        File events = eventsFile(safeId);
+        diagnostic.put("metadataFound", metadata != null && metadata.exists());
+        diagnostic.put("journalFound", journal != null && journal.exists());
+        diagnostic.put("eventsFound", events != null && events.exists());
+        diagnostic.put("found", (metadata != null && metadata.exists()) || (journal != null && journal.exists()));
+        diagnostic.put("journalSizeBytes", journal != null && journal.exists() ? journal.length() : 0L);
+        diagnostic.put("eventsSizeBytes", events != null && events.exists() ? events.length() : 0L);
+
+        if (metadata != null && metadata.exists()) {
+            try {
+                JSONObject data = readJson(metadata);
+                diagnostic.put("metadata", data);
+            } catch (Exception error) {
+                diagnostic.put("metadataError", error.getMessage());
+            }
+        }
+
+        scanPointJournal(journal, diagnostic);
+        scanEventJournal(events, diagnostic);
+        diagnostic.put("likelyCause", classifyDiagnostic(diagnostic));
+        return diagnostic;
+    }
+
+    static synchronized String getSessionMetadataText(String sessionId) {
+        return readFileText(metadataFile(safeSessionId(sessionId)));
+    }
+
+    static synchronized String getSessionJournalText(String sessionId) {
+        return readFileText(pointsFile(safeSessionId(sessionId)));
+    }
+
+    static synchronized String getSessionEventsText(String sessionId) {
+        return readFileText(eventsFile(safeSessionId(sessionId)));
+    }
+
+    static synchronized void recordDiagnosticEvent(String type, JSObject details) {
+        ensureInitialized();
+        appendDiagnosticEvent(type, details == null ? new JSObject() : details, true);
     }
 
     static synchronized int bufferedPointCount() {
@@ -271,6 +338,11 @@ final class NativeGpsStore {
             metadata.put("savedAt", System.currentTimeMillis());
             writeJson(metadataFile, metadata);
             if (sessionId.equals(activeSessionId)) saved = true;
+            if (sessionId.equals(activeSessionId)) {
+                JSObject details = new JSObject();
+                details.put("traceId", traceId == null ? "" : traceId);
+                appendDiagnosticEvent("session_marked_saved", details, true);
+            }
             return true;
         } catch (Exception error) {
             lastError = "Validation sauvegarde native impossible : " + error.getMessage();
@@ -321,6 +393,151 @@ final class NativeGpsStore {
             lastError = "Écriture journal GPS impossible : " + error.getMessage();
             return false;
         }
+    }
+
+    private static void appendDiagnosticEvent(String type, JSObject details, boolean sync) {
+        if (activeSessionId == null || activeSessionId.isEmpty()) return;
+        File file = eventsFile(activeSessionId);
+        if (file == null) return;
+        try (FileOutputStream output = new FileOutputStream(file, true);
+             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8))) {
+            JSObject event = new JSObject();
+            event.put("timestamp", System.currentTimeMillis());
+            event.put("type", type == null ? "unknown" : type);
+            event.put("details", details == null ? new JSObject() : details);
+            writer.write(event.toString());
+            writer.newLine();
+            writer.flush();
+            if (sync) output.getFD().sync();
+        } catch (Exception error) {
+            lastError = "Écriture diagnostic GPS impossible : " + error.getMessage();
+        }
+    }
+
+    private static void scanPointJournal(File file, JSObject diagnostic) {
+        int valid = 0;
+        int malformed = 0;
+        long firstTimestamp = 0L;
+        long lastTimestamp = 0L;
+        long previousTimestamp = 0L;
+        long maxGapMs = 0L;
+        long maxGapStart = 0L;
+        long maxGapEnd = 0L;
+        if (file != null && file.exists()) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.trim().isEmpty()) continue;
+                    try {
+                        JSONObject point = new JSONObject(line);
+                        long timestamp = point.optLong("timestamp", 0L);
+                        valid += 1;
+                        if (timestamp > 0L) {
+                            if (firstTimestamp == 0L || timestamp < firstTimestamp) firstTimestamp = timestamp;
+                            if (timestamp > lastTimestamp) lastTimestamp = timestamp;
+                            if (previousTimestamp > 0L && timestamp >= previousTimestamp) {
+                                long gap = timestamp - previousTimestamp;
+                                if (gap > maxGapMs) {
+                                    maxGapMs = gap;
+                                    maxGapStart = previousTimestamp;
+                                    maxGapEnd = timestamp;
+                                }
+                            }
+                            previousTimestamp = Math.max(previousTimestamp, timestamp);
+                        }
+                    } catch (Exception ignored) {
+                        malformed += 1;
+                    }
+                }
+            } catch (Exception error) {
+                diagnostic.put("journalReadError", error.getMessage());
+            }
+        }
+        diagnostic.put("validPointCount", valid);
+        diagnostic.put("malformedPointLines", malformed);
+        diagnostic.put("firstPointAt", firstTimestamp > 0L ? firstTimestamp : null);
+        diagnostic.put("lastPointAt", lastTimestamp > 0L ? lastTimestamp : null);
+        diagnostic.put("maxPointGapMs", maxGapMs);
+        diagnostic.put("maxPointGapStart", maxGapStart > 0L ? maxGapStart : null);
+        diagnostic.put("maxPointGapEnd", maxGapEnd > 0L ? maxGapEnd : null);
+    }
+
+    private static void scanEventJournal(File file, JSObject diagnostic) {
+        int eventCount = 0;
+        int malformed = 0;
+        int heartbeatCount = 0;
+        int serviceStartedCount = 0;
+        int serviceDestroyedCount = 0;
+        int taskRemovedCount = 0;
+        long firstHeartbeatAt = 0L;
+        long lastHeartbeatAt = 0L;
+        long previousHeartbeatAt = 0L;
+        long maxHeartbeatGapMs = 0L;
+        if (file != null && file.exists()) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.trim().isEmpty()) continue;
+                    try {
+                        JSONObject event = new JSONObject(line);
+                        eventCount += 1;
+                        String type = event.optString("type", "");
+                        long timestamp = event.optLong("timestamp", 0L);
+                        if ("service_heartbeat".equals(type)) {
+                            heartbeatCount += 1;
+                            if (firstHeartbeatAt == 0L) firstHeartbeatAt = timestamp;
+                            lastHeartbeatAt = Math.max(lastHeartbeatAt, timestamp);
+                            if (previousHeartbeatAt > 0L && timestamp >= previousHeartbeatAt) {
+                                maxHeartbeatGapMs = Math.max(maxHeartbeatGapMs, timestamp - previousHeartbeatAt);
+                            }
+                            previousHeartbeatAt = Math.max(previousHeartbeatAt, timestamp);
+                        } else if ("service_start_command".equals(type)) {
+                            serviceStartedCount += 1;
+                        } else if ("service_destroyed".equals(type)) {
+                            serviceDestroyedCount += 1;
+                        } else if ("service_task_removed".equals(type)) {
+                            taskRemovedCount += 1;
+                        }
+                    } catch (Exception ignored) {
+                        malformed += 1;
+                    }
+                }
+            } catch (Exception error) {
+                diagnostic.put("eventsReadError", error.getMessage());
+            }
+        }
+        diagnostic.put("eventCount", eventCount);
+        diagnostic.put("malformedEventLines", malformed);
+        diagnostic.put("heartbeatCount", heartbeatCount);
+        diagnostic.put("firstHeartbeatAt", firstHeartbeatAt > 0L ? firstHeartbeatAt : null);
+        diagnostic.put("lastHeartbeatAt", lastHeartbeatAt > 0L ? lastHeartbeatAt : null);
+        diagnostic.put("maxHeartbeatGapMs", maxHeartbeatGapMs);
+        diagnostic.put("serviceStartedCount", serviceStartedCount);
+        diagnostic.put("serviceDestroyedCount", serviceDestroyedCount);
+        diagnostic.put("taskRemovedCount", taskRemovedCount);
+    }
+
+    private static String classifyDiagnostic(JSObject diagnostic) {
+        if (!diagnostic.optBoolean("journalFound", false)) return "journal_missing";
+        long maxPointGapMs = diagnostic.optLong("maxPointGapMs", 0L);
+        if (maxPointGapMs < 120_000L) return "native_journal_continuous";
+        int heartbeatCount = diagnostic.optInt("heartbeatCount", 0);
+        long maxHeartbeatGapMs = diagnostic.optLong("maxHeartbeatGapMs", 0L);
+        if (heartbeatCount < 2) return "insufficient_heartbeat_data";
+        if (maxHeartbeatGapMs <= 90_000L) return "location_callbacks_missing_while_service_alive";
+        return "service_suspended_killed_or_restarted";
+    }
+
+    private static String readFileText(File file) {
+        if (file == null || !file.exists()) return "";
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) content.append(line).append('\n');
+        } catch (Exception error) {
+            lastError = "Lecture fichier diagnostic GPS impossible : " + error.getMessage();
+        }
+        return content.toString();
     }
 
     private static PointReadResult readPointsSince(String sessionId, long requestedOffset, long sinceTimestamp) {
@@ -440,26 +657,45 @@ final class NativeGpsStore {
             metadata.put("saved", saved);
             metadata.put("deleted", false);
             metadata.put("journalWriteHealthy", journalWriteHealthy);
+            metadata.put("provider", provider);
+            metadata.put("running", running);
             metadata.put("pointCount", persistentPointCount);
             metadata.put("source", "android-native");
             writeJson(metadataFile(activeSessionId), metadata);
         } catch (Exception ignored) {}
     }
 
+    private static String safeSessionId(String sessionId) {
+        if (sessionId == null) return "";
+        String safe = sessionId.trim();
+        if (!safe.matches("[A-Za-z0-9._-]{1,120}")) return "";
+        return safe;
+    }
+
     private static File metadataFile(String sessionId) {
-        if (sessionsDir == null || sessionId == null || sessionId.isEmpty()) return null;
-        return new File(sessionsDir, "session-" + sessionId + ".json");
+        String safe = safeSessionId(sessionId);
+        if (sessionsDir == null || safe.isEmpty()) return null;
+        return new File(sessionsDir, "session-" + safe + ".json");
     }
 
     private static File pointsFile(String sessionId) {
-        if (sessionsDir == null || sessionId == null || sessionId.isEmpty()) return null;
-        return new File(sessionsDir, "session-" + sessionId + ".jsonl");
+        String safe = safeSessionId(sessionId);
+        if (sessionsDir == null || safe.isEmpty()) return null;
+        return new File(sessionsDir, "session-" + safe + ".jsonl");
+    }
+
+    private static File eventsFile(String sessionId) {
+        String safe = safeSessionId(sessionId);
+        if (sessionsDir == null || safe.isEmpty()) return null;
+        return new File(sessionsDir, "session-" + safe + ".events.jsonl");
     }
 
     private static void deleteSessionFiles(String sessionId) {
         File metadata = metadataFile(sessionId);
         File points = pointsFile(sessionId);
+        File events = eventsFile(sessionId);
         if (points != null && points.exists()) points.delete();
+        if (events != null && events.exists()) events.delete();
         if (metadata != null && metadata.exists()) metadata.delete();
         if (sessionId != null && sessionId.equals(activeSessionId)) {
             activeSessionId = null;

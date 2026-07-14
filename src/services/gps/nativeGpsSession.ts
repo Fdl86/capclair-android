@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../../app/version';
 import type { PlannedRouteSnapshot, Trace } from '../../domain/trace.types';
 import { totalDistanceNm } from '../geo/distance';
 import { readPendingPlannedRoute } from '../traces/plannedRouteSnapshot';
@@ -7,6 +8,7 @@ import {
   NativeGps,
   isAndroidNativeGpsAvailable,
   nativePayloadToGpsPosition,
+  type NativeGpsSessionDiagnosticPayload,
   type NativeRecoverableSessionPayload
 } from './nativeGpsProvider';
 
@@ -15,9 +17,20 @@ export interface NativeTraceRecoveryResult {
   sessionIds: string[];
 }
 
+export type NativeTraceRepairStatus = 'repaired' | 'journal_missing' | 'journal_empty' | 'journal_not_better' | 'read_error';
+
+export interface NativeTraceRepairDiagnostic {
+  traceId: string;
+  sessionId: string;
+  status: NativeTraceRepairStatus;
+  message: string;
+  nativeDiagnostic?: NativeGpsSessionDiagnosticPayload;
+}
+
 export interface NativeTraceRepairResult {
   traces: Trace[];
   repairedCount: number;
+  diagnostics: NativeTraceRepairDiagnostic[];
 }
 
 export function selectRecoverableSessions(sessions: NativeRecoverableSessionPayload[]): NativeRecoverableSessionPayload[] {
@@ -124,17 +137,41 @@ export function nativeCoverageIsBetter(local: Trace, native: Trace): boolean {
  * from its retained Android journal after installing a hotfix.
  */
 export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): Promise<NativeTraceRepairResult> {
-  if (!isAndroidNativeGpsAvailable()) return { traces: localTraces, repairedCount: 0 };
+  if (!isAndroidNativeGpsAvailable()) return { traces: localTraces, repairedCount: 0, diagnostics: [] };
   const candidates = localTraces.filter(traceNeedsNativeRepair);
-  if (candidates.length === 0) return { traces: localTraces, repairedCount: 0 };
+  if (candidates.length === 0) return { traces: localTraces, repairedCount: 0, diagnostics: [] };
 
   let repairedCount = 0;
   const repairedById = new Map<string, Trace>();
+  const diagnostics: NativeTraceRepairDiagnostic[] = [];
 
   for (const local of candidates) {
     if (!local.sessionId) continue;
     try {
+      const nativeDiagnostic = await NativeGps.getSessionDiagnostic({ sessionId: local.sessionId });
+      if (!nativeDiagnostic.journalFound) {
+        diagnostics.push({
+          traceId: local.id,
+          sessionId: local.sessionId,
+          status: 'journal_missing',
+          message: `Trace ${local.routeName} : journal Android introuvable.`,
+          nativeDiagnostic
+        });
+        continue;
+      }
+
       const result = await NativeGps.getSessionPoints({ sessionId: local.sessionId });
+      if ((result.positions?.length ?? 0) < 2) {
+        diagnostics.push({
+          traceId: local.id,
+          sessionId: local.sessionId,
+          status: 'journal_empty',
+          message: `Trace ${local.routeName} : journal Android retrouvé mais vide ou inexploitable.`,
+          nativeDiagnostic
+        });
+        continue;
+      }
+
       const session: NativeRecoverableSessionPayload = {
         sessionId: local.sessionId,
         routeId: local.routeId,
@@ -148,7 +185,16 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
       };
       const maxSpeed = local.diagnostics?.maxTraceSpeedKt ?? DEFAULT_MAX_TRACE_SPEED_KT;
       const native = nativeSessionToTrace(session, local.plannedRoute, maxSpeed);
-      if (!native || !nativeCoverageIsBetter(local, native)) continue;
+      if (!native || !nativeCoverageIsBetter(local, native)) {
+        diagnostics.push({
+          traceId: local.id,
+          sessionId: local.sessionId,
+          status: 'journal_not_better',
+          message: `Trace ${local.routeName} : journal Android retrouvé, mais il contient la même coupure que la trace locale.`,
+          nativeDiagnostic
+        });
+        continue;
+      }
 
       repairedCount += 1;
       repairedById.set(local.id, {
@@ -159,15 +205,61 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
         plannedRoute: native.plannedRoute ?? local.plannedRoute,
         schemaVersion: native.plannedRoute || local.plannedRoute ? 3 : native.schemaVersion
       });
-    } catch {
-      // Missing/cleaned native journal: keep the local trace unchanged.
+      diagnostics.push({
+        traceId: local.id,
+        sessionId: local.sessionId,
+        status: 'repaired',
+        message: `Trace ${local.routeName} réparée depuis le journal Android complet.`,
+        nativeDiagnostic
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || 'Erreur inconnue');
+      diagnostics.push({
+        traceId: local.id,
+        sessionId: local.sessionId,
+        status: 'read_error',
+        message: `Trace ${local.routeName} : lecture du journal Android impossible (${message}).`
+      });
     }
   }
 
   return {
     traces: localTraces.map((trace) => repairedById.get(trace.id) ?? trace),
-    repairedCount
+    repairedCount,
+    diagnostics
   };
+}
+
+function diagnosticFileName(trace: Trace): string {
+  const route = trace.routeName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'trace';
+  const date = new Date(trace.date);
+  const stamp = Number.isNaN(date.getTime())
+    ? new Date().toISOString().slice(0, 10)
+    : date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  return `cap-clair-diagnostic-gps-${route}-${stamp}.zip`;
+}
+
+export async function getNativeSessionDiagnostic(trace: Trace): Promise<NativeGpsSessionDiagnosticPayload | null> {
+  if (!trace.sessionId || !isAndroidNativeGpsAvailable()) return null;
+  return NativeGps.getSessionDiagnostic({ sessionId: trace.sessionId });
+}
+
+export async function exportNativeGpsDiagnostic(trace: Trace): Promise<{ fileName: string; diagnostic?: NativeGpsSessionDiagnosticPayload }> {
+  if (!trace.sessionId) throw new Error('Cette trace ne possède pas de session GPS Android associée.');
+  if (!isAndroidNativeGpsAvailable()) throw new Error('Le diagnostic GPS brut est disponible uniquement dans l’application Android.');
+  const fileName = diagnosticFileName(trace);
+  const result = await NativeGps.exportSessionDiagnostic({
+    sessionId: trace.sessionId,
+    localTraceJson: JSON.stringify({ exportedAt: new Date().toISOString(), appVersion: APP_VERSION, trace }, null, 2),
+    appVersion: APP_VERSION,
+    fileName
+  });
+  return { fileName: result.fileName || fileName, diagnostic: result.diagnostic };
 }
 
 export async function markNativeSessionSaved(sessionId: string | null | undefined, traceId: string): Promise<boolean> {

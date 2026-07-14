@@ -117,7 +117,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cap-clair-dev15-2-8-debug-apk
+          name: cap-clair-dev15-2-9-debug-apk
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             apk-signature.txt

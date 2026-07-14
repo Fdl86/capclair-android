@@ -1,0 +1,52 @@
+CAP CLAIR DEV15.2.9 - GPS DIAGNOSTIC HOTFIX
+
+VERSION
+- versionName : 15.2.9
+- versionCode : 1502009
+- APP_VERSION : CAP CLAIR DEV15.2.9 - GPS DIAGNOSTIC HOTFIX
+- Artifact GitHub Actions : cap-clair-dev15-2-9-debug-apk
+- Commit conseillé : DEV15.2.9 - GPS diagnostic hotfix
+
+OBJECTIF
+Cette version ajoute un diagnostic natif complet afin d'identifier l'origine exacte d'une éventuelle coupure de trace pendant un vol avec téléphone rangé et interface suspendue.
+
+MODIFICATIONS
+- Journal d'événements natif séparé du journal de positions.
+- Battement du service GPS toutes les 60 secondes.
+- Enregistrement des démarrages, redémarrages, destructions et retraits de tâche du service Android.
+- Enregistrement des activations et désactivations du provider GPS.
+- Enregistrement de la première position et des reprises après un trou supérieur à 30 secondes.
+- Calcul natif du nombre de points, des lignes illisibles, du premier et dernier point et du plus grand trou GPS.
+- Calcul du nombre de battements et du plus grand trou du service.
+- Classification automatique de la cause probable : journal continu, callbacks GPS absents malgré service vivant, service suspendu ou redémarré, données insuffisantes.
+- Nouveau bouton Diagnostic GPS dans Mes traces pour les traces Android.
+- Export ZIP contenant diagnostic.json, native-metadata.json, native-journal.jsonl, native-events.jsonl et local-trace.json.
+- Les tentatives de réparation ne sont plus silencieuses : journal introuvable, vide, identique ou lecture impossible sont signalés.
+- Aucun changement du rendu PDF Log nav.
+
+CONTROLES
+- 18 fichiers de tests validés.
+- 73 tests réussis.
+- npm run build:web réussi.
+- npm run build:android réussi.
+- npx cap sync android réussi.
+- Cohérence version 15.2.9 / 1502009 validée.
+- Lockfile sans registre privé.
+- npm audit : 0 vulnérabilité.
+- Service worker absent des ressources APK.
+- Gabarit PDF présent dans les ressources Android.
+- Analyse syntaxique Java : aucune erreur de syntaxe détectée. La compilation Gradle locale complète reste impossible sans téléchargement du wrapper.
+
+PROCEDURE GITHUB DESKTOP
+1. Dans le dossier local de la branche APK, conserver uniquement le dossier .git.
+2. Copier tout le contenu du ZIP dans ce dossier.
+3. Ouvrir GitHub Desktop et vérifier les changements.
+4. Commit : DEV15.2.9 - GPS diagnostic hotfix
+5. Push sur main.
+6. Attendre le dernier run GitHub Actions entièrement vert.
+7. Télécharger uniquement l'artifact cap-clair-dev15-2-9-debug-apk.
+8. Installer l'APK par-dessus la version actuelle, sans désinstaller et sans effacer les données.
+9. Vérifier DEV15.2.9 et le hash court affiché dans l'application.
+
+UTILISATION APRES UN VOL
+Dans Mes traces, appuyer sur Diagnostic GPS sur la trace concernée, partager le ZIP puis transmettre ce ZIP pour analyse.

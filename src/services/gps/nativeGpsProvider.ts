@@ -43,6 +43,39 @@ export interface NativeGpsStatusPayload {
   plannedRoute?: PlannedRouteSnapshot;
 }
 
+
+export interface NativeGpsSessionDiagnosticPayload {
+  sessionId?: string;
+  found?: boolean;
+  metadataFound?: boolean;
+  journalFound?: boolean;
+  eventsFound?: boolean;
+  journalSizeBytes?: number;
+  eventsSizeBytes?: number;
+  validPointCount?: number;
+  malformedPointLines?: number;
+  firstPointAt?: number | null;
+  lastPointAt?: number | null;
+  maxPointGapMs?: number;
+  maxPointGapStart?: number | null;
+  maxPointGapEnd?: number | null;
+  eventCount?: number;
+  malformedEventLines?: number;
+  heartbeatCount?: number;
+  firstHeartbeatAt?: number | null;
+  lastHeartbeatAt?: number | null;
+  maxHeartbeatGapMs?: number;
+  serviceStartedCount?: number;
+  serviceDestroyedCount?: number;
+  taskRemovedCount?: number;
+  likelyCause?: 'journal_missing' | 'native_journal_continuous' | 'insufficient_heartbeat_data' | 'location_callbacks_missing_while_service_alive' | 'service_suspended_killed_or_restarted' | string;
+  metadata?: Record<string, unknown>;
+  error?: string;
+  metadataError?: string;
+  journalReadError?: string;
+  eventsReadError?: string;
+}
+
 export interface NativeRecoverableSessionPayload {
   schemaVersion?: number;
   sessionId?: string;
@@ -66,6 +99,13 @@ interface NativeGpsNativePlugin {
   getPointsSince(options: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getRecoverableSessions(options?: { includeSaved?: boolean }): Promise<{ sessions?: NativeRecoverableSessionPayload[] }>;
   getSessionPoints(options: { sessionId: string }): Promise<{ positions?: NativeGpsPointPayload[] }>;
+  getSessionDiagnostic(options: { sessionId: string }): Promise<NativeGpsSessionDiagnosticPayload>;
+  exportSessionDiagnostic(options: {
+    sessionId: string;
+    localTraceJson: string;
+    appVersion: string;
+    fileName: string;
+  }): Promise<{ shared?: boolean; fileName?: string; diagnostic?: NativeGpsSessionDiagnosticPayload }>;
   markSessionSaved(options: { sessionId: string; traceId: string }): Promise<{ saved?: boolean }>;
   deleteSession(options: { sessionId: string }): Promise<{ deleted?: boolean }>;
   addListener(eventName: 'nativeGpsPoint', listenerFunc: (point: NativeGpsPointPayload) => void): Promise<PluginListenerHandle>;

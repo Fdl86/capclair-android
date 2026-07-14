@@ -123,17 +123,23 @@ export function useTraces() {
       if (cancelled) return;
       try {
         const repaired = await repairIncompleteSavedNativeTraces(tracesRef.current);
-        if (cancelled || repaired.repairedCount === 0) return;
-        const persisted = persist(repaired.traces);
-        if (!persisted.success) {
-          setStorageError('Trace complète retrouvée dans le journal Android, mais stockage local saturé. Le journal reste intact.');
+        if (cancelled) return;
+        if (repaired.repairedCount > 0) {
+          const persisted = persist(repaired.traces);
+          if (!persisted.success) {
+            setStorageError('Trace complète retrouvée dans le journal Android, mais stockage local saturé. Le journal reste intact.');
+            return;
+          }
+          setStorageError(
+            `${repaired.repairedCount} trace(s) incomplète(s) réparée(s) depuis le journal GPS Android complet.`
+          );
           return;
         }
-        setStorageError(
-          `${repaired.repairedCount} trace(s) incomplète(s) réparée(s) depuis le journal GPS Android complet.`
-        );
-      } catch {
-        // A repair failure must never affect already saved local traces.
+        const actionable = repaired.diagnostics.find((item) => item.status !== 'repaired');
+        if (actionable) setStorageError(actionable.message);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error || 'Erreur inconnue');
+        setStorageError(`Diagnostic du journal GPS Android impossible : ${message}`);
       }
     };
 
