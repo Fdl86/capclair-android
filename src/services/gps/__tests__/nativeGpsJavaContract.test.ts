@@ -26,6 +26,18 @@ describe('NativeGpsStore Java robustness contract', () => {
     );
   });
 
+  it('returns the complete native journal when stopping a session', () => {
+    const plugin = fs.readFileSync(pluginPath, 'utf8');
+    expect(plugin).toContain('result.put("completePoints", NativeGpsStore.getAllCurrentPoints())');
+  });
+
+  it('supports targeted reads of a saved session journal for local trace repair', () => {
+    const store = fs.readFileSync(storePath, 'utf8');
+    const plugin = fs.readFileSync(pluginPath, 'utf8');
+    expect(store).toContain('static synchronized JSONArray getSessionPoints(String sessionId)');
+    expect(plugin).toContain('public void getSessionPoints(PluginCall call)');
+  });
+
   it('does not expose saved sessions to automatic recovery by default', () => {
     const store = fs.readFileSync(storePath, 'utf8');
     const plugin = fs.readFileSync(pluginPath, 'utf8');

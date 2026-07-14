@@ -207,6 +207,11 @@ final class NativeGpsStore {
         return readPoints(activeSessionId);
     }
 
+    static synchronized JSONArray getSessionPoints(String sessionId) {
+        ensureInitialized();
+        return readPoints(sessionId);
+    }
+
     static synchronized int bufferedPointCount() {
         return persistentPointCount;
     }

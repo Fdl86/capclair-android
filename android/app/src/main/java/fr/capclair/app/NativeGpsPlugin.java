@@ -111,6 +111,9 @@ public class NativeGpsPlugin extends Plugin {
         JSObject result = NativeGpsStore.getStatus();
         result.put("stopped", true);
         result.put("points", unread.points);
+        // Final saving must be rebuilt from the complete durable journal, not
+        // from the order in which bridge events happened to reach the WebView.
+        result.put("completePoints", NativeGpsStore.getAllCurrentPoints());
         result.put("nextOffset", unread.nextOffset);
         call.resolve(result);
     }
@@ -139,6 +142,14 @@ public class NativeGpsPlugin extends Plugin {
         boolean includeSaved = requestedIncludeSaved != null && requestedIncludeSaved;
         JSObject result = new JSObject();
         result.put("sessions", NativeGpsStore.getRecoverableSessions(includeSaved));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void getSessionPoints(PluginCall call) {
+        String sessionId = call.getString("sessionId", "");
+        JSObject result = new JSObject();
+        result.put("positions", NativeGpsStore.getSessionPoints(sessionId));
         call.resolve(result);
     }
 

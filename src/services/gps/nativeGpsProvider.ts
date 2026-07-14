@@ -61,10 +61,11 @@ export interface NativeRecoverableSessionPayload {
 interface NativeGpsNativePlugin {
   start(options?: GpsProviderStartOptions): Promise<NativeGpsStatusPayload & { started?: boolean }>;
   getCurrentPosition(options?: { timeoutMs?: number }): Promise<NativeGpsPointPayload>;
-  stop(options?: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { stopped?: boolean; points?: NativeGpsPointPayload[]; nextOffset?: number }>;
+  stop(options?: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { stopped?: boolean; points?: NativeGpsPointPayload[]; completePoints?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getStatus(): Promise<NativeGpsStatusPayload>;
   getPointsSince(options: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getRecoverableSessions(options?: { includeSaved?: boolean }): Promise<{ sessions?: NativeRecoverableSessionPayload[] }>;
+  getSessionPoints(options: { sessionId: string }): Promise<{ positions?: NativeGpsPointPayload[] }>;
   markSessionSaved(options: { sessionId: string; traceId: string }): Promise<{ saved?: boolean }>;
   deleteSession(options: { sessionId: string }): Promise<{ deleted?: boolean }>;
   addListener(eventName: 'nativeGpsPoint', listenerFunc: (point: NativeGpsPointPayload) => void): Promise<PluginListenerHandle>;
@@ -134,12 +135,14 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
       let lastNativeTimestamp = 0;
       let lastNativeOffset = 0;
       let lastNativeEventAt = 0;
+      let pollInFlight: Promise<void> | null = null;
+      let pollRequestedAgain = false;
       const seenPoints = new Set<string>();
       const handles: Promise<PluginListenerHandle>[] = [];
-      const emittedOnStop: GpsPosition[] = [];
+      let completePointsOnStop: GpsPosition[] = [];
       let storageWarningEmitted = false;
 
-      const emitPosition = (payload: NativeGpsPointPayload, collectOnStop = false) => {
+      const emitPosition = (payload: NativeGpsPointPayload) => {
         if (payload.persisted === false && !storageWarningEmitted) {
           storageWarningEmitted = true;
           onError({
@@ -155,19 +158,37 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
         seenPoints.add(key);
         if (seenPoints.size > 5000) seenPoints.clear();
         lastNativeTimestamp = Math.max(lastNativeTimestamp, position.timestamp);
-        if (collectOnStop) emittedOnStop.push(position);
         if (!detached) onPosition(position);
       };
 
-      const pollNativeBuffer = async (collectOnStop = false) => {
+      const pollNativeBufferOnce = async () => {
         const result = await NativeGps.getPointsSince({
           sinceOffset: lastNativeOffset,
-          sinceTimestamp: lastNativeTimestamp
+          // The byte offset is authoritative. A timestamp fallback can discard
+          // older journal points when a live bridge event arrives after WebView
+          // suspension but before the incremental reader catches up.
+          sinceTimestamp: 0
         });
         if (typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)) {
           lastNativeOffset = Math.max(0, result.nextOffset);
         }
-        for (const point of result.points ?? []) emitPosition(point, collectOnStop);
+        for (const point of result.points ?? []) emitPosition(point);
+      };
+
+      const pollNativeBuffer = async () => {
+        if (pollInFlight) {
+          pollRequestedAgain = true;
+          return pollInFlight;
+        }
+        pollInFlight = (async () => {
+          do {
+            pollRequestedAgain = false;
+            await pollNativeBufferOnce();
+          } while (pollRequestedAgain && !detached);
+        })().finally(() => {
+          pollInFlight = null;
+        });
+        return pollInFlight;
       };
 
       const removeListeners = () => {
@@ -176,9 +197,12 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
         }
       };
 
-      handles.push(NativeGps.addListener('nativeGpsPoint', (point) => {
+      handles.push(NativeGps.addListener('nativeGpsPoint', () => {
         lastNativeEventAt = Date.now();
-        if (!detached) emitPosition(point);
+        // Read from the durable journal instead of emitting the bridge payload
+        // directly. The JSONL append happens before this event, so serialized
+        // offset reads preserve chronological order even after UI suspension.
+        if (!detached) pollNativeBuffer().catch((error) => onError(toProviderError(error)));
       }));
       handles.push(NativeGps.addListener('nativeGpsStatus', (payload) => {
         if (detached || payload.status !== 'error') return;
@@ -227,7 +251,7 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
         stop: async () => {
           window.clearInterval(pollId);
           try {
-            await pollNativeBuffer(true);
+            await pollNativeBuffer();
             const result = await NativeGps.stop({
               sinceOffset: lastNativeOffset,
               sinceTimestamp: lastNativeTimestamp
@@ -235,12 +259,15 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
             if (typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)) {
               lastNativeOffset = Math.max(0, result.nextOffset);
             }
-            for (const point of result.points ?? []) emitPosition(point, true);
+            for (const point of result.points ?? []) emitPosition(point);
+            completePointsOnStop = (result.completePoints ?? [])
+              .map(nativePayloadToGpsPosition)
+              .filter((point): point is GpsPosition => point !== null);
           } finally {
             detached = true;
             removeListeners();
           }
-          return emittedOnStop;
+          return completePointsOnStop;
         }
       };
     }

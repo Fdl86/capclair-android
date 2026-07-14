@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Trace } from '../domain/trace.types';
-import { recoverNativeTraces, markNativeSessionDeleted, markNativeSessionSaved } from '../services/gps/nativeGpsSession';
+import {
+  recoverNativeTraces,
+  repairIncompleteSavedNativeTraces,
+  markNativeSessionDeleted,
+  markNativeSessionSaved
+} from '../services/gps/nativeGpsSession';
 import { readJson, writeJson } from '../services/storage/localStorageService';
 import { persistTraceCollection, type TraceCollectionPersistResult } from '../services/traces/traceCollection';
 import { clearPendingPlannedRoute } from '../services/traces/plannedRouteSnapshot';
@@ -81,38 +86,58 @@ export function useTraces() {
 
   useEffect(() => {
     let cancelled = false;
-    recoverNativeTraces()
-      .then(async ({ traces: recovered }) => {
-        if (cancelled || recovered.length === 0) return;
-        const existingSessionIds = new Set(tracesRef.current.map((trace) => trace.sessionId).filter(Boolean));
-        const newTraces = recovered.filter((trace) => !trace.sessionId || !existingSessionIds.has(trace.sessionId));
-        if (newTraces.length === 0) return;
-        const orderedRecovered = [...newTraces].sort((left, right) => {
-          const leftTime = new Date(left.endedAt ?? left.date).getTime();
-          const rightTime = new Date(right.endedAt ?? right.date).getTime();
-          return rightTime - leftTime;
-        });
-        const next = uniqueTraces([...orderedRecovered, ...tracesRef.current]);
-        const persisted = persist(next);
+
+    const recoverAndRepair = async () => {
+      try {
+        const { traces: recovered } = await recoverNativeTraces();
+        if (!cancelled && recovered.length > 0) {
+          const existingSessionIds = new Set(tracesRef.current.map((trace) => trace.sessionId).filter(Boolean));
+          const newTraces = recovered.filter((trace) => !trace.sessionId || !existingSessionIds.has(trace.sessionId));
+          if (newTraces.length > 0) {
+            const orderedRecovered = [...newTraces].sort((left, right) => {
+              const leftTime = new Date(left.endedAt ?? left.date).getTime();
+              const rightTime = new Date(right.endedAt ?? right.date).getTime();
+              return rightTime - leftTime;
+            });
+            const persisted = persist(uniqueTraces([...orderedRecovered, ...tracesRef.current]));
+            if (!persisted.success) {
+              setStorageError('Récupération native trouvée, mais stockage local saturé. Les journaux restent intacts.');
+            } else {
+              const savedIds = new Set(persisted.saved.map((trace) => trace.id));
+              const savedRecovered = orderedRecovered.filter((trace) => savedIds.has(trace.id));
+              const confirmations = await Promise.all(savedRecovered.map(async (trace) => ({
+                trace,
+                confirmed: await markNativeSessionSaved(trace.sessionId, trace.id).catch(() => false)
+              })));
+              if (confirmations.some((item) => !item.confirmed) && !cancelled) {
+                setStorageError('Certaines traces sont sauvegardées dans l’app, mais leur journal natif reste à valider.');
+              }
+              if (savedRecovered.some((trace) => trace.plannedRoute)) clearPendingPlannedRoute();
+            }
+          }
+        }
+      } catch {
+        // Web/PWA or unavailable native bridge: no recovery required.
+      }
+
+      if (cancelled) return;
+      try {
+        const repaired = await repairIncompleteSavedNativeTraces(tracesRef.current);
+        if (cancelled || repaired.repairedCount === 0) return;
+        const persisted = persist(repaired.traces);
         if (!persisted.success) {
-          if (!cancelled) setStorageError('Récupération native trouvée, mais stockage local saturé. Les journaux restent intacts.');
+          setStorageError('Trace complète retrouvée dans le journal Android, mais stockage local saturé. Le journal reste intact.');
           return;
         }
+        setStorageError(
+          `${repaired.repairedCount} trace(s) incomplète(s) réparée(s) depuis le journal GPS Android complet.`
+        );
+      } catch {
+        // A repair failure must never affect already saved local traces.
+      }
+    };
 
-        const savedIds = new Set(persisted.saved.map((trace) => trace.id));
-        const savedRecovered = orderedRecovered.filter((trace) => savedIds.has(trace.id));
-        const confirmations = await Promise.all(savedRecovered.map(async (trace) => ({
-          trace,
-          confirmed: await markNativeSessionSaved(trace.sessionId, trace.id).catch(() => false)
-        })));
-        if (confirmations.some((item) => !item.confirmed) && !cancelled) {
-          setStorageError('Certaines traces sont sauvegardées dans l’app, mais leur journal natif reste à valider.');
-        }
-        if (savedRecovered.some((trace) => trace.plannedRoute)) clearPendingPlannedRoute();
-      })
-      .catch(() => {
-        // Web/PWA or unavailable native bridge: no recovery required.
-      });
+    recoverAndRepair();
     return () => {
       cancelled = true;
     };

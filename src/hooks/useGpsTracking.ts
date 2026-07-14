@@ -17,6 +17,7 @@ import { createGpsProviderSelection, type GpsProviderSelection } from '../servic
 import type { GpsProviderWatch } from '../services/gps/gpsProvider';
 import { getNativeGpsRuntimeStatus, requestCurrentGpsPosition } from '../services/gps/nativeGpsProvider';
 import { markNativeSessionDeleted } from '../services/gps/nativeGpsSession';
+import { reconstructNativeTrace } from '../services/gps/nativeTraceReconstruction';
 import { hasSavableTrace } from '../services/traces/traceCollection';
 import {
   clearPendingPlannedRoute,
@@ -429,17 +430,30 @@ export function useGpsTracking(
     clearSimulation();
 
     try {
-      await stopGpsWatch();
-      const currentPositions = positionsRef.current;
-      const livePosition = lastLivePosition.current;
-      if (livePosition && currentPositions.at(-1)?.timestamp !== livePosition.timestamp && currentPositions.length < TRACE_MAX_POINTS) {
-        const previous = currentPositions.at(-1);
-        currentPositions.push(livePosition);
-        if (previous) distanceTravelledNmRef.current += distanceNm(previous, livePosition);
-        setDistanceTravelledNm(distanceTravelledNmRef.current);
-        setPositionsRevision((revision) => revision + 1);
+      const completeNativeJournal = await stopGpsWatch();
+      let finalPositions = positionsRef.current;
+
+      if (traceSource.current === 'android-native' && completeNativeJournal.length >= 2) {
+        const rebuilt = reconstructNativeTrace(completeNativeJournal, traceMaxSpeedKt);
+        if (rebuilt.positions.length >= 2) {
+          finalPositions = rebuilt.positions;
+          positionsRef.current = rebuilt.positions;
+          diagnosticsRef.current = rebuilt.diagnostics;
+          setDiagnostics(rebuilt.diagnostics);
+          distanceTravelledNmRef.current = totalDistanceNm(rebuilt.positions);
+          setDistanceTravelledNm(distanceTravelledNmRef.current);
+          setPositionsRevision((revision) => revision + 1);
+        }
+      } else {
+        const livePosition = lastLivePosition.current;
+        if (livePosition && finalPositions.at(-1)?.timestamp !== livePosition.timestamp && finalPositions.length < TRACE_MAX_POINTS) {
+          const previous = finalPositions.at(-1);
+          finalPositions.push(livePosition);
+          if (previous) distanceTravelledNmRef.current += distanceNm(previous, livePosition);
+          setDistanceTravelledNm(distanceTravelledNmRef.current);
+          setPositionsRevision((revision) => revision + 1);
+        }
       }
-      const finalPositions = currentPositions;
 
       if (!hasSavableTrace(finalPositions.length)) {
         const nativeDeleted = await markNativeSessionDeleted(sessionId.current).catch(() => false);
