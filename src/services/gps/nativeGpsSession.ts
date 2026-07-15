@@ -1,6 +1,5 @@
 import { APP_VERSION } from '../../app/version';
 import type { PlannedRouteSnapshot, Trace } from '../../domain/trace.types';
-import { totalDistanceNm } from '../geo/distance';
 import { readPendingPlannedRoute } from '../traces/plannedRouteSnapshot';
 import { DEFAULT_MAX_TRACE_SPEED_KT } from './geolocationService';
 import { reconstructNativeTrace } from './nativeTraceReconstruction';
@@ -8,6 +7,7 @@ import {
   NativeGps,
   isAndroidNativeGpsAvailable,
   nativePayloadToGpsPosition,
+  readNativeSessionPositions,
   type NativeGpsSessionDiagnosticPayload,
   type NativeRecoverableSessionPayload
 } from './nativeGpsProvider';
@@ -30,6 +30,7 @@ export interface NativeTraceRepairDiagnostic {
 export interface NativeTraceRepairResult {
   traces: Trace[];
   repairedCount: number;
+  checkedCount: number;
   diagnostics: NativeTraceRepairDiagnostic[];
 }
 
@@ -73,7 +74,7 @@ export function nativeSessionToTrace(
   const plannedRoute = embeddedRoute ?? matchingPendingRoute;
 
   return {
-    schemaVersion: plannedRoute ? 3 : 2,
+    schemaVersion: 4,
     id: session.traceId || `recovered-${session.sessionId}`,
     sessionId: session.sessionId,
     routeId: sessionRouteId,
@@ -84,8 +85,9 @@ export function nativeSessionToTrace(
     source: 'android-native',
     positions,
     plannedRoute,
+    segmentStartIndices: rebuilt.segmentStartIndices,
     dureeSec: Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000)),
-    distanceNm: Number(totalDistanceNm(positions).toFixed(2)),
+    distanceNm: Number(rebuilt.distanceNm.toFixed(2)),
     diagnostics: rebuilt.diagnostics
   };
 }
@@ -100,8 +102,10 @@ export async function recoverNativeTraces(): Promise<NativeTraceRecoveryResult> 
   const sessions = selectRecoverableSessions(result.sessions ?? []);
 
   for (const session of sessions) {
-    const trace = nativeSessionToTrace(session, pendingRoute);
-    if (!trace || !session.sessionId) continue;
+    if (!session.sessionId) continue;
+    const positions = await readNativeSessionPositions(session.sessionId);
+    const trace = nativeSessionToTrace({ ...session, positions }, pendingRoute);
+    if (!trace) continue;
     traces.push(trace);
     sessionIds.push(session.sessionId);
   }
@@ -111,11 +115,30 @@ export async function recoverNativeTraces(): Promise<NativeTraceRecoveryResult> 
 
 export function traceNeedsNativeRepair(trace: Trace): boolean {
   if (trace.source !== 'android-native' || !trace.sessionId) return false;
+
+  // DEV15.2.9 could create a second two-point save attempt for a long native
+  // session and replace the complete local trace. That damaged trace may carry
+  // almost empty diagnostics, so diagnostics alone are not sufficient to find
+  // it after installing the hotfix. A native trace spanning more than one
+  // minute with at most three saved positions is always worth comparing with
+  // its retained Android journal.
+  const recordedSpanSec = Math.max(
+    0,
+    ((trace.positions.at(-1)?.timestamp ?? 0) - (trace.positions[0]?.timestamp ?? 0)) / 1000
+  );
+  const declaredDurationSec = Number.isFinite(trace.dureeSec) ? Math.max(0, trace.dureeSec) : 0;
+  const isLongButNearlyEmpty = Math.max(recordedSpanSec, declaredDurationSec) >= 60
+    && trace.positions.length <= 3;
+  if (isLongButNearlyEmpty) return true;
+
+  // Schema 4 is written only after CAP CLAIR has rebuilt the trace from the
+  // complete native journal. A real, explicit GPS gap can remain in such a
+  // trace, but re-reading the same journal on every launch cannot improve it.
+  if ((trace.schemaVersion ?? 0) >= 4) return false;
+
   const diagnostics = trace.diagnostics;
   if (!diagnostics) return false;
-  return diagnostics.gpsResumptions > 0
-    || diagnostics.gpsGaps > 0
-    || diagnostics.rawReceived > Math.max(trace.positions.length + 20, trace.positions.length * 1.5);
+  return diagnostics.gpsResumptions > 0 || diagnostics.gpsGaps > 0;
 }
 
 export function nativeCoverageIsBetter(local: Trace, native: Trace): boolean {
@@ -137,11 +160,12 @@ export function nativeCoverageIsBetter(local: Trace, native: Trace): boolean {
  * from its retained Android journal after installing a hotfix.
  */
 export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): Promise<NativeTraceRepairResult> {
-  if (!isAndroidNativeGpsAvailable()) return { traces: localTraces, repairedCount: 0, diagnostics: [] };
+  if (!isAndroidNativeGpsAvailable()) return { traces: localTraces, repairedCount: 0, checkedCount: 0, diagnostics: [] };
   const candidates = localTraces.filter(traceNeedsNativeRepair);
-  if (candidates.length === 0) return { traces: localTraces, repairedCount: 0, diagnostics: [] };
+  if (candidates.length === 0) return { traces: localTraces, repairedCount: 0, checkedCount: 0, diagnostics: [] };
 
   let repairedCount = 0;
+  let checkedCount = 0;
   const repairedById = new Map<string, Trace>();
   const diagnostics: NativeTraceRepairDiagnostic[] = [];
 
@@ -160,8 +184,8 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
         continue;
       }
 
-      const result = await NativeGps.getSessionPoints({ sessionId: local.sessionId });
-      if ((result.positions?.length ?? 0) < 2) {
+      const nativePositions = await readNativeSessionPositions(local.sessionId);
+      if (nativePositions.length < 2) {
         diagnostics.push({
           traceId: local.id,
           sessionId: local.sessionId,
@@ -180,30 +204,36 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
         endedAt: new Date(local.endedAt ?? local.positions.at(-1)?.timestamp ?? local.date).getTime(),
         saved: true,
         traceId: local.id,
-        positions: result.positions,
+        positions: nativePositions,
         plannedRoute: local.plannedRoute
       };
       const maxSpeed = local.diagnostics?.maxTraceSpeedKt ?? DEFAULT_MAX_TRACE_SPEED_KT;
       const native = nativeSessionToTrace(session, local.plannedRoute, maxSpeed);
       if (!native || !nativeCoverageIsBetter(local, native)) {
+        // The complete journal has been checked and cannot improve the local
+        // trace. Upgrade the trace marker so the same potentially large journal
+        // is not re-read on every application launch.
+        checkedCount += 1;
+        repairedById.set(local.id, { ...local, schemaVersion: 4 });
         diagnostics.push({
           traceId: local.id,
           sessionId: local.sessionId,
           status: 'journal_not_better',
-          message: `Trace ${local.routeName} : journal Android retrouvé, mais il contient la même coupure que la trace locale.`,
+          message: `Trace ${local.routeName} : journal Android vérifié, il contient la même coupure que la trace locale.`,
           nativeDiagnostic
         });
         continue;
       }
 
       repairedCount += 1;
+      checkedCount += 1;
       repairedById.set(local.id, {
         ...native,
         id: local.id,
         routeId: local.routeId || native.routeId,
         routeName: local.routeName || native.routeName,
         plannedRoute: native.plannedRoute ?? local.plannedRoute,
-        schemaVersion: native.plannedRoute || local.plannedRoute ? 3 : native.schemaVersion
+        schemaVersion: 4
       });
       diagnostics.push({
         traceId: local.id,
@@ -226,6 +256,7 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
   return {
     traces: localTraces.map((trace) => repairedById.get(trace.id) ?? trace),
     repairedCount,
+    checkedCount,
     diagnostics
   };
 }

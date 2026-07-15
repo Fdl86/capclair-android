@@ -24,6 +24,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -41,13 +42,28 @@ public class NativeGpsPlugin extends Plugin {
     private LocationListener oneShotLocationListener;
     private Handler oneShotHandler;
     private Runnable oneShotTimeout;
+    private Handler bridgeEventHandler;
+    private final AtomicBoolean pointNotificationPending = new AtomicBoolean(false);
 
     @Override
     public void load() {
         NativeGpsStore.initialize(getContext());
+        bridgeEventHandler = new Handler(Looper.getMainLooper());
         NativeGpsStore.setEventSink(new NativeGpsStore.EventSink() {
-            @Override public void onPoint(JSObject point) { notifyListeners("nativeGpsPoint", point); }
-            @Override public void onStatus(JSObject status) { notifyListeners("nativeGpsStatus", status); }
+            @Override public void onPoint(JSObject point) {
+                // The native journal is the source of truth. Coalesce bridge wake-ups
+                // so a suspended/slow WebView can never back-pressure the dedicated
+                // GPS thread or queue thousands of UI events.
+                if (!pointNotificationPending.compareAndSet(false, true)) return;
+                bridgeEventHandler.post(() -> {
+                    pointNotificationPending.set(false);
+                    notifyListeners("nativeGpsPoint", point);
+                });
+            }
+
+            @Override public void onStatus(JSObject status) {
+                bridgeEventHandler.post(() -> notifyListeners("nativeGpsStatus", status));
+            }
         });
     }
 
@@ -103,25 +119,24 @@ public class NativeGpsPlugin extends Plugin {
 
     @PluginMethod
     public void stop(PluginCall call) {
-        Long requestedOffset = call.getLong("sinceOffset", 0L);
-        Long requestedTimestamp = call.getLong("sinceTimestamp", 0L);
-        long sinceOffset = requestedOffset == null ? 0L : Math.max(0L, requestedOffset);
-        long sinceTimestamp = requestedTimestamp == null ? 0L : Math.max(0L, requestedTimestamp);
+        String requestedSessionId = call.getString("sessionId", "");
+        JSObject before = NativeGpsStore.getStatus();
+        String activeSessionId = before.optString("sessionId", "");
+        if (!requestedSessionId.isEmpty() && !activeSessionId.isEmpty() && !requestedSessionId.equals(activeSessionId)) {
+            call.reject("La session GPS active ne correspond pas à la session demandée.", "session_mismatch");
+            return;
+        }
 
+        // Finalisation native idempotente : la session est fermée avant toute
+        // reconstruction côté React et le service n'est pas relancé via un
+        // Intent asynchrone pouvant laisser running=true pendant plusieurs secondes.
         NativeGpsStore.finishCurrentSession();
-        NativeGpsStore.PointReadResult unread = NativeGpsStore.getPointsSince(sinceOffset, sinceTimestamp);
-
-        Intent intent = new Intent(getContext(), NativeGpsForegroundService.class);
-        intent.setAction(NativeGpsForegroundService.ACTION_STOP);
-        getContext().startService(intent);
+        NativeGpsStore.setRunning(false, before.optString("provider", "none"));
+        Intent serviceIntent = new Intent(getContext(), NativeGpsForegroundService.class);
+        getContext().stopService(serviceIntent);
 
         JSObject result = NativeGpsStore.getStatus();
         result.put("stopped", true);
-        result.put("points", unread.points);
-        // Final saving must be rebuilt from the complete durable journal, not
-        // from the order in which bridge events happened to reach the WebView.
-        result.put("completePoints", NativeGpsStore.getAllCurrentPoints());
-        result.put("nextOffset", unread.nextOffset);
         call.resolve(result);
     }
 
@@ -157,6 +172,22 @@ public class NativeGpsPlugin extends Plugin {
         String sessionId = call.getString("sessionId", "");
         JSObject result = new JSObject();
         result.put("positions", NativeGpsStore.getSessionPoints(sessionId));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void getSessionPointsChunk(PluginCall call) {
+        String sessionId = call.getString("sessionId", "");
+        Long requestedOffset = call.getLong("sinceOffset", 0L);
+        Integer requestedMaxPoints = call.getInt("maxPoints", 500);
+        long sinceOffset = requestedOffset == null ? 0L : Math.max(0L, requestedOffset);
+        int maxPoints = requestedMaxPoints == null ? 500 : Math.max(1, Math.min(2000, requestedMaxPoints));
+        NativeGpsStore.PointReadResult page = NativeGpsStore.getSessionPointsChunk(sessionId, sinceOffset, maxPoints);
+        long journalLength = NativeGpsStore.getSessionJournalLength(sessionId);
+        JSObject result = new JSObject();
+        result.put("points", page.points);
+        result.put("nextOffset", page.nextOffset);
+        result.put("hasMore", page.nextOffset < journalLength);
         call.resolve(result);
     }
 
@@ -231,6 +262,13 @@ public class NativeGpsPlugin extends Plugin {
         String sessionId = call.getString("sessionId", "");
         String traceId = call.getString("traceId", "");
         boolean saved = NativeGpsStore.markSessionSaved(sessionId, traceId);
+        if (saved) {
+            // Defensive idempotence: even if the original stop bridge call
+            // returned an error after finalizing the journal, confirmation of
+            // the local trace must never leave a zombie foreground GPS service.
+            Intent serviceIntent = new Intent(getContext(), NativeGpsForegroundService.class);
+            getContext().stopService(serviceIntent);
+        }
         JSObject result = new JSObject();
         result.put("saved", saved);
         call.resolve(result);

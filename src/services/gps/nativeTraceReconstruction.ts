@@ -10,8 +10,9 @@ import {
 export const TRACE_SAMPLE_INTERVAL_MS = 3000;
 export const TRACE_MAX_POINTS = 50000;
 export const MAX_CONSECUTIVE_TRACE_REJECTIONS = 5;
-export const STATIONARY_SPEED_KT_THRESHOLD = 5;
-export const STATIONARY_DRIFT_RADIUS_M = 60;
+export const STATIONARY_SPEED_KT_THRESHOLD = 2;
+export const STATIONARY_DRIFT_RADIUS_M = 20;
+export const STATIONARY_KEEPALIVE_MS = 9000;
 export const MIN_TRACK_SPEED_KT = 8;
 export const MIN_TRACK_DISTANCE_M = 20;
 export const GPS_RESUME_AFTER_GAP_MS = 12_000;
@@ -19,6 +20,8 @@ export const GPS_RESUME_AFTER_GAP_MS = 12_000;
 export interface NativeTraceReconstructionResult {
   positions: GpsPosition[];
   diagnostics: GpsTraceDiagnostics;
+  segmentStartIndices: number[];
+  distanceNm: number;
 }
 
 function createDiagnostics(maxTraceSpeedKt: number): GpsTraceDiagnostics {
@@ -42,13 +45,24 @@ function pointKey(position: GpsPosition): string {
   return `${position.timestamp}:${position.latitude.toFixed(7)}:${position.longitude.toFixed(7)}`;
 }
 
+export function createStationaryKeepalive(anchor: GpsPosition, current: GpsPosition): GpsPosition {
+  return {
+    ...current,
+    latitude: anchor.latitude,
+    longitude: anchor.longitude,
+    vitesse: 0,
+    track: anchor.track ?? current.track
+  };
+}
+
 /**
  * Rebuilds a saved trace from the complete native JSONL journal.
  *
  * The native journal is the source of truth. Points are sorted and deduplicated
  * before the same safety filters and 3-second sampling policy used by live
- * tracking are applied. This makes final saving independent from WebView
- * suspension, delayed bridge events, or out-of-order UI delivery.
+ * tracking are applied. Stationary phases keep a stable timestamped anchor every
+ * nine seconds so check-lists and engine checks remain present in Replay without
+ * drawing GPS drift around the parking area.
  */
 export function reconstructNativeTrace(
   rawPositions: GpsPosition[],
@@ -69,18 +83,31 @@ export function reconstructNativeTrace(
   }
 
   const positions: GpsPosition[] = [];
+  const segmentStartIndices: number[] = [];
   let lastTraceSample: GpsPosition | null = null;
   let lastTraceSampleAt: number | null = null;
   let lastAcceptedLive: GpsPosition | null = null;
   let previousRawTimestamp: number | null = null;
   let rejectionStreak = 0;
   let groundAnchor: GpsPosition | null = null;
+  let pendingSegmentBreak = false;
+  let distanceTotalNm = 0;
 
   const append = (position: GpsPosition, force = false): boolean => {
     const shouldSample = force
       || lastTraceSampleAt === null
       || position.timestamp - lastTraceSampleAt >= TRACE_SAMPLE_INTERVAL_MS;
     if (!shouldSample || positions.length >= TRACE_MAX_POINTS) return false;
+
+    if (pendingSegmentBreak && positions.length > 0) {
+      segmentStartIndices.push(positions.length);
+      pendingSegmentBreak = false;
+    }
+
+    const previous = positions.at(-1);
+    const startsSegment = segmentStartIndices.at(-1) === positions.length;
+    if (previous && !startsSegment) distanceTotalNm += distanceNm(previous, position);
+
     positions.push(position);
     lastTraceSample = position;
     lastTraceSampleAt = position.timestamp;
@@ -94,6 +121,9 @@ export function reconstructNativeTrace(
     if (previousRawTimestamp !== null && rawPosition.timestamp - previousRawTimestamp > GPS_RESUME_AFTER_GAP_MS) {
       diagnostics.gpsGaps += 1;
       diagnostics.gpsResumptions += 1;
+      pendingSegmentBreak = positions.length > 0;
+      groundAnchor = null;
+      rejectionStreak = 0;
     }
     previousRawTimestamp = rawPosition.timestamp;
 
@@ -128,7 +158,11 @@ export function reconstructNativeTrace(
       if (isLowReportedSpeed && groundAnchor) {
         const driftM = distanceNm(groundAnchor, position) * 1852;
         if (driftM <= STATIONARY_DRIFT_RADIUS_M) {
-          diagnostics.rejectedDrift += 1;
+          lastAcceptedLive = position;
+          const keepaliveDue = lastTraceSampleAt === null
+            || position.timestamp - lastTraceSampleAt >= STATIONARY_KEEPALIVE_MS;
+          if (keepaliveDue) append(createStationaryKeepalive(groundAnchor, position), true);
+          else diagnostics.rejectedDrift += 1;
           continue;
         }
       }
@@ -168,9 +202,19 @@ export function reconstructNativeTrace(
     && positions.length < TRACE_MAX_POINTS
     && positions.at(-1)?.timestamp !== lastAcceptedLive.timestamp
   ) {
-    positions.push(lastAcceptedLive);
-    diagnostics.tracePoints += 1;
+    const endpoint = groundAnchor
+      && lastAcceptedLive.vitesse !== null
+      && lastAcceptedLive.vitesse < STATIONARY_SPEED_KT_THRESHOLD
+      && distanceNm(groundAnchor, lastAcceptedLive) * 1852 <= STATIONARY_DRIFT_RADIUS_M
+      ? createStationaryKeepalive(groundAnchor, lastAcceptedLive)
+      : lastAcceptedLive;
+    append(endpoint, true);
   }
 
-  return { positions, diagnostics };
+  return {
+    positions,
+    diagnostics,
+    segmentStartIndices,
+    distanceNm: Number(distanceTotalNm.toFixed(6))
+  };
 }

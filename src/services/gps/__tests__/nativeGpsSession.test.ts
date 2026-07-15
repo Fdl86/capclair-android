@@ -96,6 +96,36 @@ describe('saved native trace repair selection', () => {
     expect(traceNeedsNativeRepair(localTrace())).toBe(true);
   });
 
+  it('flags a long native session reduced to two points even when diagnostics look normal', () => {
+    const sparse = localTrace({
+      dureeSec: 5_061,
+      positions: [
+        { latitude: 46, longitude: 0, altitude: 500, altitudeAccuracy: 10, vitesse: 0, track: 90, timestamp: 0, precision: 5 },
+        { latitude: 46, longitude: 0.001, altitude: 500, altitudeAccuracy: 10, vitesse: 0, track: 90, timestamp: 2_000, precision: 5 }
+      ],
+      diagnostics: {
+        rawReceived: 4,
+        rejectedPrecision: 0,
+        rejectedRedundant: 2,
+        rejectedSpeed: 0,
+        rejectedDrift: 1,
+        forcedResync: 0,
+        tracePoints: 2,
+        gpsGaps: 0,
+        gpsResumptions: 0,
+        missingAltitude: 0,
+        unreliableAltitude: 0,
+        maxTraceSpeedKt: 160
+      }
+    });
+
+    expect(traceNeedsNativeRepair(sparse)).toBe(true);
+  });
+
+  it('does not recheck a schema 4 trace already rebuilt from the complete journal', () => {
+    expect(traceNeedsNativeRepair(localTrace({ schemaVersion: 4 }))).toBe(false);
+  });
+
   it('accepts a native reconstruction with earlier coverage', () => {
     const local = localTrace({
       positions: localTrace().positions.map((position) => ({ ...position, timestamp: position.timestamp + 20_000 }))

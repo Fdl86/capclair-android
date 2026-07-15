@@ -16,8 +16,10 @@ import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import com.getcapacitor.JSObject;
 
 public class NativeGpsForegroundService extends Service implements LocationListener {
@@ -28,9 +30,14 @@ public class NativeGpsForegroundService extends Service implements LocationListe
     private static final long MIN_TIME_MS = 1000L;
     private static final float MIN_DISTANCE_M = 0f;
     private static final long HEARTBEAT_MS = 60_000L;
+    private static final long WATCHDOG_INTERVAL_MS = 15_000L;
     private static final long LOCATION_GAP_EVENT_MS = 30_000L;
+    private static final long LOCATION_STALE_RESTART_MS = 30_000L;
+    private static final long WATCHDOG_RESTART_COOLDOWN_MS = 30_000L;
 
     private LocationManager locationManager;
+    private HandlerThread locationThread;
+    private Looper locationLooper;
     private boolean listening = false;
     private String activeProvider = "none";
     private Handler heartbeatHandler;
@@ -38,6 +45,10 @@ public class NativeGpsForegroundService extends Service implements LocationListe
     private long serviceCreatedAt = 0L;
     private long lastLocationAt = 0L;
     private long locationCallbackCount = 0L;
+    private long lastHeartbeatWrittenAt = 0L;
+    private long lastWatchdogRestartAt = 0L;
+    private int watchdogRestartCount = 0;
+    private PowerManager.WakeLock wakeLock;
 
     @Override
     public void onCreate() {
@@ -45,10 +56,16 @@ public class NativeGpsForegroundService extends Service implements LocationListe
         NativeGpsStore.initialize(this);
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         serviceCreatedAt = System.currentTimeMillis();
-        heartbeatHandler = new Handler(Looper.getMainLooper());
+        locationThread = new HandlerThread("CapClairGpsLocation");
+        locationThread.start();
+        locationLooper = locationThread.getLooper();
+        heartbeatHandler = new Handler(locationLooper);
         ensureNotificationChannel();
         JSObject details = new JSObject();
         details.put("serviceCreatedAt", serviceCreatedAt);
+        details.put("watchdogRestartCount", watchdogRestartCount);
+        details.put("wakeLockHeld", wakeLock != null && wakeLock.isHeld());
+        details.put("dedicatedLocationThread", locationThread != null && locationThread.isAlive());
         NativeGpsStore.recordDiagnosticEvent("service_created", details);
     }
 
@@ -68,6 +85,7 @@ public class NativeGpsForegroundService extends Service implements LocationListe
         }
         NativeGpsStore.ensureActiveSession();
         startAsForeground();
+        acquireCpuWakeLock();
         startTracking();
         startHeartbeat();
         return START_STICKY;
@@ -81,6 +99,13 @@ public class NativeGpsForegroundService extends Service implements LocationListe
         JSObject details = serviceStateDetails();
         NativeGpsStore.recordDiagnosticEvent("service_destroyed", details);
         stopTracking(false);
+        releaseCpuWakeLock();
+        if (locationThread != null) {
+            locationThread.quitSafely();
+            locationThread = null;
+            locationLooper = null;
+            heartbeatHandler = null;
+        }
         super.onDestroy();
     }
 
@@ -128,7 +153,8 @@ public class NativeGpsForegroundService extends Service implements LocationListe
 
             removeLocationUpdates();
             activeProvider = bestProvider;
-            locationManager.requestLocationUpdates(activeProvider, MIN_TIME_MS, MIN_DISTANCE_M, this, Looper.getMainLooper());
+            Looper callbackLooper = locationLooper != null ? locationLooper : Looper.getMainLooper();
+            locationManager.requestLocationUpdates(activeProvider, MIN_TIME_MS, MIN_DISTANCE_M, this, callbackLooper);
             listening = true;
             NativeGpsStore.recordDiagnosticEvent("provider_listening", serviceStateDetails());
             NativeGpsStore.setRunning(true, activeProvider);
@@ -163,6 +189,7 @@ public class NativeGpsForegroundService extends Service implements LocationListe
         removeLocationUpdates();
         if (finishSession) NativeGpsStore.finishCurrentSession();
         NativeGpsStore.setRunning(false, activeProvider);
+        releaseCpuWakeLock();
         stopForeground(STOP_FOREGROUND_REMOVE);
     }
 
@@ -206,20 +233,63 @@ public class NativeGpsForegroundService extends Service implements LocationListe
     @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
 
     private void startHeartbeat() {
-        if (heartbeatHandler == null) heartbeatHandler = new Handler(Looper.getMainLooper());
+        if (heartbeatHandler == null) {
+            Looper callbackLooper = locationLooper != null ? locationLooper : Looper.getMainLooper();
+            heartbeatHandler = new Handler(callbackLooper);
+        }
         stopHeartbeat();
+        lastHeartbeatWrittenAt = 0L;
         heartbeatRunnable = new Runnable() {
             @Override public void run() {
-                NativeGpsStore.recordDiagnosticEvent("service_heartbeat", serviceStateDetails());
-                if (heartbeatHandler != null) heartbeatHandler.postDelayed(this, HEARTBEAT_MS);
+                long now = System.currentTimeMillis();
+                if (lastHeartbeatWrittenAt == 0L || now - lastHeartbeatWrittenAt >= HEARTBEAT_MS) {
+                    NativeGpsStore.recordDiagnosticEvent("service_heartbeat", serviceStateDetails());
+                    lastHeartbeatWrittenAt = now;
+                }
+                runLocationWatchdog(now);
+                if (heartbeatHandler != null) heartbeatHandler.postDelayed(this, WATCHDOG_INTERVAL_MS);
             }
         };
         heartbeatHandler.post(heartbeatRunnable);
     }
 
+    private void runLocationWatchdog(long now) {
+        if (!listening || locationManager == null) return;
+        long reference = lastLocationAt > 0L ? lastLocationAt : serviceCreatedAt;
+        if (now - reference < LOCATION_STALE_RESTART_MS) return;
+        if (lastWatchdogRestartAt > 0L && now - lastWatchdogRestartAt < WATCHDOG_RESTART_COOLDOWN_MS) return;
+
+        lastWatchdogRestartAt = now;
+        watchdogRestartCount += 1;
+        JSObject details = serviceStateDetails();
+        details.put("staleForMs", now - reference);
+        details.put("watchdogRestartCount", watchdogRestartCount);
+        NativeGpsStore.recordDiagnosticEvent("location_watchdog_restart", details);
+        removeLocationUpdates();
+        switchToBestProvider();
+    }
+
     private void stopHeartbeat() {
         if (heartbeatHandler != null && heartbeatRunnable != null) heartbeatHandler.removeCallbacks(heartbeatRunnable);
         heartbeatRunnable = null;
+    }
+
+    private void acquireCpuWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) return;
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (powerManager == null) return;
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CapClair:NativeGpsTracking");
+        wakeLock.setReferenceCounted(false);
+        wakeLock.acquire();
+        NativeGpsStore.recordDiagnosticEvent("cpu_wake_lock_acquired", serviceStateDetails());
+    }
+
+    private void releaseCpuWakeLock() {
+        if (wakeLock == null) return;
+        try {
+            if (wakeLock.isHeld()) wakeLock.release();
+        } catch (RuntimeException ignored) {}
+        wakeLock = null;
     }
 
     private JSObject serviceStateDetails() {
@@ -229,6 +299,9 @@ public class NativeGpsForegroundService extends Service implements LocationListe
         details.put("lastLocationAt", lastLocationAt > 0L ? lastLocationAt : null);
         details.put("locationCallbackCount", locationCallbackCount);
         details.put("serviceCreatedAt", serviceCreatedAt);
+        details.put("watchdogRestartCount", watchdogRestartCount);
+        details.put("wakeLockHeld", wakeLock != null && wakeLock.isHeld());
+        details.put("dedicatedLocationThread", locationThread != null && locationThread.isAlive());
         if (locationManager != null) {
             try {
                 details.put("gpsEnabled", locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER));

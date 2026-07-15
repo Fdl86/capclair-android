@@ -40,7 +40,7 @@ final class NativeGpsStore {
         }
     }
 
-    private static final int SCHEMA_VERSION = 4;
+    private static final int SCHEMA_VERSION = 5;
     private static EventSink sink = null;
     private static Context appContext;
     private static File sessionsDir;
@@ -56,6 +56,8 @@ final class NativeGpsStore {
     private static long startedAt = 0L;
     private static Long endedAt = null;
     private static boolean saved = false;
+    private static String savedTraceId = "";
+    private static Long savedAt = null;
     private static boolean journalWriteHealthy = true;
     private static int persistentPointCount = 0;
 
@@ -81,6 +83,7 @@ final class NativeGpsStore {
         boolean resumed = false;
         if (activeSessionId != null && endedAt == null && !saved) {
             resumed = true;
+            repairTrailingPartialLine(activeSessionId);
             if (plannedRoute == null && requestedPlannedRoute != null) {
                 plannedRoute = cloneJson(requestedPlannedRoute);
                 writeMetadata();
@@ -95,6 +98,8 @@ final class NativeGpsStore {
             startedAt = System.currentTimeMillis();
             endedAt = null;
             saved = false;
+            savedTraceId = "";
+            savedAt = null;
             journalWriteHealthy = true;
             lastError = null;
             persistentPointCount = 0;
@@ -184,12 +189,17 @@ final class NativeGpsStore {
     }
 
     static synchronized void finishCurrentSession() {
-        if (activeSessionId == null || endedAt != null) return;
+        if (activeSessionId == null) return;
         acceptingPoints = false;
-        endedAt = System.currentTimeMillis();
         running = false;
-        writeMetadata();
-        appendDiagnosticEvent("session_finished", new JSObject(), true);
+        syncSessionJournal(activeSessionId);
+        if (endedAt == null) {
+            endedAt = System.currentTimeMillis();
+            writeMetadata();
+            appendDiagnosticEvent("session_finished", new JSObject(), true);
+        } else {
+            writeMetadata();
+        }
     }
 
     static synchronized JSObject getStatus() {
@@ -224,6 +234,17 @@ final class NativeGpsStore {
     static synchronized JSONArray getSessionPoints(String sessionId) {
         ensureInitialized();
         return readPoints(sessionId);
+    }
+
+    static synchronized PointReadResult getSessionPointsChunk(String sessionId, long sinceOffset, int maxPoints) {
+        ensureInitialized();
+        return readPointsSinceLimited(sessionId, sinceOffset, Math.max(1, Math.min(2000, maxPoints)));
+    }
+
+    static synchronized long getSessionJournalLength(String sessionId) {
+        ensureInitialized();
+        File file = pointsFile(sessionId);
+        return file != null && file.exists() ? file.length() : 0L;
     }
 
     static synchronized JSObject getSessionDiagnostic(String sessionId) {
@@ -298,19 +319,18 @@ final class NativeGpsStore {
                 String sessionId = metadata.optString("sessionId", "");
                 if (sessionId.isEmpty()) continue;
                 if (running && sessionId.equals(activeSessionId)) continue;
-                JSONArray positions = readPoints(sessionId);
-                if (positions.length() < 2) continue;
-                JSONObject lastPoint = positions.optJSONObject(positions.length() - 1);
-                long lastPointAt = lastPoint == null ? 0L : lastPoint.optLong("timestamp", 0L);
+                File journal = pointsFile(sessionId);
+                if (journal == null || !journal.exists() || journal.length() == 0L) continue;
                 boolean hasEndedAt = metadata.has("endedAt") && !metadata.isNull("endedAt");
-                if (!hasEndedAt && lastPointAt > 0L && System.currentTimeMillis() - lastPointAt < 60_000L) continue;
+                long journalUpdatedAt = journal.lastModified();
+                if (!hasEndedAt && journalUpdatedAt > 0L && System.currentTimeMillis() - journalUpdatedAt < 60_000L) continue;
                 JSObject session = new JSObject();
                 session.put("schemaVersion", metadata.optInt("schemaVersion", SCHEMA_VERSION));
                 session.put("sessionId", sessionId);
                 session.put("routeId", metadata.optString("routeId", ""));
                 session.put("routeName", metadata.optString("routeName", "Trace GPS récupérée"));
                 session.put("startedAt", metadata.optLong("startedAt", 0L));
-                session.put("endedAt", hasEndedAt ? metadata.optLong("endedAt") : (lastPointAt > 0L ? lastPointAt : null));
+                session.put("endedAt", hasEndedAt ? metadata.optLong("endedAt") : null);
                 session.put("source", "android-native");
                 session.put("saved", metadata.optBoolean("saved", false));
                 session.put("traceId", metadata.optString("traceId", ""));
@@ -318,7 +338,7 @@ final class NativeGpsStore {
                 if (metadata.has("plannedRoute") && !metadata.isNull("plannedRoute")) {
                     session.put("plannedRoute", metadata.optJSONObject("plannedRoute"));
                 }
-                session.put("positions", positions);
+                session.put("journalSizeBytes", journal.length());
                 result.put(session);
             } catch (Exception ignored) {
                 // Keep scanning other sessions.
@@ -333,15 +353,30 @@ final class NativeGpsStore {
         if (metadataFile == null || !metadataFile.exists()) return false;
         try {
             JSONObject metadata = readJson(metadataFile);
-            metadata.put("saved", true);
-            metadata.put("traceId", traceId == null ? "" : traceId);
-            metadata.put("savedAt", System.currentTimeMillis());
-            writeJson(metadataFile, metadata);
-            if (sessionId.equals(activeSessionId)) saved = true;
+            long confirmedAt = System.currentTimeMillis();
+            long confirmedEndedAt = metadata.has("endedAt") && !metadata.isNull("endedAt")
+                ? metadata.optLong("endedAt", confirmedAt)
+                : confirmedAt;
+            String confirmedTraceId = traceId == null ? "" : traceId;
+
             if (sessionId.equals(activeSessionId)) {
+                saved = true;
+                savedTraceId = confirmedTraceId;
+                savedAt = confirmedAt;
+                running = false;
+                acceptingPoints = false;
+                endedAt = confirmedEndedAt;
+                writeMetadata();
                 JSObject details = new JSObject();
-                details.put("traceId", traceId == null ? "" : traceId);
+                details.put("traceId", confirmedTraceId);
                 appendDiagnosticEvent("session_marked_saved", details, true);
+            } else {
+                metadata.put("endedAt", confirmedEndedAt);
+                metadata.put("saved", true);
+                metadata.put("running", false);
+                metadata.put("traceId", confirmedTraceId);
+                metadata.put("savedAt", confirmedAt);
+                writeJson(metadataFile, metadata);
             }
             return true;
         } catch (Exception error) {
@@ -375,6 +410,18 @@ final class NativeGpsStore {
         if (appContext == null) throw new IllegalStateException("NativeGpsStore non initialisé");
     }
 
+    private static void syncSessionJournal(String sessionId) {
+        File file = pointsFile(sessionId);
+        if (file == null || !file.exists()) return;
+        try (FileOutputStream output = new FileOutputStream(file, true)) {
+            output.flush();
+            output.getFD().sync();
+        } catch (Exception error) {
+            lastError = "Synchronisation finale du journal GPS impossible : " + error.getMessage();
+            journalWriteHealthy = false;
+        }
+    }
+
     private static boolean appendPointToDisk(JSObject point) {
         File file = pointsFile(activeSessionId);
         if (file == null) {
@@ -382,16 +429,46 @@ final class NativeGpsStore {
             return false;
         }
         boolean shouldSync = (persistentPointCount + 1) % 5 == 0;
-        try (FileOutputStream output = new FileOutputStream(file, true);
-             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8))) {
-            writer.write(point.toString());
-            writer.newLine();
-            writer.flush();
+        byte[] line = (point.toString() + "\n").getBytes(StandardCharsets.UTF_8);
+        try (FileOutputStream output = new FileOutputStream(file, true)) {
+            // One compact write per JSONL record reduces the chance of leaving a
+            // half-record if Android kills the process between callbacks.
+            output.write(line);
+            output.flush();
             if (shouldSync) output.getFD().sync();
             return true;
         } catch (Exception error) {
             lastError = "Écriture journal GPS impossible : " + error.getMessage();
             return false;
+        }
+    }
+
+    private static void repairTrailingPartialLine(String sessionId) {
+        File file = pointsFile(sessionId);
+        if (file == null || !file.exists() || file.length() == 0L) return;
+        try (RandomAccessFile reader = new RandomAccessFile(file, "rw")) {
+            long length = reader.length();
+            reader.seek(length - 1L);
+            if (reader.read() == '\n') return;
+
+            long cursor = length - 1L;
+            while (cursor >= 0L) {
+                reader.seek(cursor);
+                if (reader.read() == '\n') {
+                    reader.setLength(cursor + 1L);
+                    JSObject details = new JSObject();
+                    details.put("discardedBytes", length - cursor - 1L);
+                    appendDiagnosticEvent("trailing_partial_point_removed", details, true);
+                    return;
+                }
+                cursor -= 1L;
+            }
+            reader.setLength(0L);
+            JSObject details = new JSObject();
+            details.put("discardedBytes", length);
+            appendDiagnosticEvent("trailing_partial_point_removed", details, true);
+        } catch (Exception error) {
+            lastError = "Réparation de fin de journal GPS impossible : " + error.getMessage();
         }
     }
 
@@ -469,6 +546,8 @@ final class NativeGpsStore {
         int serviceStartedCount = 0;
         int serviceDestroyedCount = 0;
         int taskRemovedCount = 0;
+        int watchdogRestartCount = 0;
+        int wakeLockAcquiredCount = 0;
         long firstHeartbeatAt = 0L;
         long lastHeartbeatAt = 0L;
         long previousHeartbeatAt = 0L;
@@ -497,6 +576,10 @@ final class NativeGpsStore {
                             serviceDestroyedCount += 1;
                         } else if ("service_task_removed".equals(type)) {
                             taskRemovedCount += 1;
+                        } else if ("location_watchdog_restart".equals(type)) {
+                            watchdogRestartCount += 1;
+                        } else if ("cpu_wake_lock_acquired".equals(type)) {
+                            wakeLockAcquiredCount += 1;
                         }
                     } catch (Exception ignored) {
                         malformed += 1;
@@ -552,14 +635,24 @@ final class NativeGpsStore {
         try (RandomAccessFile reader = new RandomAccessFile(file, "r")) {
             reader.seek(offset);
             String line;
-            while ((line = reader.readLine()) != null) {
+            while (true) {
+                long lineStart = reader.getFilePointer();
+                line = reader.readLine();
+                if (line == null) break;
+                if (isTrailingPartialRecord(reader)) {
+                    // The writer may still be completing the final JSONL record.
+                    // Retry it from the same byte on the next poll instead of
+                    // permanently advancing into the middle of the point.
+                    reader.seek(lineStart);
+                    break;
+                }
                 if (line.trim().isEmpty()) continue;
                 String utf8Line = new String(line.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
                 try {
                     JSObject point = new JSObject(utf8Line);
                     if (!timestampFallback || point.optLong("timestamp", 0L) > sinceTimestamp) result.put(point);
                 } catch (Exception malformedLine) {
-                    // A partially written/corrupted JSONL line must never pin the incremental offset.
+                    // A complete but corrupted JSONL line must never pin the incremental offset.
                     // Skip only this line and keep scanning later valid points.
                     lastError = "Ligne journal GPS illisible ignorée.";
                 }
@@ -569,6 +662,52 @@ final class NativeGpsStore {
             lastError = "Lecture journal GPS impossible : " + error.getMessage();
             return new PointReadResult(result, offset);
         }
+    }
+
+    private static PointReadResult readPointsSinceLimited(String sessionId, long requestedOffset, int maxPoints) {
+        JSONArray result = new JSONArray();
+        File file = pointsFile(sessionId);
+        if (file == null || !file.exists()) return new PointReadResult(result, 0L);
+
+        long offset = Math.max(0L, requestedOffset);
+        if (offset > file.length()) offset = 0L;
+
+        try (RandomAccessFile reader = new RandomAccessFile(file, "r")) {
+            reader.seek(offset);
+            String line;
+            int validCount = 0;
+            while (validCount < maxPoints) {
+                long lineStart = reader.getFilePointer();
+                line = reader.readLine();
+                if (line == null) break;
+                if (isTrailingPartialRecord(reader)) {
+                    reader.seek(lineStart);
+                    break;
+                }
+                if (line.trim().isEmpty()) continue;
+                String utf8Line = new String(line.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
+                try {
+                    result.put(new JSObject(utf8Line));
+                    validCount += 1;
+                } catch (Exception malformedLine) {
+                    lastError = "Ligne journal GPS illisible ignorée.";
+                }
+            }
+            return new PointReadResult(result, reader.getFilePointer());
+        } catch (Exception error) {
+            lastError = "Lecture paginée du journal GPS impossible : " + error.getMessage();
+            return new PointReadResult(result, offset);
+        }
+    }
+
+    private static boolean isTrailingPartialRecord(RandomAccessFile reader) throws Exception {
+        long afterLine = reader.getFilePointer();
+        long length = reader.length();
+        if (afterLine <= 0L || afterLine < length) return false;
+        reader.seek(afterLine - 1L);
+        int lastByte = reader.read();
+        reader.seek(afterLine);
+        return lastByte != '\n' && lastByte != '\r';
     }
 
     private static JSONArray readPoints(String sessionId) {
@@ -616,6 +755,8 @@ final class NativeGpsStore {
             startedAt = metadata.optLong("startedAt", 0L);
             endedAt = metadata.has("endedAt") && !metadata.isNull("endedAt") ? metadata.optLong("endedAt") : null;
             saved = metadata.optBoolean("saved", false);
+            savedTraceId = metadata.optString("traceId", "");
+            savedAt = metadata.has("savedAt") && !metadata.isNull("savedAt") ? metadata.optLong("savedAt") : null;
             journalWriteHealthy = metadata.optBoolean("journalWriteHealthy", true);
             persistentPointCount = metadata.optInt("pointCount", 0);
         } catch (Exception ignored) {}
@@ -638,9 +779,14 @@ final class NativeGpsStore {
 
     private static void writeActivePointer() {
         if (activePointerFile == null || activeSessionId == null) return;
-        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(activePointerFile, false), StandardCharsets.UTF_8))) {
-            writer.write(activeSessionId);
-        } catch (Exception ignored) {}
+        try (FileOutputStream output = new FileOutputStream(activePointerFile, false)) {
+            output.write(activeSessionId.getBytes(StandardCharsets.UTF_8));
+            output.flush();
+            output.getFD().sync();
+        } catch (Exception error) {
+            lastError = "Écriture pointeur de session GPS impossible : " + error.getMessage();
+            journalWriteHealthy = false;
+        }
     }
 
     private static void writeMetadata() {
@@ -655,6 +801,8 @@ final class NativeGpsStore {
             metadata.put("startedAt", startedAt);
             metadata.put("endedAt", endedAt == null ? JSONObject.NULL : endedAt);
             metadata.put("saved", saved);
+            metadata.put("traceId", savedTraceId);
+            metadata.put("savedAt", savedAt == null ? JSONObject.NULL : savedAt);
             metadata.put("deleted", false);
             metadata.put("journalWriteHealthy", journalWriteHealthy);
             metadata.put("provider", provider);
@@ -662,7 +810,10 @@ final class NativeGpsStore {
             metadata.put("pointCount", persistentPointCount);
             metadata.put("source", "android-native");
             writeJson(metadataFile(activeSessionId), metadata);
-        } catch (Exception ignored) {}
+        } catch (Exception error) {
+            lastError = "Écriture métadonnées GPS impossible : " + error.getMessage();
+            journalWriteHealthy = false;
+        }
     }
 
     private static String safeSessionId(String sessionId) {
@@ -705,6 +856,8 @@ final class NativeGpsStore {
             startedAt = 0L;
             endedAt = null;
             saved = false;
+            savedTraceId = "";
+            savedAt = null;
             acceptingPoints = false;
             persistentPointCount = 0;
             if (activePointerFile != null && activePointerFile.exists()) activePointerFile.delete();

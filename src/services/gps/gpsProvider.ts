@@ -24,6 +24,7 @@ export interface GpsProviderSessionInfo {
   resumed: boolean;
   notificationPermissionGranted?: boolean;
   plannedRoute?: PlannedRouteSnapshot;
+  journalOffset?: number;
 }
 
 export interface GpsProviderWatch {
@@ -42,7 +43,8 @@ export interface GpsProvider {
   startWatching: (
     onPosition: (position: GpsPosition) => void,
     onError: (error: GpsProviderError) => void,
-    options?: GpsProviderStartOptions
+    options?: GpsProviderStartOptions,
+    onBackfill?: (positions: GpsPosition[]) => void
   ) => GpsProviderWatch;
 }
 

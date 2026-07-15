@@ -75,3 +75,35 @@ describe('native trace reconstruction', () => {
     expect(rebuilt.positions.at(-1)?.timestamp).toBe(1000);
   });
 });
+
+it('preserves long stationary checklist periods with stable keepalive points', () => {
+  const raw: GpsPosition[] = [];
+  for (let timestamp = 0; timestamp <= 11 * 60_000; timestamp += 1000) {
+    const jitter = (timestamp / 1000 % 5) * 0.000001;
+    raw.push(point(timestamp, jitter, { vitesse: 0, track: null }));
+  }
+
+  const rebuilt = reconstructNativeTrace(raw, 160);
+  const timestamps = rebuilt.positions.map((item) => item.timestamp);
+  const maxGap = Math.max(...timestamps.slice(1).map((timestamp, index) => timestamp - timestamps[index]));
+
+  expect(rebuilt.positions[0]?.timestamp).toBe(0);
+  expect(rebuilt.positions.at(-1)?.timestamp).toBe(11 * 60_000);
+  expect(maxGap).toBeLessThanOrEqual(9000);
+  expect(rebuilt.segmentStartIndices).toEqual([]);
+  expect(rebuilt.distanceNm).toBeLessThan(0.01);
+});
+
+it('creates an explicit segment break for a real native callback gap', () => {
+  const rebuilt = reconstructNativeTrace([
+    point(0, 0),
+    point(3000, 0.001),
+    point(6000, 0.002),
+    point(36_000, 0.004),
+    point(39_000, 0.005)
+  ], 600);
+
+  expect(rebuilt.segmentStartIndices).toEqual([3]);
+  expect(rebuilt.diagnostics.gpsGaps).toBe(1);
+  expect(rebuilt.diagnostics.gpsResumptions).toBe(1);
+});

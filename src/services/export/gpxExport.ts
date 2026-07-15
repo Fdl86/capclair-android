@@ -81,16 +81,22 @@ function traceFileName(trace: Trace, extension: 'gpx' | 'json'): string {
 
 export function splitTraceSegments(trace: Trace, gapMs = 12_000): Trace['positions'][] {
   const segments: Trace['positions'][] = [];
+  const explicitStarts = new Set(
+    (trace.segmentStartIndices ?? []).filter((index) => Number.isInteger(index) && index > 0)
+  );
   let current: Trace['positions'] = [];
 
-  for (const position of trace.positions) {
+  trace.positions.forEach((position, index) => {
     const previous = current.at(-1);
-    if (previous && position.timestamp - previous.timestamp > gapMs) {
-      if (current.length) segments.push(current);
+    const elapsedMs = previous ? position.timestamp - previous.timestamp : 0;
+    const startsNewSegment = current.length > 0
+      && (explicitStarts.has(index) || elapsedMs <= 0 || elapsedMs > gapMs);
+    if (startsNewSegment) {
+      segments.push(current);
       current = [];
     }
     current.push(position);
-  }
+  });
 
   if (current.length) segments.push(current);
   return segments;

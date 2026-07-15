@@ -68,6 +68,8 @@ export interface NativeGpsSessionDiagnosticPayload {
   serviceStartedCount?: number;
   serviceDestroyedCount?: number;
   taskRemovedCount?: number;
+  watchdogRestartCount?: number;
+  wakeLockAcquiredCount?: number;
   likelyCause?: 'journal_missing' | 'native_journal_continuous' | 'insufficient_heartbeat_data' | 'location_callbacks_missing_while_service_alive' | 'service_suspended_killed_or_restarted' | string;
   metadata?: Record<string, unknown>;
   error?: string;
@@ -87,6 +89,7 @@ export interface NativeRecoverableSessionPayload {
   running?: boolean;
   saved?: boolean;
   traceId?: string;
+  journalSizeBytes?: number;
   positions?: NativeGpsPointPayload[];
   plannedRoute?: PlannedRouteSnapshot;
 }
@@ -94,11 +97,12 @@ export interface NativeRecoverableSessionPayload {
 interface NativeGpsNativePlugin {
   start(options?: GpsProviderStartOptions): Promise<NativeGpsStatusPayload & { started?: boolean }>;
   getCurrentPosition(options?: { timeoutMs?: number }): Promise<NativeGpsPointPayload>;
-  stop(options?: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { stopped?: boolean; points?: NativeGpsPointPayload[]; completePoints?: NativeGpsPointPayload[]; nextOffset?: number }>;
+  stop(options?: { sessionId?: string | null }): Promise<NativeGpsStatusPayload & { stopped?: boolean }>;
   getStatus(): Promise<NativeGpsStatusPayload>;
   getPointsSince(options: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getRecoverableSessions(options?: { includeSaved?: boolean }): Promise<{ sessions?: NativeRecoverableSessionPayload[] }>;
   getSessionPoints(options: { sessionId: string }): Promise<{ positions?: NativeGpsPointPayload[] }>;
+  getSessionPointsChunk(options: { sessionId: string; sinceOffset?: number; maxPoints?: number }): Promise<{ points?: NativeGpsPointPayload[]; nextOffset?: number; hasMore?: boolean }>;
   getSessionDiagnostic(options: { sessionId: string }): Promise<NativeGpsSessionDiagnosticPayload>;
   exportSessionDiagnostic(options: {
     sessionId: string;
@@ -114,6 +118,7 @@ interface NativeGpsNativePlugin {
 
 export const NativeGps = registerPlugin<NativeGpsNativePlugin>('NativeGps');
 const POLL_NATIVE_BUFFER_MS = 4000;
+const NATIVE_BACKFILL_THRESHOLD = 30;
 
 function toProviderError(error: unknown): GpsProviderError {
   const message = error instanceof Error ? error.message : String(error || 'Erreur GPS natif Android.');
@@ -156,12 +161,55 @@ function toSessionInfo(payload: NativeGpsStatusPayload): GpsProviderSessionInfo 
     startedAt: typeof payload.startedAt === 'number' && Number.isFinite(payload.startedAt) ? payload.startedAt : Date.now(),
     resumed: payload.resumed === true,
     notificationPermissionGranted: payload.notificationPermissionGranted,
-    plannedRoute: payload.plannedRoute
+    plannedRoute: payload.plannedRoute,
+    journalOffset: typeof payload.journalOffset === 'number' && Number.isFinite(payload.journalOffset)
+      ? Math.max(0, payload.journalOffset)
+      : undefined
   };
 }
 
 export function isAndroidNativeGpsAvailable(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
+
+const NATIVE_JOURNAL_PAGE_SIZE = 500;
+const MAX_NATIVE_JOURNAL_POINTS = 100_000;
+
+function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
+export async function readNativeSessionPositions(sessionId: string): Promise<GpsPosition[]> {
+  if (!sessionId || !isAndroidNativeGpsAvailable()) return [];
+
+  const positions: GpsPosition[] = [];
+  let offset = 0;
+  let guard = 0;
+  let hasMore = true;
+
+  while (hasMore && positions.length < MAX_NATIVE_JOURNAL_POINTS) {
+    const result = await NativeGps.getSessionPointsChunk({
+      sessionId,
+      sinceOffset: offset,
+      maxPoints: NATIVE_JOURNAL_PAGE_SIZE
+    });
+
+    const nextOffset = typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)
+      ? Math.max(0, result.nextOffset)
+      : offset;
+    for (const payload of result.points ?? []) {
+      const position = nativePayloadToGpsPosition(payload);
+      if (position) positions.push(position);
+    }
+
+    hasMore = result.hasMore === true && nextOffset > offset;
+    offset = nextOffset;
+    guard += 1;
+    if (guard > 500) throw new Error('Lecture du journal GPS interrompue : pagination incohérente.');
+    if (hasMore) await yieldToUi();
+  }
+
+  return positions;
 }
 
 export function createAndroidNativeGpsProvider(): GpsProvider {
@@ -170,17 +218,30 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
     label: 'GPS natif Android',
     kind: 'android-native',
     isAvailable: isAndroidNativeGpsAvailable,
-    startWatching: (onPosition, onError, options): GpsProviderWatch => {
+    startWatching: (onPosition, onError, options, onBackfill): GpsProviderWatch => {
       let detached = false;
-      let lastNativeTimestamp = 0;
+      let sessionReady = false;
+      let providerSessionId: string | null = null;
       let lastNativeOffset = 0;
       let lastNativeEventAt = 0;
       let pollInFlight: Promise<void> | null = null;
       let pollRequestedAgain = false;
+      let stopPromise: Promise<GpsPosition[]> | null = null;
       const seenPoints = new Set<string>();
+      const seenOrder: string[] = [];
       const handles: Promise<PluginListenerHandle>[] = [];
-      let completePointsOnStop: GpsPosition[] = [];
       let storageWarningEmitted = false;
+
+      const rememberPoint = (key: string) => {
+        if (seenPoints.has(key)) return false;
+        seenPoints.add(key);
+        seenOrder.push(key);
+        if (seenOrder.length > 8000) {
+          const expired = seenOrder.splice(0, 2000);
+          expired.forEach((item) => seenPoints.delete(item));
+        }
+        return true;
+      };
 
       const emitPosition = (payload: NativeGpsPointPayload) => {
         if (payload.persisted === false && !storageWarningEmitted) {
@@ -194,28 +255,66 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
         const position = nativePayloadToGpsPosition(payload);
         if (!position) return;
         const key = `${position.timestamp}:${position.latitude.toFixed(7)}:${position.longitude.toFixed(7)}`;
-        if (seenPoints.has(key)) return;
-        seenPoints.add(key);
-        if (seenPoints.size > 5000) seenPoints.clear();
-        lastNativeTimestamp = Math.max(lastNativeTimestamp, position.timestamp);
+        if (!rememberPoint(key)) return;
         if (!detached) onPosition(position);
       };
 
       const pollNativeBufferOnce = async () => {
-        const result = await NativeGps.getPointsSince({
-          sinceOffset: lastNativeOffset,
-          // The byte offset is authoritative. A timestamp fallback can discard
-          // older journal points when a live bridge event arrives after WebView
-          // suspension but before the incremental reader catches up.
-          sinceTimestamp: 0
-        });
-        if (typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)) {
-          lastNativeOffset = Math.max(0, result.nextOffset);
+        if (!sessionReady || detached || !providerSessionId) return;
+
+        const bufferedPositions: GpsPosition[] = [];
+        let pageCount = 0;
+        let hasMore = true;
+        let shouldBatch = false;
+
+        while (hasMore && !detached) {
+          const previousOffset = lastNativeOffset;
+          const result = await NativeGps.getSessionPointsChunk({
+            sessionId: providerSessionId,
+            sinceOffset: lastNativeOffset,
+            maxPoints: NATIVE_JOURNAL_PAGE_SIZE
+          });
+          const nextOffset = typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)
+            ? Math.max(0, result.nextOffset)
+            : previousOffset;
+          const payloads = result.points ?? [];
+          hasMore = result.hasMore === true && nextOffset > previousOffset;
+          lastNativeOffset = nextOffset;
+          pageCount += 1;
+
+          if (pageCount === 1) {
+            shouldBatch = hasMore || payloads.length > NATIVE_BACKFILL_THRESHOLD;
+          }
+
+          if (shouldBatch) {
+            for (const payload of payloads) {
+              const position = nativePayloadToGpsPosition(payload);
+              if (position) bufferedPositions.push(position);
+            }
+          } else {
+            for (const payload of payloads) emitPosition(payload);
+          }
+
+          if (pageCount > 500) throw new Error('Rattrapage GPS interrompu : pagination incohérente.');
+          if (hasMore) await yieldToUi();
         }
-        for (const point of result.points ?? []) emitPosition(point);
+
+        if (shouldBatch && bufferedPositions.length > 0 && !detached) {
+          if (onBackfill) onBackfill(bufferedPositions);
+          else {
+            // Defensive fallback for providers used without a batch consumer:
+            // keep recent visibility without flooding the UI thread.
+            const recent = bufferedPositions.slice(-NATIVE_BACKFILL_THRESHOLD);
+            recent.forEach(onPosition);
+          }
+        }
       };
 
       const pollNativeBuffer = async () => {
+        if (!sessionReady || detached) {
+          pollRequestedAgain = true;
+          return;
+        }
         if (pollInFlight) {
           pollRequestedAgain = true;
           return pollInFlight;
@@ -239,9 +338,10 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
 
       handles.push(NativeGps.addListener('nativeGpsPoint', () => {
         lastNativeEventAt = Date.now();
-        // Read from the durable journal instead of emitting the bridge payload
-        // directly. The JSONL append happens before this event, so serialized
-        // offset reads preserve chronological order even after UI suspension.
+        if (!sessionReady) {
+          pollRequestedAgain = true;
+          return;
+        }
         if (!detached) pollNativeBuffer().catch((error) => onError(toProviderError(error)));
       }));
       handles.push(NativeGps.addListener('nativeGpsStatus', (payload) => {
@@ -261,12 +361,19 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
 
       const sessionInfo = NativeGps.start(options)
         .then(async (result) => {
+          const info = toSessionInfo(result);
+          providerSessionId = info.sessionId;
+          // On a resumed session, the historical journal is hydrated once by the
+          // hook. Starting live polling at the current byte offset avoids replaying
+          // thousands of old points through React after the screen wakes up.
+          lastNativeOffset = info.resumed ? (info.journalOffset ?? 0) : 0;
+          sessionReady = true;
           try {
             await pollNativeBuffer();
           } catch (error) {
             onError(toProviderError(error));
           }
-          return toSessionInfo(result);
+          return info;
         })
         .catch((error) => {
           onError(toProviderError(error));
@@ -274,7 +381,7 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
         });
 
       const pollId = window.setInterval(() => {
-        if (detached) return;
+        if (detached || !sessionReady) return;
         const nativeEventsAreFlowing = lastNativeEventAt > 0 && Date.now() - lastNativeEventAt < POLL_NATIVE_BUFFER_MS * 2;
         if (nativeEventsAreFlowing) return;
         pollNativeBuffer().catch((error) => onError(toProviderError(error)));
@@ -288,26 +395,20 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
           window.clearInterval(pollId);
           removeListeners();
         },
-        stop: async () => {
-          window.clearInterval(pollId);
-          try {
-            await pollNativeBuffer();
-            const result = await NativeGps.stop({
-              sinceOffset: lastNativeOffset,
-              sinceTimestamp: lastNativeTimestamp
-            });
-            if (typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)) {
-              lastNativeOffset = Math.max(0, result.nextOffset);
-            }
-            for (const point of result.points ?? []) emitPosition(point);
-            completePointsOnStop = (result.completePoints ?? [])
-              .map(nativePayloadToGpsPosition)
-              .filter((point): point is GpsPosition => point !== null);
-          } finally {
+        stop: () => {
+          if (stopPromise) return stopPromise;
+          stopPromise = (async () => {
+            window.clearInterval(pollId);
             detached = true;
             removeListeners();
-          }
-          return completePointsOnStop;
+
+            const info = await sessionInfo.catch(() => null);
+            const stoppingSessionId = providerSessionId ?? info?.sessionId ?? null;
+            await NativeGps.stop({ sessionId: stoppingSessionId });
+            if (!stoppingSessionId) return [];
+            return readNativeSessionPositions(stoppingSessionId);
+          })();
+          return stopPromise;
         }
       };
     }

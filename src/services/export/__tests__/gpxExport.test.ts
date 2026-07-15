@@ -44,3 +44,17 @@ describe('GPX segmentation', () => {
     expect(splitTraceSegments(trace)).toHaveLength(1);
   });
 });
+
+describe('explicit GPX segments', () => {
+  it('honors explicit segment starts even when timestamps are close', () => {
+    const value = traceWithTimestamps([0, 3000, 6000, 9000]);
+    value.segmentStartIndices = [2];
+
+    const segments = splitTraceSegments(value);
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toHaveLength(2);
+    expect(segments[1]).toHaveLength(2);
+    expect(traceToGpx(value).match(/<trkseg>/g)).toHaveLength(2);
+  });
+
+});

@@ -15,9 +15,26 @@ import {
 } from '../services/gps/geolocationService';
 import { createGpsProviderSelection, type GpsProviderSelection } from '../services/gps/gpsProviderFactory';
 import type { GpsProviderWatch } from '../services/gps/gpsProvider';
-import { getNativeGpsRuntimeStatus, requestCurrentGpsPosition } from '../services/gps/nativeGpsProvider';
+import {
+  getNativeGpsRuntimeStatus,
+  readNativeSessionPositions,
+  requestCurrentGpsPosition
+} from '../services/gps/nativeGpsProvider';
 import { markNativeSessionDeleted } from '../services/gps/nativeGpsSession';
-import { reconstructNativeTrace } from '../services/gps/nativeTraceReconstruction';
+import {
+  createStationaryKeepalive,
+  GPS_RESUME_AFTER_GAP_MS,
+  MAX_CONSECUTIVE_TRACE_REJECTIONS,
+  MIN_TRACK_DISTANCE_M,
+  MIN_TRACK_SPEED_KT,
+  reconstructNativeTrace,
+  STATIONARY_DRIFT_RADIUS_M,
+  STATIONARY_KEEPALIVE_MS,
+  STATIONARY_SPEED_KT_THRESHOLD,
+  TRACE_MAX_POINTS,
+  TRACE_SAMPLE_INTERVAL_MS,
+  type NativeTraceReconstructionResult
+} from '../services/gps/nativeTraceReconstruction';
 import { hasSavableTrace } from '../services/traces/traceCollection';
 import {
   clearPendingPlannedRoute,
@@ -28,15 +45,7 @@ import {
 import { interpolateSimulationPoint, simulationTotalSteps } from '../services/gps/simulationService';
 import { getCrossTrackError, getProgressiveCrossTrackError, type CrossTrackResult } from '../services/geo/crossTrackError';
 
-const TRACE_SAMPLE_INTERVAL_MS = 3000;
-const TRACE_MAX_POINTS = 50000;
-const MAX_CONSECUTIVE_TRACE_REJECTIONS = 5;
-const STATIONARY_SPEED_KT_THRESHOLD = 5;
-const STATIONARY_DRIFT_RADIUS_M = 60;
-const MIN_TRACK_SPEED_KT = 8;
-const MIN_TRACK_DISTANCE_M = 20;
 const GPS_FROZEN_AFTER_MS = 12_000;
-const GPS_RESUME_AFTER_GAP_MS = 12_000;
 
 const emptyDiagnostics = (maxTraceSpeedKt: number): GpsTraceDiagnostics => ({
   rawReceived: 0,
@@ -88,8 +97,13 @@ export function useGpsTracking(
   const traceSource = useRef<TraceSource>('legacy');
   const plannedRouteSnapshot = useRef<PlannedRouteSnapshot | undefined>(undefined);
   const positionsRef = useRef<GpsPosition[]>([]);
+  const segmentStartIndicesRef = useRef<number[]>([]);
   const distanceTravelledNmRef = useRef(0);
   const statusRef = useRef<GpsStatus>('idle');
+  const stopPromiseRef = useRef<Promise<void> | null>(null);
+  const pendingFinalTraceRef = useRef<Trace | null>(null);
+  const hydrationSerialRef = useRef(0);
+  const nativeBackfillPromiseRef = useRef<Promise<void> | null>(null);
   const lastSignalAt = useRef<number | null>(null);
   const lastLivePosition = useRef<GpsPosition | null>(null);
   const lastTraceSampleAt = useRef<number | null>(null);
@@ -133,6 +147,7 @@ export function useGpsTracking(
 
   const resetTrackingData = () => {
     positionsRef.current = [];
+    segmentStartIndicesRef.current = [];
     distanceTravelledNmRef.current = 0;
     setDistanceTravelledNm(0);
     setPositionsRevision((revision) => revision + 1);
@@ -167,10 +182,17 @@ export function useGpsTracking(
     }
 
     const previous = positionsRef.current.at(-1);
+    const startsNewSegment = Boolean(
+      previous && position.timestamp - previous.timestamp > GPS_RESUME_AFTER_GAP_MS
+    );
+    if (startsNewSegment && segmentStartIndicesRef.current.at(-1) !== positionsRef.current.length) {
+      segmentStartIndicesRef.current.push(positionsRef.current.length);
+    }
+
     lastTraceSampleAt.current = position.timestamp;
     lastTraceSample.current = position;
     positionsRef.current.push(position);
-    if (previous) {
+    if (previous && !startsNewSegment) {
       distanceTravelledNmRef.current += distanceNm(previous, position);
       setDistanceTravelledNm(distanceTravelledNmRef.current);
     }
@@ -209,6 +231,31 @@ export function useGpsTracking(
     activeSegmentIndex.current = nextCrossTrack.segmentIndex;
     setCrossTrack(nextCrossTrack);
   };
+
+  const applyReconstructedTrace = (rebuilt: NativeTraceReconstructionResult) => {
+    positionsRef.current = rebuilt.positions;
+    segmentStartIndicesRef.current = rebuilt.segmentStartIndices;
+    diagnosticsRef.current = rebuilt.diagnostics;
+    distanceTravelledNmRef.current = rebuilt.distanceNm;
+    setDiagnostics(rebuilt.diagnostics);
+    setDistanceTravelledNm(rebuilt.distanceNm);
+
+    const endpoint = rebuilt.positions.at(-1) ?? null;
+    lastTraceSample.current = endpoint;
+    lastTraceSampleAt.current = endpoint?.timestamp ?? null;
+    traceRejectionStreak.current = 0;
+    groundAnchor.current = endpoint?.vitesse !== null
+      && endpoint?.vitesse !== undefined
+      && endpoint.vitesse < STATIONARY_SPEED_KT_THRESHOLD
+      ? endpoint
+      : null;
+    if (endpoint) acceptLivePosition(endpoint);
+    setPositionsRevision((revision) => revision + 1);
+  };
+
+  const yieldToUi = () => new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 
   const updateGpsSignalTiming = () => {
     const now = Date.now();
@@ -264,7 +311,16 @@ export function useGpsTracking(
       if (isLowReportedSpeed && groundAnchor.current) {
         const driftM = distanceNm(groundAnchor.current, position) * 1852;
         if (driftM <= STATIONARY_DRIFT_RADIUS_M) {
-          bumpDiagnostics('rejectedDrift');
+          acceptLivePosition(position);
+          const keepaliveDue = lastTraceSampleAt.current === null
+            || position.timestamp - lastTraceSampleAt.current >= STATIONARY_KEEPALIVE_MS;
+          if (keepaliveDue) {
+            if (appendTraceSample(createStationaryKeepalive(groundAnchor.current, position), true)) {
+              bumpDiagnostics('tracePoints');
+            }
+          } else {
+            bumpDiagnostics('rejectedDrift');
+          }
           return;
         }
       }
@@ -301,6 +357,9 @@ export function useGpsTracking(
   const startGpsInternal = async (resumeExistingSession: boolean) => {
     await stopGpsWatch().catch(() => []);
     clearSimulation();
+    const hydrationSerial = hydrationSerialRef.current + 1;
+    hydrationSerialRef.current = hydrationSerial;
+    pendingFinalTraceRef.current = null;
     setErrorMessage(null);
     setNoticeMessage(null);
     setNotificationWarning(null);
@@ -359,11 +418,52 @@ export function useGpsTracking(
             : error.message || 'Recherche GPS en cours. Placez le téléphone près d’une fenêtre ou en extérieur si le signal tarde.'
         );
       },
-      { routeId: route.id, routeName: route.nom, plannedRoute: plannedRouteSnapshot.current }
+      { routeId: route.id, routeName: route.nom, plannedRoute: plannedRouteSnapshot.current },
+      (backfillPositions) => {
+        if (statusRef.current === 'saving' || statusRef.current === 'stopped') return;
+        const activeSessionId = sessionId.current;
+        if (!activeSessionId) {
+          const rebuilt = reconstructNativeTrace(
+            [...positionsRef.current, ...backfillPositions],
+            traceMaxSpeedKt
+          );
+          if (rebuilt.positions.length > 0) applyReconstructedTrace(rebuilt);
+          return;
+        }
+        if (nativeBackfillPromiseRef.current) return;
+
+        const backfillSerial = hydrationSerialRef.current;
+        setNoticeMessage('Rattrapage du journal GPS Android en cours...');
+        const task = (async () => {
+          const fullJournal = await readNativeSessionPositions(activeSessionId);
+          await yieldToUi();
+          if (
+            hydrationSerialRef.current !== backfillSerial
+            || sessionId.current !== activeSessionId
+            || statusRef.current === 'saving'
+            || statusRef.current === 'stopped'
+          ) return;
+          const rebuilt = reconstructNativeTrace(
+            [...fullJournal, ...positionsRef.current],
+            traceMaxSpeedKt
+          );
+          if (rebuilt.positions.length > 0) applyReconstructedTrace(rebuilt);
+          setNoticeMessage('Trace affichée resynchronisée avec le journal Android.');
+          window.setTimeout(() => {
+            if (hydrationSerialRef.current === backfillSerial) setNoticeMessage(null);
+          }, 2500);
+        })().catch((error) => {
+          const message = error instanceof Error ? error.message : 'Lecture du journal GPS impossible.';
+          setPersistenceWarning(`Rattrapage du suivi impossible : ${message}`);
+        }).finally(() => {
+          if (nativeBackfillPromiseRef.current === task) nativeBackfillPromiseRef.current = null;
+        });
+        nativeBackfillPromiseRef.current = task;
+      }
     );
 
     gpsWatch.current = watch;
-    watch.sessionInfo?.then((info) => {
+    watch.sessionInfo?.then(async (info) => {
       sessionId.current = info.sessionId;
       recordingRouteId.current = info.routeId ?? recordingRouteId.current;
       recordingRouteName.current = info.routeName ?? recordingRouteName.current;
@@ -375,6 +475,33 @@ export function useGpsTracking(
       }
       if (info.notificationPermissionGranted === false) {
         setNotificationWarning('Notifications Android refusées : le GPS peut continuer, mais l’indicateur système sera moins visible.');
+      }
+
+      if (info.resumed && info.sessionId) {
+        setNoticeMessage('Reprise du suivi : reconstruction du journal GPS en cours...');
+        try {
+          const nativeHistory = await readNativeSessionPositions(info.sessionId);
+          await yieldToUi();
+          const stillCurrent = hydrationSerialRef.current === hydrationSerial
+            && sessionId.current === info.sessionId
+            && statusRef.current !== 'saving'
+            && statusRef.current !== 'stopped';
+          if (!stillCurrent) return;
+
+          const rebuilt = reconstructNativeTrace(
+            [...nativeHistory, ...positionsRef.current],
+            traceMaxSpeedKt
+          );
+          if (rebuilt.positions.length > 0) applyReconstructedTrace(rebuilt);
+          setNoticeMessage('Suivi GPS repris depuis le journal Android complet.');
+          window.setTimeout(() => {
+            if (hydrationSerialRef.current === hydrationSerial) setNoticeMessage(null);
+          }, 2500);
+        } catch (error) {
+          if (hydrationSerialRef.current !== hydrationSerial) return;
+          const message = error instanceof Error ? error.message : 'Lecture du journal GPS impossible.';
+          setPersistenceWarning(`Reprise du journal GPS incomplète : ${message}`);
+        }
       }
     }).catch(() => undefined);
   };
@@ -390,6 +517,8 @@ export function useGpsTracking(
 
     await stopGpsWatch().catch(() => []);
     clearSimulation();
+    hydrationSerialRef.current += 1;
+    pendingFinalTraceRef.current = null;
     updateStatus('simulating');
     setErrorMessage(null);
     setNoticeMessage(null);
@@ -423,88 +552,139 @@ export function useGpsTracking(
     }, 1000);
   };
 
-  const stopAndSave = async () => {
-    if (statusRef.current === 'saving') return;
+  const performStopAndSave = async () => {
+    if (statusRef.current === 'stopped' && !pendingFinalTraceRef.current) return;
+
     updateStatus('saving');
     setErrorMessage('Finalisation du journal GPS...');
+    setNoticeMessage('Veuillez patienter, la trace complète est relue depuis Android.');
     clearSimulation();
+    hydrationSerialRef.current += 1;
+    await yieldToUi();
 
     try {
-      const completeNativeJournal = await stopGpsWatch();
-      let finalPositions = positionsRef.current;
+      let trace = pendingFinalTraceRef.current;
 
-      if (traceSource.current === 'android-native' && completeNativeJournal.length >= 2) {
-        const rebuilt = reconstructNativeTrace(completeNativeJournal, traceMaxSpeedKt);
-        if (rebuilt.positions.length >= 2) {
-          finalPositions = rebuilt.positions;
-          positionsRef.current = rebuilt.positions;
-          diagnosticsRef.current = rebuilt.diagnostics;
-          setDiagnostics(rebuilt.diagnostics);
-          distanceTravelledNmRef.current = totalDistanceNm(rebuilt.positions);
-          setDistanceTravelledNm(distanceTravelledNmRef.current);
-          setPositionsRevision((revision) => revision + 1);
+      if (!trace) {
+        let completeNativeJournal: GpsPosition[] = [];
+        try {
+          completeNativeJournal = await stopGpsWatch();
+        } catch (stopError) {
+          if (traceSource.current !== 'android-native' || !sessionId.current) throw stopError;
+          // The native stop may already have succeeded while the paged read failed.
+          // Retry the durable journal directly instead of falling back to the
+          // potentially incomplete in-memory display trace.
+          completeNativeJournal = await readNativeSessionPositions(sessionId.current);
         }
-      } else {
-        const livePosition = lastLivePosition.current;
-        if (livePosition && finalPositions.at(-1)?.timestamp !== livePosition.timestamp && finalPositions.length < TRACE_MAX_POINTS) {
-          const previous = finalPositions.at(-1);
-          finalPositions.push(livePosition);
-          if (previous) distanceTravelledNmRef.current += distanceNm(previous, livePosition);
-          setDistanceTravelledNm(distanceTravelledNmRef.current);
-          setPositionsRevision((revision) => revision + 1);
+
+        let finalPositions = positionsRef.current;
+        let finalSegments = segmentStartIndicesRef.current;
+        let finalDistanceNm = distanceTravelledNmRef.current;
+
+        if (traceSource.current === 'android-native') {
+          if (completeNativeJournal.length < 2 && sessionId.current) {
+            completeNativeJournal = await readNativeSessionPositions(sessionId.current);
+          }
+          if (completeNativeJournal.length >= 2) {
+            const rebuilt = reconstructNativeTrace(completeNativeJournal, traceMaxSpeedKt);
+            if (rebuilt.positions.length >= 2) {
+              applyReconstructedTrace(rebuilt);
+              finalPositions = rebuilt.positions;
+              finalSegments = rebuilt.segmentStartIndices;
+              finalDistanceNm = rebuilt.distanceNm;
+            }
+          }
+        } else {
+          const livePosition = lastLivePosition.current;
+          if (
+            livePosition
+            && finalPositions.at(-1)?.timestamp !== livePosition.timestamp
+            && finalPositions.length < TRACE_MAX_POINTS
+          ) {
+            const previous = finalPositions.at(-1);
+            finalPositions = [...finalPositions, livePosition];
+            positionsRef.current = finalPositions;
+            if (previous) finalDistanceNm += distanceNm(previous, livePosition);
+            distanceTravelledNmRef.current = finalDistanceNm;
+            setDistanceTravelledNm(finalDistanceNm);
+            setPositionsRevision((revision) => revision + 1);
+          }
         }
+
+        if (!hasSavableTrace(finalPositions.length)) {
+          const nativeDeleted = await markNativeSessionDeleted(sessionId.current).catch(() => false);
+          pendingFinalTraceRef.current = null;
+          updateStatus('stopped-no-trace');
+          setErrorMessage(null);
+          setNoticeMessage(
+            nativeDeleted
+              ? 'Suivi arrêté - trace trop courte, aucune trace enregistrée.'
+              : 'Suivi arrêté - trace trop courte. Le journal natif vide n’a pas pu être nettoyé, sans impact sur les traces sauvegardées.'
+          );
+          clearPendingPlannedRoute();
+          plannedRouteSnapshot.current = undefined;
+          return;
+        }
+
+        const startedAtMs = startTime.current ?? finalPositions[0]?.timestamp ?? Date.now();
+        const endedAtMs = finalPositions.at(-1)?.timestamp ?? Date.now();
+        const stableTraceId = sessionId.current
+          ? `trace-${sessionId.current}`
+          : `trace-${startedAtMs}`;
+        trace = {
+          schemaVersion: 4,
+          id: stableTraceId,
+          sessionId: sessionId.current,
+          routeId: recordingRouteId.current,
+          routeName: recordingRouteName.current,
+          date: new Date(endedAtMs).toISOString(),
+          startedAt: new Date(startedAtMs).toISOString(),
+          endedAt: new Date(endedAtMs).toISOString(),
+          source: traceSource.current,
+          positions: finalPositions,
+          plannedRoute: plannedRouteSnapshot.current,
+          segmentStartIndices: finalSegments,
+          dureeSec: Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000)),
+          distanceNm: Number((traceSource.current === 'android-native'
+            ? finalDistanceNm
+            : totalDistanceNm(finalPositions)).toFixed(2)),
+          diagnostics: diagnosticsRef.current
+        };
+        pendingFinalTraceRef.current = trace;
       }
 
-      if (!hasSavableTrace(finalPositions.length)) {
-        const nativeDeleted = await markNativeSessionDeleted(sessionId.current).catch(() => false);
-        updateStatus('stopped-no-trace');
-        setErrorMessage(null);
-        setNoticeMessage(
-          nativeDeleted
-            ? 'Suivi arrêté - trace trop courte, aucune trace enregistrée.'
-            : 'Suivi arrêté - trace trop courte. Le journal natif vide n’a pas pu être nettoyé, sans impact sur les traces sauvegardées.'
-        );
-        clearPendingPlannedRoute();
-        plannedRouteSnapshot.current = undefined;
-        return;
-      }
-
-      const startedAtMs = startTime.current ?? finalPositions[0]?.timestamp ?? Date.now();
-      const endedAtMs = finalPositions.at(-1)?.timestamp ?? Date.now();
-      const trace: Trace = {
-        schemaVersion: 3,
-        id: `trace-${Date.now()}`,
-        sessionId: sessionId.current,
-        routeId: recordingRouteId.current,
-        routeName: recordingRouteName.current,
-        date: new Date(endedAtMs).toISOString(),
-        startedAt: new Date(startedAtMs).toISOString(),
-        endedAt: new Date(endedAtMs).toISOString(),
-        source: traceSource.current,
-        positions: finalPositions,
-        plannedRoute: plannedRouteSnapshot.current,
-        dureeSec: Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000)),
-        distanceNm: Number(totalDistanceNm(finalPositions).toFixed(2)),
-        diagnostics: diagnosticsRef.current
-      };
-
+      setNoticeMessage('Sauvegarde locale de la trace complète...');
+      await yieldToUi();
       const saved = await onTraceReady(trace);
       if (!saved) {
         updateStatus('save-error');
-        setErrorMessage('Sauvegarde locale impossible. Le journal natif reste disponible pour récupération au prochain lancement.');
+        setErrorMessage('Sauvegarde locale impossible. La trace finalisée reste prête : appuyez de nouveau sur Arrêter et sauvegarder après avoir libéré de l’espace.');
+        setNoticeMessage(null);
         return;
       }
 
+      pendingFinalTraceRef.current = null;
       updateStatus('stopped');
       setErrorMessage(null);
       setNoticeMessage(null);
       clearPendingPlannedRoute();
       plannedRouteSnapshot.current = undefined;
+      sessionId.current = null;
+      setRecordingStartedAt(null);
     } catch (error) {
       setNoticeMessage(null);
       updateStatus('save-error');
-      setErrorMessage(error instanceof Error ? error.message : 'Finalisation de la trace impossible.');
+      setErrorMessage(error instanceof Error ? error.message : 'Finalisation de la trace impossible. Le journal Android reste conservé.');
     }
+  };
+
+  const stopAndSave = (): Promise<void> => {
+    if (stopPromiseRef.current) return stopPromiseRef.current;
+    const task = performStopAndSave().finally(() => {
+      stopPromiseRef.current = null;
+    });
+    stopPromiseRef.current = task;
+    return task;
   };
 
   useEffect(() => {
