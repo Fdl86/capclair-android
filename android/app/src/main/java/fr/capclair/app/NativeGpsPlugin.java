@@ -147,10 +147,8 @@ public class NativeGpsPlugin extends Plugin {
 
     @PluginMethod
     public void getPointsSince(PluginCall call) {
-        Long requestedOffset = call.getLong("sinceOffset", 0L);
-        Long requestedTimestamp = call.getLong("sinceTimestamp", 0L);
-        long sinceOffset = requestedOffset == null ? 0L : Math.max(0L, requestedOffset);
-        long sinceTimestamp = requestedTimestamp == null ? 0L : Math.max(0L, requestedTimestamp);
+        long sinceOffset = readNonNegativeLong(call, "sinceOffset", 0L);
+        long sinceTimestamp = readNonNegativeLong(call, "sinceTimestamp", 0L);
         NativeGpsStore.PointReadResult unread = NativeGpsStore.getPointsSince(sinceOffset, sinceTimestamp);
         JSObject result = NativeGpsStore.getStatus();
         result.put("points", unread.points);
@@ -178,15 +176,21 @@ public class NativeGpsPlugin extends Plugin {
     @PluginMethod
     public void getSessionPointsChunk(PluginCall call) {
         String sessionId = call.getString("sessionId", "");
-        Long requestedOffset = call.getLong("sinceOffset", 0L);
-        Integer requestedMaxPoints = call.getInt("maxPoints", 500);
-        long sinceOffset = requestedOffset == null ? 0L : Math.max(0L, requestedOffset);
-        int maxPoints = requestedMaxPoints == null ? 500 : Math.max(1, Math.min(2000, requestedMaxPoints));
-        NativeGpsStore.PointReadResult page = NativeGpsStore.getSessionPointsChunk(sessionId, sinceOffset, maxPoints);
+        long sinceOffset = readNonNegativeLong(call, "sinceOffset", 0L);
+        int maxPoints = readBoundedInt(call, "maxPoints", 500, 1, 2000);
         long journalLength = NativeGpsStore.getSessionJournalLength(sessionId);
+        if (sinceOffset > journalLength) {
+            call.reject(
+                "Offset de journal GPS hors limites : " + sinceOffset + "/" + journalLength + ".",
+                "offset_out_of_range"
+            );
+            return;
+        }
+        NativeGpsStore.PointReadResult page = NativeGpsStore.getSessionPointsChunk(sessionId, sinceOffset, maxPoints);
         JSObject result = new JSObject();
         result.put("points", page.points);
-        result.put("startOffset", sinceOffset);
+        result.put("requestedOffset", sinceOffset);
+        result.put("startOffset", page.startOffset);
         result.put("nextOffset", page.nextOffset);
         result.put("journalLength", journalLength);
         result.put("pagePointCount", page.points.length());
@@ -304,8 +308,7 @@ public class NativeGpsPlugin extends Plugin {
             return;
         }
 
-        Long requestedTimeout = call.getLong("timeoutMs", 12000L);
-        long timeoutMs = requestedTimeout == null ? 12000L : Math.max(3000L, Math.min(20000L, requestedTimeout));
+        long timeoutMs = Math.max(3000L, Math.min(20000L, readNonNegativeLong(call, "timeoutMs", 12000L)));
         Location fallbackLocation = null;
         try {
             fallbackLocation = manager.getLastKnownLocation(provider);
@@ -417,6 +420,14 @@ public class NativeGpsPlugin extends Plugin {
         if (!safe.toLowerCase().endsWith(".zip")) safe += ".zip";
         if (safe.length() > 120) safe = safe.substring(0, 116) + ".zip";
         return safe.isEmpty() ? "cap-clair-gps-diagnostic.zip" : safe;
+    }
+
+    private long readNonNegativeLong(PluginCall call, String key, long fallback) {
+        return NativeBridgeNumbers.nonNegativeLong(call.getData().opt(key), fallback);
+    }
+
+    private int readBoundedInt(PluginCall call, String key, int fallback, int min, int max) {
+        return NativeBridgeNumbers.boundedInt(call.getData().opt(key), fallback, min, max);
     }
 
     private void requestNotificationThenStart(PluginCall call) {

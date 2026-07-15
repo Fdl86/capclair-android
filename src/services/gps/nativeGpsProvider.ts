@@ -69,6 +69,12 @@ export interface NativeGpsSessionDiagnosticPayload {
   serviceDestroyedCount?: number;
   taskRemovedCount?: number;
   watchdogRestartCount?: number;
+  watchdogSoftRecoveryCount?: number;
+  watchdogHardRecoveryCount?: number;
+  watchdogRuntimeRecoveryCount?: number;
+  probeRequestedCount?: number;
+  probeSucceededCount?: number;
+  probeTimeoutCount?: number;
   wakeLockAcquiredCount?: number;
   likelyCause?: 'journal_missing' | 'native_journal_continuous' | 'insufficient_heartbeat_data' | 'location_callbacks_missing_while_service_alive' | 'service_suspended_killed_or_restarted' | string;
   metadata?: Record<string, unknown>;
@@ -96,6 +102,7 @@ export interface NativeRecoverableSessionPayload {
 
 export interface NativeGpsJournalPagePayload {
   points?: NativeGpsPointPayload[];
+  requestedOffset?: number;
   startOffset?: number;
   nextOffset?: number;
   journalLength?: number;
@@ -238,11 +245,15 @@ export async function readNativeJournalPages(
     const page = await fetchPage(offset, NATIVE_JOURNAL_PAGE_SIZE);
     pageCount += 1;
 
+    const echoedRequestedOffset = finiteNonNegative(page.requestedOffset);
     const startOffset = finiteNonNegative(page.startOffset);
     const nextOffset = finiteNonNegative(page.nextOffset);
     const pageJournalLength = finiteNonNegative(page.journalLength);
     if (startOffset === null || nextOffset === null || pageJournalLength === null) {
       throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : métadonnées de pagination absentes.`);
+    }
+    if (echoedRequestedOffset !== null && echoedRequestedOffset !== offset) {
+      throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : offset transmis ${offset}, offset décodé ${echoedRequestedOffset}.`);
     }
     if (startOffset !== offset) {
       throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : offset demandé ${offset}, offset reçu ${startOffset}.`);

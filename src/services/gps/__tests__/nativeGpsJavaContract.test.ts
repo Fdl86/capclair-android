@@ -15,6 +15,10 @@ const servicePath = path.resolve(
   'android/app/src/main/java/fr/capclair/app/NativeGpsForegroundService.java'
 );
 const manifestPath = path.resolve(process.cwd(), 'android/app/src/main/AndroidManifest.xml');
+const bridgeNumbersPath = path.resolve(
+  process.cwd(),
+  'android/app/src/main/java/fr/capclair/app/NativeBridgeNumbers.java'
+);
 
 describe('Native GPS Android reliability contract', () => {
   it('skips a malformed JSONL line and advances the file pointer', () => {
@@ -27,7 +31,7 @@ describe('Native GPS Android reliability contract', () => {
     expect(method).toContain('catch (Exception malformedLine)');
     expect(method).toContain('isTrailingPartialRecord(reader)');
     expect(method).toContain('reader.seek(lineStart)');
-    expect(method).toContain('return new PointReadResult(result, reader.getFilePointer())');
+    expect(method).toContain('return new PointReadResult(result, offset, reader.getFilePointer())');
   });
 
   it('finalizes natively before returning and reads the journal through bounded pages', () => {
@@ -40,7 +44,10 @@ describe('Native GPS Android reliability contract', () => {
     expect(plugin).toContain('public void getSessionPointsChunk(PluginCall call)');
     expect(store).toContain('readPointsSinceLimited');
     expect(plugin).toContain('result.put("journalLength", journalLength)');
-    expect(plugin).toContain('result.put("startOffset", sinceOffset)');
+    expect(plugin).toContain('result.put("requestedOffset", sinceOffset)');
+    expect(plugin).toContain('result.put("startOffset", page.startOffset)');
+    expect(plugin).toContain('readNonNegativeLong(call, "sinceOffset", 0L)');
+    expect(plugin).toContain('NativeBridgeNumbers.nonNegativeLong(call.getData().opt(key), fallback)');
     expect(plugin).toContain('result.put("eofReached", page.eofReached)');
     expect(plugin).toContain('result.put("trailingPartial", page.trailingPartial)');
     expect(store).toContain('syncSessionJournal(activeSessionId);');
@@ -50,11 +57,26 @@ describe('Native GPS Android reliability contract', () => {
     const service = fs.readFileSync(servicePath, 'utf8');
     const manifest = fs.readFileSync(manifestPath, 'utf8');
 
-    expect(service).toContain('new HandlerThread("CapClairGpsLocation")');
-    expect(service).toContain('requestLocationUpdates(activeProvider, MIN_TIME_MS, MIN_DISTANCE_M, this, callbackLooper)');
+    expect(service).toContain('locationManager.requestLocationUpdates(');
+    expect(service).toContain('activeLocationListener');
     expect(service).toContain('PowerManager.PARTIAL_WAKE_LOCK');
-    expect(service).toContain('location_watchdog_restart');
+    expect(service).toContain('location_watchdog_soft_recovery');
+    expect(service).toContain('location_watchdog_hard_recovery');
+    expect(service).toContain('location_watchdog_runtime_recovery');
+    expect(service).toContain('getCurrentLocation');
+    expect(service).toContain('new HandlerThread("CapClairGpsLocation-"');
+    expect(service).toContain('RUNTIME_RECOVERY_BACKOFF_MS');
+    expect(service).toContain('isFreshProbeLocation');
     expect(manifest).toContain('android.permission.WAKE_LOCK');
+  });
+
+  it('decodes JavaScript numeric offsets without depending on their boxed type', () => {
+    const helper = fs.readFileSync(bridgeNumbersPath, 'utf8');
+
+    expect(helper).toContain('raw instanceof Number');
+    expect(helper).toContain('((Number) raw).longValue()');
+    expect(helper).toContain('Long.parseLong');
+    expect(helper).toContain('Math.max(0L');
   });
 
   it('coalesces bridge wake-ups so a slow WebView cannot block the GPS writer', () => {

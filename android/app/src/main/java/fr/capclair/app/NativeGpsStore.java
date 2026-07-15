@@ -32,23 +32,26 @@ final class NativeGpsStore {
 
     static final class PointReadResult {
         final JSONArray points;
+        final long startOffset;
         final long nextOffset;
         final int malformedLineCount;
         final boolean trailingPartial;
         final boolean eofReached;
 
-        PointReadResult(JSONArray points, long nextOffset) {
-            this(points, nextOffset, 0, false, false);
+        PointReadResult(JSONArray points, long startOffset, long nextOffset) {
+            this(points, startOffset, nextOffset, 0, false, false);
         }
 
         PointReadResult(
             JSONArray points,
+            long startOffset,
             long nextOffset,
             int malformedLineCount,
             boolean trailingPartial,
             boolean eofReached
         ) {
             this.points = points;
+            this.startOffset = startOffset;
             this.nextOffset = nextOffset;
             this.malformedLineCount = malformedLineCount;
             this.trailingPartial = trailingPartial;
@@ -563,6 +566,12 @@ final class NativeGpsStore {
         int serviceDestroyedCount = 0;
         int taskRemovedCount = 0;
         int watchdogRestartCount = 0;
+        int watchdogSoftRecoveryCount = 0;
+        int watchdogHardRecoveryCount = 0;
+        int watchdogRuntimeRecoveryCount = 0;
+        int probeRequestedCount = 0;
+        int probeSucceededCount = 0;
+        int probeTimeoutCount = 0;
         int wakeLockAcquiredCount = 0;
         long firstHeartbeatAt = 0L;
         long lastHeartbeatAt = 0L;
@@ -594,6 +603,21 @@ final class NativeGpsStore {
                             taskRemovedCount += 1;
                         } else if ("location_watchdog_restart".equals(type)) {
                             watchdogRestartCount += 1;
+                        } else if ("location_watchdog_soft_recovery".equals(type)) {
+                            watchdogSoftRecoveryCount += 1;
+                            watchdogRestartCount += 1;
+                        } else if ("location_watchdog_hard_recovery".equals(type)) {
+                            watchdogHardRecoveryCount += 1;
+                            watchdogRestartCount += 1;
+                        } else if ("location_watchdog_runtime_recovery".equals(type)) {
+                            watchdogRuntimeRecoveryCount += 1;
+                            watchdogRestartCount += 1;
+                        } else if ("location_probe_requested".equals(type)) {
+                            probeRequestedCount += 1;
+                        } else if ("location_probe_succeeded".equals(type)) {
+                            probeSucceededCount += 1;
+                        } else if ("location_probe_timeout".equals(type)) {
+                            probeTimeoutCount += 1;
                         } else if ("cpu_wake_lock_acquired".equals(type)) {
                             wakeLockAcquiredCount += 1;
                         }
@@ -614,6 +638,14 @@ final class NativeGpsStore {
         diagnostic.put("serviceStartedCount", serviceStartedCount);
         diagnostic.put("serviceDestroyedCount", serviceDestroyedCount);
         diagnostic.put("taskRemovedCount", taskRemovedCount);
+        diagnostic.put("watchdogRestartCount", watchdogRestartCount);
+        diagnostic.put("watchdogSoftRecoveryCount", watchdogSoftRecoveryCount);
+        diagnostic.put("watchdogHardRecoveryCount", watchdogHardRecoveryCount);
+        diagnostic.put("watchdogRuntimeRecoveryCount", watchdogRuntimeRecoveryCount);
+        diagnostic.put("probeRequestedCount", probeRequestedCount);
+        diagnostic.put("probeSucceededCount", probeSucceededCount);
+        diagnostic.put("probeTimeoutCount", probeTimeoutCount);
+        diagnostic.put("wakeLockAcquiredCount", wakeLockAcquiredCount);
     }
 
     private static String classifyDiagnostic(JSObject diagnostic) {
@@ -642,7 +674,7 @@ final class NativeGpsStore {
     private static PointReadResult readPointsSince(String sessionId, long requestedOffset, long sinceTimestamp) {
         JSONArray result = new JSONArray();
         File file = pointsFile(sessionId);
-        if (file == null || !file.exists()) return new PointReadResult(result, 0L);
+        if (file == null || !file.exists()) return new PointReadResult(result, 0L, 0L);
 
         long offset = Math.max(0L, requestedOffset);
         if (offset > file.length()) offset = 0L;
@@ -673,20 +705,23 @@ final class NativeGpsStore {
                     lastError = "Ligne journal GPS illisible ignorée.";
                 }
             }
-            return new PointReadResult(result, reader.getFilePointer());
+            return new PointReadResult(result, offset, reader.getFilePointer());
         } catch (Exception error) {
             lastError = "Lecture journal GPS impossible : " + error.getMessage();
-            return new PointReadResult(result, offset);
+            return new PointReadResult(result, offset, offset);
         }
     }
 
     private static PointReadResult readPointsSinceLimited(String sessionId, long requestedOffset, int maxPoints) {
         JSONArray result = new JSONArray();
         File file = pointsFile(sessionId);
-        if (file == null || !file.exists()) return new PointReadResult(result, 0L, 0, false, true);
+        if (file == null || !file.exists()) return new PointReadResult(result, 0L, 0L, 0, false, true);
 
         long offset = Math.max(0L, requestedOffset);
-        if (offset > file.length()) offset = 0L;
+        if (offset > file.length()) {
+            lastError = "Offset de lecture GPS hors limites : " + offset + "/" + file.length() + ".";
+            return new PointReadResult(result, offset, offset, 0, false, false);
+        }
 
         try (RandomAccessFile reader = new RandomAccessFile(file, "r")) {
             reader.seek(offset);
@@ -715,10 +750,10 @@ final class NativeGpsStore {
             }
             long nextOffset = reader.getFilePointer();
             boolean eofReached = !trailingPartial && nextOffset >= reader.length();
-            return new PointReadResult(result, nextOffset, malformedLineCount, trailingPartial, eofReached);
+            return new PointReadResult(result, offset, nextOffset, malformedLineCount, trailingPartial, eofReached);
         } catch (Exception error) {
             lastError = "Lecture paginée du journal GPS impossible : " + error.getMessage();
-            return new PointReadResult(result, offset, 0, false, false);
+            return new PointReadResult(result, offset, offset, 0, false, false);
         }
     }
 

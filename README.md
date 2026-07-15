@@ -1,50 +1,47 @@
-# CAP CLAIR DEV15.2.11 - TRACE JOURNAL INTEGRITY
+# CAP CLAIR DEV15.2.12 - GPS RECOVERY INTEGRITY
 
-Application VFR mobile-first basée sur Vite, React, TypeScript, OpenLayers et Capacitor Android.
+Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-## Objectif de cette version
+Cette version corrige deux défauts distincts observés pendant le test routier du 15 juillet 2026 :
 
-DEV15.2.11 corrige le défaut de pagination observé après la réparation du vol réel LFBI-LFOU du 15 juillet 2026.
+- l'offset de pagination transmis par JavaScript pouvait être décodé à `0` par le bridge Android à partir de la page 2 ;
+- sur le téléphone Xiaomi, le service restait vivant mais le listener GNSS pouvait ne plus recevoir de positions après une immobilisation prolongée.
 
-Le journal Android complet contenait 4 583 positions, mais DEV15.2.10 pouvait accepter une première page de 500 positions comme si elle représentait le journal entier. Après filtrage stationnaire, cela produisait une trace de 57 points, 84 minutes et 0 NM.
+## Pagination du journal
 
-La version impose désormais une lecture complète et vérifiable avant toute sauvegarde ou réparation :
+- décodage indépendant du type numérique Java reçu (`Integer`, `Long`, `Double` ou chaîne) ;
+- écho séparé de l'offset demandé et de l'offset réellement utilisé ;
+- refus d'un offset hors limites ou modifié par le bridge ;
+- lecture obligatoire jusqu'au dernier octet avant sauvegarde ou réparation ;
+- aucune trace existante remplacée par une lecture incomplète.
 
-- offset de départ et de fin contrôlé à chaque page ;
-- taille réelle du journal renvoyée par Android ;
-- fin de fichier explicite ;
-- détection d'un offset bloqué ;
-- détection d'une page finale prématurée ;
-- refus d'une ligne finale partielle ;
-- comptage des lignes valides et illisibles ;
-- lecture unique partagée pour éviter les traitements lourds simultanés ;
-- nouvelle lecture fraîche obligatoire après l'arrêt du service GPS ;
-- aucune trace locale remplacée si la lecture native n'est pas complète ;
-- statut de vérification distinct du schemaVersion ;
-- réparation automatique des traces longues, très clairsemées ou à 0 NM ;
-- priorité permanente à une trace vérifiée contre son journal complet.
+## Récupération GNSS
 
-## Régression sur le journal réel
+Le watchdog applique désormais trois niveaux espacés :
 
-Le journal LFBI-LFOU a été relu avec le moteur de pagination DEV15.2.11 :
+1. réinscription du listener et demande immédiate de position après 30 secondes ;
+2. reconstruction complète du `LocationManager`, du listener, du callback GNSS et du thread dédié après 75 secondes ;
+3. recyclage complet du runtime GPS natif, du Wake Lock et de la notification après 150 secondes, puis avec recul progressif.
 
-- taille : 971 592 octets ;
-- pages : 10 ;
-- positions brutes : 4 583 ;
-- positions reconstruites : 1 296 ;
-- durée couverte : 5 055 secondes ;
-- distance : 81,314886 NM ;
-- segments : 2, avec conservation de la vraie coupure GPS.
+Les positions ponctuelles trop anciennes ne peuvent pas masquer une panne réelle. Les diagnostics enregistrent les satellites visibles/utilisés, les sondes, les reprises et chaque niveau de récupération.
 
-Deux lectures successives produisent le même résultat.
+## Régression réelle
+
+Le journal LFBI-LFOU de 971 592 octets a été relu :
+
+- 10 pages ;
+- 4 583 points bruts ;
+- dernier offset 971 592 ;
+- 1 296 points reconstruits ;
+- 84 min 15 s ;
+- 81,314886 NM ;
+- 2 segments.
 
 ## Version
 
-- versionName : 15.2.11
-- versionCode : 1502011
-- APP_VERSION : CAP CLAIR DEV15.2.11 - TRACE JOURNAL INTEGRITY
-- artifact : cap-clair-dev15-2-11-debug-apk
+- versionName : 15.2.12
+- versionCode : 1502012
+- APP_VERSION : CAP CLAIR DEV15.2.12 - GPS RECOVERY INTEGRITY
+- artifact : cap-clair-dev15-2-12-debug-apk
 
-## Livraison
-
-Consulter `LIVRAISON_DEV15.2.11.txt`.
+Consulter `LIVRAISON_DEV15.2.12.txt`.

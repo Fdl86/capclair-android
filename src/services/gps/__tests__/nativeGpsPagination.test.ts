@@ -55,6 +55,36 @@ describe('complete native GPS journal pagination', () => {
     expect(result.journalLength).toBe(pointCount);
   });
 
+
+  it('rejects an offset altered by the native bridge', async () => {
+    const fetcher: NativeGpsJournalPageFetcher = async (offset) => {
+      if (offset === 0) {
+        return {
+          points: [point(0)],
+          requestedOffset: 0,
+          startOffset: 0,
+          nextOffset: 1,
+          journalLength: 2,
+          pagePointCount: 1,
+          eofReached: false,
+          hasMore: true
+        };
+      }
+      return {
+        points: [point(1)],
+        requestedOffset: 0,
+        startOffset: offset,
+        nextOffset: 2,
+        journalLength: 2,
+        pagePointCount: 1,
+        eofReached: true,
+        hasMore: false
+      };
+    };
+
+    await expect(readNativeJournalPages('session-bridge-offset', fetcher, noPause)).rejects.toThrow('offset décodé');
+  });
+
   it('rejects an offset that does not advance', async () => {
     const fetcher: NativeGpsJournalPageFetcher = async (offset) => ({
       points: [point(0)],

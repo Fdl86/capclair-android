@@ -1,0 +1,15 @@
+CAP CLAIR DEV15.2.12 - REGRESSION JOURNAL REEL LFBI-LFOU
+
+Source externe non incluse dans le projet : diagnostic GPS du 15/07/2026.
+
+- Taille : 971 592 octets
+- Pages : 10
+- Points valides : 4 583
+- Lignes illisibles : 0
+- Dernier offset : 971 592
+- Points reconstruits : 1 296
+- Durée : 5 055 secondes
+- Distance : 81,314886 NM
+- Segments : 2
+
+Le résultat est déterministe. Les coordonnées et le journal brut ne sont pas inclus dans la livraison.
