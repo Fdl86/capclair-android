@@ -33,14 +33,30 @@ final class NativeGpsStore {
     static final class PointReadResult {
         final JSONArray points;
         final long nextOffset;
+        final int malformedLineCount;
+        final boolean trailingPartial;
+        final boolean eofReached;
 
         PointReadResult(JSONArray points, long nextOffset) {
+            this(points, nextOffset, 0, false, false);
+        }
+
+        PointReadResult(
+            JSONArray points,
+            long nextOffset,
+            int malformedLineCount,
+            boolean trailingPartial,
+            boolean eofReached
+        ) {
             this.points = points;
             this.nextOffset = nextOffset;
+            this.malformedLineCount = malformedLineCount;
+            this.trailingPartial = trailingPartial;
+            this.eofReached = eofReached;
         }
     }
 
-    private static final int SCHEMA_VERSION = 5;
+    private static final int SCHEMA_VERSION = 6;
     private static EventSink sink = null;
     private static Context appContext;
     private static File sessionsDir;
@@ -667,7 +683,7 @@ final class NativeGpsStore {
     private static PointReadResult readPointsSinceLimited(String sessionId, long requestedOffset, int maxPoints) {
         JSONArray result = new JSONArray();
         File file = pointsFile(sessionId);
-        if (file == null || !file.exists()) return new PointReadResult(result, 0L);
+        if (file == null || !file.exists()) return new PointReadResult(result, 0L, 0, false, true);
 
         long offset = Math.max(0L, requestedOffset);
         if (offset > file.length()) offset = 0L;
@@ -676,12 +692,15 @@ final class NativeGpsStore {
             reader.seek(offset);
             String line;
             int validCount = 0;
+            int malformedLineCount = 0;
+            boolean trailingPartial = false;
             while (validCount < maxPoints) {
                 long lineStart = reader.getFilePointer();
                 line = reader.readLine();
                 if (line == null) break;
                 if (isTrailingPartialRecord(reader)) {
                     reader.seek(lineStart);
+                    trailingPartial = true;
                     break;
                 }
                 if (line.trim().isEmpty()) continue;
@@ -690,13 +709,16 @@ final class NativeGpsStore {
                     result.put(new JSObject(utf8Line));
                     validCount += 1;
                 } catch (Exception malformedLine) {
+                    malformedLineCount += 1;
                     lastError = "Ligne journal GPS illisible ignorée.";
                 }
             }
-            return new PointReadResult(result, reader.getFilePointer());
+            long nextOffset = reader.getFilePointer();
+            boolean eofReached = !trailingPartial && nextOffset >= reader.length();
+            return new PointReadResult(result, nextOffset, malformedLineCount, trailingPartial, eofReached);
         } catch (Exception error) {
             lastError = "Lecture paginée du journal GPS impossible : " + error.getMessage();
-            return new PointReadResult(result, offset);
+            return new PointReadResult(result, offset, 0, false, false);
         }
     }
 

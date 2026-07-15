@@ -19,6 +19,16 @@ export interface PlannedRouteSnapshot {
   points: PlannedRouteSnapshotPoint[];
 }
 
+export interface NativeJournalVerification {
+  verifiedAt: string;
+  complete: boolean;
+  pageCount: number;
+  validPointCount: number;
+  journalLength: number;
+  lastOffset: number;
+  malformedLineCount: number;
+}
+
 export interface Trace {
   schemaVersion?: number;
   id: string;
@@ -35,4 +45,5 @@ export interface Trace {
   dureeSec: number;
   distanceNm: number;
   diagnostics?: GpsTraceDiagnostics;
+  nativeJournalVerification?: NativeJournalVerification;
 }

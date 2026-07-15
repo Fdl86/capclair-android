@@ -1,0 +1,111 @@
+CAP CLAIR DEV15.2.11 - TRACE JOURNAL INTEGRITY
+
+VERSION
+- versionName : 15.2.11
+- versionCode : 1502011
+- APP_VERSION : CAP CLAIR DEV15.2.11 - TRACE JOURNAL INTEGRITY
+- Artifact GitHub Actions : cap-clair-dev15-2-11-debug-apk
+- Commit conseillé : DEV15.2.11 - Trace journal integrity
+
+CAUSE DU BUG
+- DEV15.2.10 lisait le journal Android par pages de 500 points.
+- Une réponse native incomplète pouvait être interprétée comme une fin normale.
+- La première page du vol réel couvrait surtout une phase stationnaire.
+- Après filtrage, la réparation produisait 57 points et 0 NM malgré une durée déclarée de 84 minutes.
+- Aucune preuve de lecture complète n'était enregistrée avec la trace.
+
+CORRECTIONS
+- Android renvoie maintenant startOffset, nextOffset, journalLength, pagePointCount, malformedLineCount, trailingPartial et eofReached.
+- Le lecteur TypeScript refuse toute page sans métadonnées de pagination complètes.
+- Chaque offset doit avancer strictement tant qu'il reste des données.
+- La dernière page doit atteindre exactement la taille du journal.
+- Une page finale prématurée, un offset bloqué ou une ligne finale partielle provoque une erreur explicite.
+- Une lecture incomplète ne remplace jamais une trace existante.
+- Une session native n'est pas marquée comme validée après une lecture incomplète.
+- Les lectures simultanées du même journal sont mutualisées.
+- Après arrêt du service GPS, une lecture fraîche est imposée afin d'inclure les dernières secondes.
+- La finalisation ne relit plus plusieurs fois le même journal.
+- Le statut nativeJournalVerification est séparé du schemaVersion.
+- Une trace longue et clairsemée, ou une trace longue à 0 NM, est automatiquement recontrôlée même si elle vient de DEV15.2.10.
+- Une trace vérifiée depuis le journal complet ne peut plus être remplacée par une tentative non vérifiée.
+- La comparaison avant réparation tient compte de la couverture temporelle, du nombre de points et de la distance.
+
+TESTS DE PAGINATION
+- 0 point : validé.
+- 1 point : validé.
+- 499 points : validé.
+- 500 points : validé en une page.
+- 501 points : validé en deux pages.
+- 1 000 points : validé en deux pages.
+- 5 000 points : validé en dix pages.
+- Offset bloqué : rejeté.
+- Fin prématurée : rejetée.
+- Ligne finale partielle : rejetée.
+- Ligne complète illisible : ignorée et comptabilisée sans bloquer la suite.
+
+REGRESSION SUR LE JOURNAL REEL LFBI-LFOU
+- Fichier : 971 592 octets.
+- Lecture : 10 pages.
+- Points bruts : 4 583 sur 4 583.
+- Dernier offset : 971 592 sur 971 592.
+- Reconstruction : 1 296 points.
+- Durée couverte : 5 055 secondes, soit 84 min 15 s.
+- Distance : 81,314886 NM.
+- Segments : 2.
+- Résultat identique lors d'une deuxième exécution.
+
+REPARATION DE LA TRACE ACTUELLE
+- La trace 84 min 21 s, 57 points et 0 NM est reconnue comme candidate.
+- La réparation est lancée automatiquement depuis Mes traces au démarrage.
+- Le remplacement n'a lieu que si le journal est lu jusqu'au dernier octet et si la reconstruction est objectivement meilleure.
+- En cas d'erreur, la trace locale actuelle et le journal Android restent conservés.
+
+NON-REGRESSIONS PRESERVEES
+- GPS Android natif et watchdog.
+- Thread GPS dédié et Wake Lock CPU.
+- Suivi, NORD UP, TRK UP et plein écran.
+- Traces historiques et compatibilité des anciennes données.
+- Replay et route prévue figée.
+- Export GPX et JSON.
+- Export PDF Log nav V5.
+- Signature Android et workflow GitHub Actions.
+
+CONTROLES
+- 20 fichiers de tests.
+- 102 tests réussis.
+- TypeScript sans erreur.
+- npm run build:web réussi.
+- npm run build:android réussi.
+- npx cap sync android réussi.
+- Versionnement cohérent : 15.2.11 / 1502011.
+- Lockfile sans registre privé.
+- Gabarit PDF présent dans les ressources Android.
+- Service worker absent de l'APK.
+- La compilation Gradle locale n'a pas pu télécharger Gradle depuis services.gradle.org. Le build APK final doit être validé par le dernier run GitHub Actions vert.
+
+PROCEDURE GITHUB DESKTOP
+1. Dans le dossier local APK, conserver uniquement .git.
+2. Copier tout le contenu du ZIP dans ce dossier.
+3. Ouvrir GitHub Desktop et vérifier les changements.
+4. Commit : DEV15.2.11 - Trace journal integrity
+5. Push sur main.
+6. Attendre le dernier run GitHub Actions entièrement vert.
+7. Télécharger uniquement cap-clair-dev15-2-11-debug-apk.
+8. Installer l'APK par-dessus la version actuelle, sans désinstaller et sans effacer les données.
+9. Vérifier DEV15.2.11 et le hash court dans l'application.
+10. Ouvrir Mes traces et attendre le résultat de réparation.
+
+TEST ROUTIER OBLIGATOIRE AVANT LE VOL
+1. Démarrer l'enregistrement en restant stationné 2 à 3 minutes.
+2. Verrouiller l'écran.
+3. Rouler 30 à 45 minutes.
+4. Attendre une minute à l'arrêt.
+5. Appuyer une seule fois sur Arrêter et sauvegarder.
+6. Attendre la fin de Finalisation.
+7. Vérifier qu'une seule trace existe.
+8. Vérifier durée, distance, Replay et GPX.
+9. Exporter le Diagnostic GPS.
+10. Ne considérer la version prête pour le vol que si ce test est entièrement cohérent.
+
+NOTE
+Aucune version logicielle ne peut être garantie sans défaut. Cette hotfix empêche explicitement l'acceptation silencieuse d'un journal partiel et a été validée sur le journal réel du vol concerné. Le test routier reste nécessaire avant le prochain vol.

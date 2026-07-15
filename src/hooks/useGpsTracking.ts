@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AircraftProfile } from '../domain/aircraft.types';
 import type { GpsPosition, GpsStatus, GpsTraceDiagnostics } from '../domain/gps.types';
 import type { NavRoute } from '../domain/navigation.types';
-import type { PlannedRouteSnapshot, Trace, TraceSource } from '../domain/trace.types';
+import type { NativeJournalVerification, PlannedRouteSnapshot, Trace, TraceSource } from '../domain/trace.types';
 import { distanceNm, totalDistanceNm } from '../services/geo/distance';
 import { bearingDeg } from '../services/geo/bearing';
 import {
@@ -17,10 +17,11 @@ import { createGpsProviderSelection, type GpsProviderSelection } from '../servic
 import type { GpsProviderWatch } from '../services/gps/gpsProvider';
 import {
   getNativeGpsRuntimeStatus,
+  readNativeSessionJournal,
   readNativeSessionPositions,
   requestCurrentGpsPosition
 } from '../services/gps/nativeGpsProvider';
-import { markNativeSessionDeleted } from '../services/gps/nativeGpsSession';
+import { createNativeJournalVerification, markNativeSessionDeleted } from '../services/gps/nativeGpsSession';
 import {
   createStationaryKeepalive,
   GPS_RESUME_AFTER_GAP_MS,
@@ -566,15 +567,13 @@ export function useGpsTracking(
       let trace = pendingFinalTraceRef.current;
 
       if (!trace) {
+        await stopGpsWatch();
         let completeNativeJournal: GpsPosition[] = [];
-        try {
-          completeNativeJournal = await stopGpsWatch();
-        } catch (stopError) {
-          if (traceSource.current !== 'android-native' || !sessionId.current) throw stopError;
-          // The native stop may already have succeeded while the paged read failed.
-          // Retry the durable journal directly instead of falling back to the
-          // potentially incomplete in-memory display trace.
-          completeNativeJournal = await readNativeSessionPositions(sessionId.current);
+        let nativeJournalVerification: NativeJournalVerification | undefined;
+        if (traceSource.current === 'android-native' && sessionId.current) {
+          const journal = await readNativeSessionJournal(sessionId.current, { forceFresh: true });
+          completeNativeJournal = journal.positions;
+          nativeJournalVerification = createNativeJournalVerification(journal);
         }
 
         let finalPositions = positionsRef.current;
@@ -582,9 +581,6 @@ export function useGpsTracking(
         let finalDistanceNm = distanceTravelledNmRef.current;
 
         if (traceSource.current === 'android-native') {
-          if (completeNativeJournal.length < 2 && sessionId.current) {
-            completeNativeJournal = await readNativeSessionPositions(sessionId.current);
-          }
           if (completeNativeJournal.length >= 2) {
             const rebuilt = reconstructNativeTrace(completeNativeJournal, traceMaxSpeedKt);
             if (rebuilt.positions.length >= 2) {
@@ -632,7 +628,7 @@ export function useGpsTracking(
           ? `trace-${sessionId.current}`
           : `trace-${startedAtMs}`;
         trace = {
-          schemaVersion: 4,
+          schemaVersion: 5,
           id: stableTraceId,
           sessionId: sessionId.current,
           routeId: recordingRouteId.current,
@@ -648,7 +644,8 @@ export function useGpsTracking(
           distanceNm: Number((traceSource.current === 'android-native'
             ? finalDistanceNm
             : totalDistanceNm(finalPositions)).toFixed(2)),
-          diagnostics: diagnosticsRef.current
+          diagnostics: diagnosticsRef.current,
+          nativeJournalVerification
         };
         pendingFinalTraceRef.current = trace;
       }

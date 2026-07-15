@@ -75,12 +75,20 @@ export function traceRecordedSpanMs(trace: Pick<Trace, 'positions'>): number {
  * replace a full flight already saved for the same native session.
  */
 export function selectMoreCompleteTrace(left: Trace, right: Trace): Trace {
+  const leftVerified = left.nativeJournalVerification?.complete === true;
+  const rightVerified = right.nativeJournalVerification?.complete === true;
+  if (leftVerified !== rightVerified) return leftVerified ? left : right;
+
   const leftSpan = traceRecordedSpanMs(left);
   const rightSpan = traceRecordedSpanMs(right);
   const spanToleranceMs = 5_000;
 
   if (leftSpan > rightSpan + spanToleranceMs) return left;
   if (rightSpan > leftSpan + spanToleranceMs) return right;
+
+  const distanceToleranceNm = 0.1;
+  if (left.distanceNm > right.distanceNm + distanceToleranceNm) return left;
+  if (right.distanceNm > left.distanceNm + distanceToleranceNm) return right;
 
   if (left.positions.length !== right.positions.length) {
     return left.positions.length > right.positions.length ? left : right;

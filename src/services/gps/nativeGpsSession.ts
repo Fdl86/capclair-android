@@ -1,5 +1,5 @@
 import { APP_VERSION } from '../../app/version';
-import type { PlannedRouteSnapshot, Trace } from '../../domain/trace.types';
+import type { NativeJournalVerification, PlannedRouteSnapshot, Trace } from '../../domain/trace.types';
 import { readPendingPlannedRoute } from '../traces/plannedRouteSnapshot';
 import { DEFAULT_MAX_TRACE_SPEED_KT } from './geolocationService';
 import { reconstructNativeTrace } from './nativeTraceReconstruction';
@@ -7,7 +7,7 @@ import {
   NativeGps,
   isAndroidNativeGpsAvailable,
   nativePayloadToGpsPosition,
-  readNativeSessionPositions,
+  readNativeSessionJournal,
   type NativeGpsSessionDiagnosticPayload,
   type NativeRecoverableSessionPayload
 } from './nativeGpsProvider';
@@ -17,7 +17,7 @@ export interface NativeTraceRecoveryResult {
   sessionIds: string[];
 }
 
-export type NativeTraceRepairStatus = 'repaired' | 'journal_missing' | 'journal_empty' | 'journal_not_better' | 'read_error';
+export type NativeTraceRepairStatus = 'repaired' | 'journal_missing' | 'journal_empty' | 'journal_not_better' | 'incomplete_read' | 'read_error';
 
 export interface NativeTraceRepairDiagnostic {
   traceId: string;
@@ -54,7 +54,8 @@ function sessionPositions(session: NativeRecoverableSessionPayload, maxTraceSpee
 export function nativeSessionToTrace(
   session: NativeRecoverableSessionPayload,
   pendingRoute?: PlannedRouteSnapshot,
-  maxTraceSpeedKt = DEFAULT_MAX_TRACE_SPEED_KT
+  maxTraceSpeedKt = DEFAULT_MAX_TRACE_SPEED_KT,
+  nativeJournalVerification?: NativeJournalVerification
 ): Trace | null {
   const rebuilt = sessionPositions(session, maxTraceSpeedKt);
   const positions = rebuilt.positions;
@@ -74,7 +75,7 @@ export function nativeSessionToTrace(
   const plannedRoute = embeddedRoute ?? matchingPendingRoute;
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     id: session.traceId || `recovered-${session.sessionId}`,
     sessionId: session.sessionId,
     routeId: sessionRouteId,
@@ -88,7 +89,8 @@ export function nativeSessionToTrace(
     segmentStartIndices: rebuilt.segmentStartIndices,
     dureeSec: Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000)),
     distanceNm: Number(rebuilt.distanceNm.toFixed(2)),
-    diagnostics: rebuilt.diagnostics
+    diagnostics: rebuilt.diagnostics,
+    nativeJournalVerification
   };
 }
 
@@ -103,8 +105,9 @@ export async function recoverNativeTraces(): Promise<NativeTraceRecoveryResult> 
 
   for (const session of sessions) {
     if (!session.sessionId) continue;
-    const positions = await readNativeSessionPositions(session.sessionId);
-    const trace = nativeSessionToTrace({ ...session, positions }, pendingRoute);
+    const journal = await readNativeSessionJournal(session.sessionId);
+    const verification = createNativeJournalVerification(journal);
+    const trace = nativeSessionToTrace({ ...session, positions: journal.positions }, pendingRoute, DEFAULT_MAX_TRACE_SPEED_KT, verification);
     if (!trace) continue;
     traces.push(trace);
     sessionIds.push(session.sessionId);
@@ -113,32 +116,43 @@ export async function recoverNativeTraces(): Promise<NativeTraceRecoveryResult> 
   return { traces, sessionIds };
 }
 
+export function createNativeJournalVerification(journal: {
+  complete: boolean;
+  pageCount: number;
+  validPointCount: number;
+  journalLength: number;
+  lastOffset: number;
+  malformedLineCount: number;
+}): NativeJournalVerification {
+  return {
+    verifiedAt: new Date().toISOString(),
+    complete: journal.complete,
+    pageCount: journal.pageCount,
+    validPointCount: journal.validPointCount,
+    journalLength: journal.journalLength,
+    lastOffset: journal.lastOffset,
+    malformedLineCount: journal.malformedLineCount
+  };
+}
+
 export function traceNeedsNativeRepair(trace: Trace): boolean {
   if (trace.source !== 'android-native' || !trace.sessionId) return false;
+  if (trace.nativeJournalVerification?.complete === true) return false;
 
-  // DEV15.2.9 could create a second two-point save attempt for a long native
-  // session and replace the complete local trace. That damaged trace may carry
-  // almost empty diagnostics, so diagnostics alone are not sufficient to find
-  // it after installing the hotfix. A native trace spanning more than one
-  // minute with at most three saved positions is always worth comparing with
-  // its retained Android journal.
   const recordedSpanSec = Math.max(
     0,
     ((trace.positions.at(-1)?.timestamp ?? 0) - (trace.positions[0]?.timestamp ?? 0)) / 1000
   );
   const declaredDurationSec = Number.isFinite(trace.dureeSec) ? Math.max(0, trace.dureeSec) : 0;
-  const isLongButNearlyEmpty = Math.max(recordedSpanSec, declaredDurationSec) >= 60
-    && trace.positions.length <= 3;
-  if (isLongButNearlyEmpty) return true;
-
-  // Schema 4 is written only after CAP CLAIR has rebuilt the trace from the
-  // complete native journal. A real, explicit GPS gap can remain in such a
-  // trace, but re-reading the same journal on every launch cannot improve it.
-  if ((trace.schemaVersion ?? 0) >= 4) return false;
+  const durationSec = Math.max(recordedSpanSec, declaredDurationSec);
+  const sparseThreshold = Math.max(3, Math.floor(durationSec / 20));
+  const isLongAndSparse = durationSec >= 300 && trace.positions.length < sparseThreshold;
+  const isLongWithoutMovement = durationSec >= 300 && trace.distanceNm <= 0.05;
+  const isLongButNearlyEmpty = durationSec >= 60 && trace.positions.length <= 3;
+  if (isLongButNearlyEmpty || isLongAndSparse || isLongWithoutMovement) return true;
 
   const diagnostics = trace.diagnostics;
-  if (!diagnostics) return false;
-  return diagnostics.gpsResumptions > 0 || diagnostics.gpsGaps > 0;
+  return Boolean(diagnostics && (diagnostics.gpsResumptions > 0 || diagnostics.gpsGaps > 0));
 }
 
 export function nativeCoverageIsBetter(local: Trace, native: Trace): boolean {
@@ -146,11 +160,21 @@ export function nativeCoverageIsBetter(local: Trace, native: Trace): boolean {
   const localLast = local.positions.at(-1)?.timestamp ?? 0;
   const nativeFirst = native.positions[0]?.timestamp ?? Number.POSITIVE_INFINITY;
   const nativeLast = native.positions.at(-1)?.timestamp ?? 0;
+  const localSpan = Math.max(0, localLast - localFirst);
+  const nativeSpan = Math.max(0, nativeLast - nativeFirst);
 
-  return nativeFirst < localFirst - 5000
-    || nativeLast > localLast + 5000
-    || native.positions.length > local.positions.length + 5
-    || native.dureeSec > local.dureeSec + 10;
+  const nativeIsMateriallyWorse = nativeSpan + 5_000 < localSpan
+    || (native.positions.length + 5 < local.positions.length && native.distanceNm + 0.1 < local.distanceNm);
+  if (nativeIsMateriallyWorse) return false;
+
+  const extendsCoverage = nativeFirst < localFirst - 5_000 || nativeLast > localLast + 5_000;
+  const addsUsefulPoints = native.positions.length > local.positions.length + 5
+    && native.distanceNm >= local.distanceNm - 0.05;
+  const restoresMovement = local.distanceNm <= 0.05 && native.distanceNm > 0.25;
+  const improvesDistance = native.distanceNm > local.distanceNm + 0.5;
+  const improvesSpan = nativeSpan > localSpan + 10_000;
+
+  return extendsCoverage || restoresMovement || improvesDistance || (addsUsefulPoints && improvesSpan);
 }
 
 /**
@@ -184,7 +208,28 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
         continue;
       }
 
-      const nativePositions = await readNativeSessionPositions(local.sessionId);
+      const journal = await readNativeSessionJournal(local.sessionId);
+      if (!journal.complete || journal.lastOffset !== journal.journalLength) {
+        diagnostics.push({
+          traceId: local.id,
+          sessionId: local.sessionId,
+          status: 'incomplete_read',
+          message: `Trace ${local.routeName} : lecture incomplète du journal Android (${journal.validPointCount} points, ${journal.lastOffset}/${journal.journalLength} octets).`,
+          nativeDiagnostic
+        });
+        continue;
+      }
+      if (typeof nativeDiagnostic.validPointCount === 'number' && nativeDiagnostic.validPointCount !== journal.validPointCount) {
+        diagnostics.push({
+          traceId: local.id,
+          sessionId: local.sessionId,
+          status: 'incomplete_read',
+          message: `Trace ${local.routeName} : lecture incomplète du journal Android (${journal.validPointCount}/${nativeDiagnostic.validPointCount} points).`,
+          nativeDiagnostic
+        });
+        continue;
+      }
+      const nativePositions = journal.positions;
       if (nativePositions.length < 2) {
         diagnostics.push({
           traceId: local.id,
@@ -208,13 +253,14 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
         plannedRoute: local.plannedRoute
       };
       const maxSpeed = local.diagnostics?.maxTraceSpeedKt ?? DEFAULT_MAX_TRACE_SPEED_KT;
-      const native = nativeSessionToTrace(session, local.plannedRoute, maxSpeed);
+      const verification = createNativeJournalVerification(journal);
+      const native = nativeSessionToTrace(session, local.plannedRoute, maxSpeed, verification);
       if (!native || !nativeCoverageIsBetter(local, native)) {
         // The complete journal has been checked and cannot improve the local
         // trace. Upgrade the trace marker so the same potentially large journal
         // is not re-read on every application launch.
         checkedCount += 1;
-        repairedById.set(local.id, { ...local, schemaVersion: 4 });
+        repairedById.set(local.id, { ...local, schemaVersion: 5, nativeJournalVerification: verification });
         diagnostics.push({
           traceId: local.id,
           sessionId: local.sessionId,
@@ -233,7 +279,8 @@ export async function repairIncompleteSavedNativeTraces(localTraces: Trace[]): P
         routeId: local.routeId || native.routeId,
         routeName: local.routeName || native.routeName,
         plannedRoute: native.plannedRoute ?? local.plannedRoute,
-        schemaVersion: 4
+        schemaVersion: 5,
+        nativeJournalVerification: verification
       });
       diagnostics.push({
         traceId: local.id,

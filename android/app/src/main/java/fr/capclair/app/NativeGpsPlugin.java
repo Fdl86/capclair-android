@@ -186,8 +186,14 @@ public class NativeGpsPlugin extends Plugin {
         long journalLength = NativeGpsStore.getSessionJournalLength(sessionId);
         JSObject result = new JSObject();
         result.put("points", page.points);
+        result.put("startOffset", sinceOffset);
         result.put("nextOffset", page.nextOffset);
-        result.put("hasMore", page.nextOffset < journalLength);
+        result.put("journalLength", journalLength);
+        result.put("pagePointCount", page.points.length());
+        result.put("malformedLineCount", page.malformedLineCount);
+        result.put("trailingPartial", page.trailingPartial);
+        result.put("eofReached", page.eofReached);
+        result.put("hasMore", !page.trailingPartial && page.nextOffset < journalLength);
         call.resolve(result);
     }
 

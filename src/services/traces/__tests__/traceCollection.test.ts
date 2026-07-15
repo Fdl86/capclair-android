@@ -78,4 +78,20 @@ describe('trace completeness selection', () => {
 
     expect(selectMoreCompleteTrace(fullSpan, denseTail)).toBe(fullSpan);
   });
+
+  it('keeps a trace verified against the complete native journal over an unverified retry', () => {
+    const verified = trace('verified', 'session-1', [0, 3000, 6000]);
+    verified.nativeJournalVerification = {
+      verifiedAt: new Date().toISOString(),
+      complete: true,
+      pageCount: 10,
+      validPointCount: 4_583,
+      journalLength: 971_592,
+      lastOffset: 971_592,
+      malformedLineCount: 0
+    };
+    const retry = trace('retry', 'session-1', [0, 3000, 6000, 9000]);
+
+    expect(selectMoreCompleteTrace(verified, retry)).toBe(verified);
+  });
 });

@@ -94,6 +94,35 @@ export interface NativeRecoverableSessionPayload {
   plannedRoute?: PlannedRouteSnapshot;
 }
 
+export interface NativeGpsJournalPagePayload {
+  points?: NativeGpsPointPayload[];
+  startOffset?: number;
+  nextOffset?: number;
+  journalLength?: number;
+  pagePointCount?: number;
+  malformedLineCount?: number;
+  trailingPartial?: boolean;
+  eofReached?: boolean;
+  hasMore?: boolean;
+}
+
+export interface NativeGpsJournalReadResult {
+  sessionId: string;
+  positions: GpsPosition[];
+  pageCount: number;
+  lastOffset: number;
+  journalLength: number;
+  validPointCount: number;
+  malformedLineCount: number;
+  complete: boolean;
+  trailingPartial: boolean;
+}
+
+export type NativeGpsJournalPageFetcher = (
+  offset: number,
+  maxPoints: number
+) => Promise<NativeGpsJournalPagePayload>;
+
 interface NativeGpsNativePlugin {
   start(options?: GpsProviderStartOptions): Promise<NativeGpsStatusPayload & { started?: boolean }>;
   getCurrentPosition(options?: { timeoutMs?: number }): Promise<NativeGpsPointPayload>;
@@ -102,7 +131,7 @@ interface NativeGpsNativePlugin {
   getPointsSince(options: { sinceOffset?: number; sinceTimestamp?: number }): Promise<NativeGpsStatusPayload & { points?: NativeGpsPointPayload[]; nextOffset?: number }>;
   getRecoverableSessions(options?: { includeSaved?: boolean }): Promise<{ sessions?: NativeRecoverableSessionPayload[] }>;
   getSessionPoints(options: { sessionId: string }): Promise<{ positions?: NativeGpsPointPayload[] }>;
-  getSessionPointsChunk(options: { sessionId: string; sinceOffset?: number; maxPoints?: number }): Promise<{ points?: NativeGpsPointPayload[]; nextOffset?: number; hasMore?: boolean }>;
+  getSessionPointsChunk(options: { sessionId: string; sinceOffset?: number; maxPoints?: number }): Promise<NativeGpsJournalPagePayload>;
   getSessionDiagnostic(options: { sessionId: string }): Promise<NativeGpsSessionDiagnosticPayload>;
   exportSessionDiagnostic(options: {
     sessionId: string;
@@ -174,42 +203,162 @@ export function isAndroidNativeGpsAvailable(): boolean {
 
 const NATIVE_JOURNAL_PAGE_SIZE = 500;
 const MAX_NATIVE_JOURNAL_POINTS = 100_000;
+const MAX_NATIVE_JOURNAL_PAGES = 500;
+const journalReadInFlight = new Map<string, Promise<NativeGpsJournalReadResult>>();
 
 function yieldToUi(): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
-export async function readNativeSessionPositions(sessionId: string): Promise<GpsPosition[]> {
-  if (!sessionId || !isAndroidNativeGpsAvailable()) return [];
+function finiteNonNegative(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+export async function readNativeJournalPages(
+  sessionId: string,
+  fetchPage: NativeGpsJournalPageFetcher,
+  pauseBetweenPages: () => Promise<void> = yieldToUi
+): Promise<NativeGpsJournalReadResult> {
+  if (!sessionId) throw new Error('Lecture du journal GPS impossible : session absente.');
 
   const positions: GpsPosition[] = [];
   let offset = 0;
-  let guard = 0;
-  let hasMore = true;
+  let pageCount = 0;
+  let journalLength: number | null = null;
+  let validPointCount = 0;
+  let malformedLineCount = 0;
+  let trailingPartial = false;
+  let complete = false;
 
-  while (hasMore && positions.length < MAX_NATIVE_JOURNAL_POINTS) {
-    const result = await NativeGps.getSessionPointsChunk({
-      sessionId,
-      sinceOffset: offset,
-      maxPoints: NATIVE_JOURNAL_PAGE_SIZE
-    });
+  while (!complete) {
+    if (pageCount >= MAX_NATIVE_JOURNAL_PAGES) {
+      throw new Error(`Lecture du journal GPS interrompue après ${pageCount} pages : pagination incohérente.`);
+    }
 
-    const nextOffset = typeof result.nextOffset === 'number' && Number.isFinite(result.nextOffset)
-      ? Math.max(0, result.nextOffset)
-      : offset;
-    for (const payload of result.points ?? []) {
+    const page = await fetchPage(offset, NATIVE_JOURNAL_PAGE_SIZE);
+    pageCount += 1;
+
+    const startOffset = finiteNonNegative(page.startOffset);
+    const nextOffset = finiteNonNegative(page.nextOffset);
+    const pageJournalLength = finiteNonNegative(page.journalLength);
+    if (startOffset === null || nextOffset === null || pageJournalLength === null) {
+      throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : métadonnées de pagination absentes.`);
+    }
+    if (startOffset !== offset) {
+      throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : offset demandé ${offset}, offset reçu ${startOffset}.`);
+    }
+    if (nextOffset < startOffset || nextOffset > pageJournalLength) {
+      throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : offset ${nextOffset}/${pageJournalLength} invalide.`);
+    }
+
+    if (journalLength !== null && pageJournalLength < journalLength) {
+      throw new Error(`Lecture du journal GPS interrompue : taille réduite de ${journalLength} à ${pageJournalLength} octets.`);
+    }
+    journalLength = Math.max(journalLength ?? 0, pageJournalLength);
+
+    const payloads = page.points ?? [];
+    const declaredPageCount = finiteNonNegative(page.pagePointCount);
+    if (declaredPageCount !== null && declaredPageCount !== payloads.length) {
+      throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : ${payloads.length}/${declaredPageCount} points reçus.`);
+    }
+
+    validPointCount += payloads.length;
+    for (const payload of payloads) {
       const position = nativePayloadToGpsPosition(payload);
       if (position) positions.push(position);
     }
+    malformedLineCount += Math.trunc(finiteNonNegative(page.malformedLineCount) ?? 0);
+    trailingPartial = page.trailingPartial === true;
 
-    hasMore = result.hasMore === true && nextOffset > offset;
+    if (validPointCount > MAX_NATIVE_JOURNAL_POINTS) {
+      throw new Error(`Journal GPS trop volumineux : plus de ${MAX_NATIVE_JOURNAL_POINTS} positions.`);
+    }
+    if (trailingPartial) {
+      throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : dernière ligne partielle à l'offset ${nextOffset}.`);
+    }
+
+    const hasMore = page.hasMore === true;
+    const eofReached = page.eofReached === true;
+    if (hasMore) {
+      if (nextOffset <= offset) {
+        throw new Error(`Lecture incomplète du journal GPS à la page ${pageCount} : offset bloqué à ${offset}.`);
+      }
+      offset = nextOffset;
+      await pauseBetweenPages();
+      continue;
+    }
+
+    if (!eofReached || nextOffset !== pageJournalLength) {
+      throw new Error(
+        `Lecture incomplète du journal GPS : ${positions.length} points lus, offset ${nextOffset}/${pageJournalLength}.`
+      );
+    }
+
     offset = nextOffset;
-    guard += 1;
-    if (guard > 500) throw new Error('Lecture du journal GPS interrompue : pagination incohérente.');
-    if (hasMore) await yieldToUi();
+    complete = true;
   }
 
-  return positions;
+  return {
+    sessionId,
+    positions,
+    pageCount,
+    lastOffset: offset,
+    journalLength: journalLength ?? 0,
+    validPointCount,
+    malformedLineCount,
+    complete,
+    trailingPartial
+  };
+}
+
+function startNativeSessionJournalRead(sessionId: string): Promise<NativeGpsJournalReadResult> {
+  const task = readNativeJournalPages(
+    sessionId,
+    (offset, maxPoints) => NativeGps.getSessionPointsChunk({
+      sessionId,
+      sinceOffset: offset,
+      maxPoints
+    })
+  ).finally(() => {
+    if (journalReadInFlight.get(sessionId) === task) journalReadInFlight.delete(sessionId);
+  });
+  journalReadInFlight.set(sessionId, task);
+  return task;
+}
+
+export async function readNativeSessionJournal(
+  sessionId: string,
+  options: { forceFresh?: boolean } = {}
+): Promise<NativeGpsJournalReadResult> {
+  if (!sessionId || !isAndroidNativeGpsAvailable()) {
+    return {
+      sessionId,
+      positions: [],
+      pageCount: 0,
+      lastOffset: 0,
+      journalLength: 0,
+      validPointCount: 0,
+      malformedLineCount: 0,
+      complete: true,
+      trailingPartial: false
+    };
+  }
+
+  if (options.forceFresh) {
+    // A backfill read may have started while the native service was still
+    // writing. Wait for it, then start a new snapshot after stop() so the final
+    // seconds can never be omitted from the saved trace.
+    while (journalReadInFlight.has(sessionId)) {
+      await journalReadInFlight.get(sessionId)!.catch(() => undefined);
+    }
+    return startNativeSessionJournalRead(sessionId);
+  }
+
+  return journalReadInFlight.get(sessionId) ?? startNativeSessionJournalRead(sessionId);
+}
+
+export async function readNativeSessionPositions(sessionId: string): Promise<GpsPosition[]> {
+  return (await readNativeSessionJournal(sessionId)).positions;
 }
 
 export function createAndroidNativeGpsProvider(): GpsProvider {
@@ -405,8 +554,7 @@ export function createAndroidNativeGpsProvider(): GpsProvider {
             const info = await sessionInfo.catch(() => null);
             const stoppingSessionId = providerSessionId ?? info?.sessionId ?? null;
             await NativeGps.stop({ sessionId: stoppingSessionId });
-            if (!stoppingSessionId) return [];
-            return readNativeSessionPositions(stoppingSessionId);
+            return [];
           })();
           return stopPromise;
         }

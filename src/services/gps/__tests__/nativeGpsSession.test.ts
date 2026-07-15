@@ -122,8 +122,38 @@ describe('saved native trace repair selection', () => {
     expect(traceNeedsNativeRepair(sparse)).toBe(true);
   });
 
-  it('does not recheck a schema 4 trace already rebuilt from the complete journal', () => {
-    expect(traceNeedsNativeRepair(localTrace({ schemaVersion: 4 }))).toBe(false);
+  it('does not recheck a trace carrying an explicit complete-journal verification', () => {
+    expect(traceNeedsNativeRepair(localTrace({
+      schemaVersion: 5,
+      nativeJournalVerification: {
+        verifiedAt: new Date().toISOString(),
+        complete: true,
+        pageCount: 10,
+        validPointCount: 4_583,
+        journalLength: 971_592,
+        lastOffset: 971_592,
+        malformedLineCount: 0
+      }
+    }))).toBe(false);
+  });
+
+  it('rechecks a long schema 4 trace reduced to stationary first-page data', () => {
+    const positions = Array.from({ length: 57 }, (_, index) => ({
+      latitude: 46,
+      longitude: 0.3,
+      altitude: 100,
+      altitudeAccuracy: 10,
+      vitesse: 0,
+      track: 90,
+      timestamp: index * 9_000,
+      precision: 5
+    }));
+    expect(traceNeedsNativeRepair(localTrace({
+      schemaVersion: 4,
+      dureeSec: 5_061,
+      distanceNm: 0,
+      positions
+    }))).toBe(true);
   });
 
   it('accepts a native reconstruction with earlier coverage', () => {
@@ -132,5 +162,64 @@ describe('saved native trace repair selection', () => {
     });
     const native = localTrace();
     expect(nativeCoverageIsBetter(local, native)).toBe(true);
+  });
+
+
+  it('accepts a complete reconstruction that restores real movement to a zero-distance trace', () => {
+    const local = localTrace({
+      dureeSec: 5_061,
+      distanceNm: 0,
+      positions: Array.from({ length: 57 }, (_, index) => ({
+        latitude: 46,
+        longitude: 0.3,
+        altitude: 100,
+        altitudeAccuracy: 10,
+        vitesse: 0,
+        track: 90,
+        timestamp: index * 9_000,
+        precision: 5
+      }))
+    });
+    const native = localTrace({
+      dureeSec: 5_055,
+      distanceNm: 81.31,
+      positions: Array.from({ length: 1_296 }, (_, index) => ({
+        latitude: 46 + index / 100_000,
+        longitude: 0.3 + index / 100_000,
+        altitude: 500,
+        altitudeAccuracy: 10,
+        vitesse: 90,
+        track: 90,
+        timestamp: index * 3_900,
+        precision: 5
+      }))
+    });
+
+    expect(nativeCoverageIsBetter(local, native)).toBe(true);
+  });
+
+  it('rejects a reconstruction with materially shorter chronological coverage', () => {
+    const local = localTrace({
+      distanceNm: 10,
+      positions: [
+        { latitude: 46, longitude: 0, altitude: 500, altitudeAccuracy: 10, vitesse: 80, track: 90, timestamp: 0, precision: 5 },
+        { latitude: 46, longitude: 0.1, altitude: 500, altitudeAccuracy: 10, vitesse: 80, track: 90, timestamp: 600_000, precision: 5 }
+      ]
+    });
+    const native = localTrace({
+      distanceNm: 20,
+      positions: Array.from({ length: 100 }, (_, index) => ({
+        latitude: 46,
+        longitude: index / 1_000,
+        altitude: 500,
+        altitudeAccuracy: 10,
+        vitesse: 80,
+        track: 90,
+        timestamp: 500_000 + index * 500,
+        precision: 5
+      }))
+    });
+
+    expect(nativeCoverageIsBetter(local, native)).toBe(false);
   });
 });

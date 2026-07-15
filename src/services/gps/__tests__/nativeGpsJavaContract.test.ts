@@ -39,6 +39,10 @@ describe('Native GPS Android reliability contract', () => {
     expect(plugin).not.toContain('completePoints');
     expect(plugin).toContain('public void getSessionPointsChunk(PluginCall call)');
     expect(store).toContain('readPointsSinceLimited');
+    expect(plugin).toContain('result.put("journalLength", journalLength)');
+    expect(plugin).toContain('result.put("startOffset", sinceOffset)');
+    expect(plugin).toContain('result.put("eofReached", page.eofReached)');
+    expect(plugin).toContain('result.put("trailingPartial", page.trailingPartial)');
     expect(store).toContain('syncSessionJournal(activeSessionId);');
   });
 
