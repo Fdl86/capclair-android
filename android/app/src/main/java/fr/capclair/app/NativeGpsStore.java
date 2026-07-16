@@ -512,6 +512,9 @@ final class NativeGpsStore {
 
     private static void scanPointJournal(File file, JSObject diagnostic) {
         int valid = 0;
+        int continuousPointCount = 0;
+        int probePointCount = 0;
+        int unknownSourcePointCount = 0;
         int malformed = 0;
         long firstTimestamp = 0L;
         long lastTimestamp = 0L;
@@ -527,6 +530,10 @@ final class NativeGpsStore {
                     try {
                         JSONObject point = new JSONObject(line);
                         long timestamp = point.optLong("timestamp", 0L);
+                        String locationSource = point.optString("locationSource", "");
+                        if ("continuous".equals(locationSource)) continuousPointCount += 1;
+                        else if ("probe".equals(locationSource)) probePointCount += 1;
+                        else unknownSourcePointCount += 1;
                         valid += 1;
                         if (timestamp > 0L) {
                             if (firstTimestamp == 0L || timestamp < firstTimestamp) firstTimestamp = timestamp;
@@ -550,6 +557,9 @@ final class NativeGpsStore {
             }
         }
         diagnostic.put("validPointCount", valid);
+        diagnostic.put("continuousPointCount", continuousPointCount);
+        diagnostic.put("probePointCount", probePointCount);
+        diagnostic.put("unknownSourcePointCount", unknownSourcePointCount);
         diagnostic.put("malformedPointLines", malformed);
         diagnostic.put("firstPointAt", firstTimestamp > 0L ? firstTimestamp : null);
         diagnostic.put("lastPointAt", lastTimestamp > 0L ? lastTimestamp : null);
@@ -572,6 +582,9 @@ final class NativeGpsStore {
         int probeRequestedCount = 0;
         int probeSucceededCount = 0;
         int probeTimeoutCount = 0;
+        int continuousStreamDegradedCount = 0;
+        int continuousStreamRestoredCount = 0;
+        int continuousRecoveryProgressCount = 0;
         int wakeLockAcquiredCount = 0;
         long firstHeartbeatAt = 0L;
         long lastHeartbeatAt = 0L;
@@ -618,6 +631,12 @@ final class NativeGpsStore {
                             probeSucceededCount += 1;
                         } else if ("location_probe_timeout".equals(type)) {
                             probeTimeoutCount += 1;
+                        } else if ("continuous_location_stream_degraded".equals(type)) {
+                            continuousStreamDegradedCount += 1;
+                        } else if ("continuous_location_stream_restored".equals(type)) {
+                            continuousStreamRestoredCount += 1;
+                        } else if ("continuous_location_recovery_progress".equals(type)) {
+                            continuousRecoveryProgressCount += 1;
                         } else if ("cpu_wake_lock_acquired".equals(type)) {
                             wakeLockAcquiredCount += 1;
                         }
@@ -645,11 +664,25 @@ final class NativeGpsStore {
         diagnostic.put("probeRequestedCount", probeRequestedCount);
         diagnostic.put("probeSucceededCount", probeSucceededCount);
         diagnostic.put("probeTimeoutCount", probeTimeoutCount);
+        diagnostic.put("continuousStreamDegradedCount", continuousStreamDegradedCount);
+        diagnostic.put("continuousStreamRestoredCount", continuousStreamRestoredCount);
+        diagnostic.put("continuousRecoveryProgressCount", continuousRecoveryProgressCount);
         diagnostic.put("wakeLockAcquiredCount", wakeLockAcquiredCount);
     }
 
     private static String classifyDiagnostic(JSObject diagnostic) {
         if (!diagnostic.optBoolean("journalFound", false)) return "journal_missing";
+
+        int degradedCount = diagnostic.optInt("continuousStreamDegradedCount", 0);
+        int restoredCount = diagnostic.optInt("continuousStreamRestoredCount", 0);
+        int probePointCount = diagnostic.optInt("probePointCount", 0);
+        if (degradedCount > 0 && restoredCount >= degradedCount) {
+            return "continuous_stream_recovered";
+        }
+        if (degradedCount > 0 && probePointCount > 0) {
+            return "probe_fallback_without_continuous_recovery";
+        }
+
         long maxPointGapMs = diagnostic.optLong("maxPointGapMs", 0L);
         if (maxPointGapMs < 120_000L) return "native_journal_continuous";
         int heartbeatCount = diagnostic.optInt("heartbeatCount", 0);

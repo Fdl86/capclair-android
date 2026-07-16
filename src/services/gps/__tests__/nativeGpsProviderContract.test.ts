@@ -15,6 +15,14 @@ describe('native GPS bridge back-pressure contract', () => {
     expect(provider).not.toContain('for (const point of result.points ?? []) emitPosition(point)');
   });
 
+
+  it('preserves the native location source for diagnostics and reconstruction', () => {
+    const provider = fs.readFileSync(providerPath, 'utf8');
+
+    expect(provider).toContain("locationSource?: 'continuous' | 'probe' | string");
+    expect(provider).toContain("locationSource: typeof payload.locationSource === 'string'");
+  });
+
   it('rehydrates the complete native journal in one state replacement', () => {
     const hook = fs.readFileSync(hookPath, 'utf8');
 

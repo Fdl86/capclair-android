@@ -72,6 +72,12 @@ jobs:
           java-version: 21
           cache: gradle
 
+      - name: Run Android GPS recovery unit tests
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
       - name: Decode Android signing key
         run: |
           echo "$SIGNING_KEY_BASE64" | base64 --decode > android/app/capclair-dev.keystore
@@ -117,7 +123,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cap-clair-dev15-2-12-debug-apk
+          name: cap-clair-dev15-2-13-debug-apk
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             apk-signature.txt

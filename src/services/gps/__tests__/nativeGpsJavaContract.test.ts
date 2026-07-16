@@ -65,9 +65,36 @@ describe('Native GPS Android reliability contract', () => {
     expect(service).toContain('location_watchdog_runtime_recovery');
     expect(service).toContain('getCurrentLocation');
     expect(service).toContain('new HandlerThread("CapClairGpsLocation-"');
-    expect(service).toContain('RUNTIME_RECOVERY_BACKOFF_MS');
+    const recoveryState = fs.readFileSync(
+      path.resolve(process.cwd(), 'android/app/src/main/java/fr/capclair/app/GpsRecoveryState.java'),
+      'utf8'
+    );
+    expect(recoveryState).toContain('RUNTIME_RECOVERY_BACKOFF_MS');
     expect(service).toContain('isFreshProbeLocation');
     expect(manifest).toContain('android.permission.WAKE_LOCK');
+  });
+
+
+  it('does not let one-shot probes fake a recovered continuous stream', () => {
+    const service = fs.readFileSync(servicePath, 'utf8');
+    const recoveryStatePath = path.resolve(
+      process.cwd(),
+      'android/app/src/main/java/fr/capclair/app/GpsRecoveryState.java'
+    );
+    const recoveryState = fs.readFileSync(recoveryStatePath, 'utf8');
+
+    expect(service).toContain('gpsRecoveryState.onProbeLocation(now)');
+    expect(service).toContain('gpsRecoveryState.onContinuousLocation(now)');
+    expect(service).toContain('continuous_location_stream_restored');
+    expect(service).toContain('continuous_location_stream_degraded');
+    expect(service).toContain('toPoint(location, source)');
+    expect(service).toContain('generation != probeGeneration');
+    expect(service).toContain('probeGeneration += 1');
+    expect(recoveryState).toContain('CONTINUOUS_FIXES_TO_RESTORE = 3');
+    expect(recoveryState).toContain('A probe is not a recovered stream');
+    expect(recoveryState).not.toContain(`onProbeLocation(long now) {\n        onContinuousLocation`);
+    expect(recoveryState).toContain('FAST_PROBE_INTERVAL_MS = 5_000L');
+    expect(recoveryState).toContain('SLOW_PROBE_INTERVAL_MS = 10_000L');
   });
 
   it('decodes JavaScript numeric offsets without depending on their boxed type', () => {

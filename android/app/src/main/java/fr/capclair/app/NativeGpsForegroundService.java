@@ -33,15 +33,10 @@ public class NativeGpsForegroundService extends Service {
     private static final long MIN_TIME_MS = 1000L;
     private static final float MIN_DISTANCE_M = 0f;
     private static final long HEARTBEAT_MS = 60_000L;
-    private static final long WATCHDOG_INTERVAL_MS = 10_000L;
+    private static final long WATCHDOG_INTERVAL_MS = 5_000L;
     private static final long LOCATION_GAP_EVENT_MS = 30_000L;
-    private static final long SOFT_RECOVERY_AFTER_MS = 30_000L;
-    private static final long HARD_RECOVERY_AFTER_MS = 75_000L;
-    private static final long RUNTIME_RECOVERY_AFTER_MS = 150_000L;
-    private static final long RUNTIME_RECOVERY_BACKOFF_MS = 180_000L;
-    private static final long RECOVERY_ACTION_COOLDOWN_MS = 20_000L;
-    private static final long PROBE_TIMEOUT_MS = 15_000L;
-    private static final long MAX_PROBE_LOCATION_AGE_MS = 20_000L;
+    private static final long PROBE_TIMEOUT_MS = 8_000L;
+    private static final long MAX_PROBE_LOCATION_AGE_MS = 15_000L;
 
     private LocationManager locationManager;
     private HandlerThread locationThread;
@@ -60,6 +55,7 @@ public class NativeGpsForegroundService extends Service {
     private LocationListener legacyProbeListener;
     private Runnable probeTimeoutRunnable;
     private boolean probeActive = false;
+    private int probeGeneration = 0;
 
     private GnssStatus.Callback gnssStatusCallback;
     private int satelliteCount = 0;
@@ -67,11 +63,11 @@ public class NativeGpsForegroundService extends Service {
     private long lastGnssStatusAt = 0L;
 
     private long serviceCreatedAt = 0L;
-    private long lastLocationAt = 0L;
     private long locationCallbackCount = 0L;
+    private long continuousLocationCallbackCount = 0L;
+    private long probeLocationCallbackCount = 0L;
     private long lastHeartbeatWrittenAt = 0L;
-    private long lastRecoveryActionAt = 0L;
-    private int recoveryStage = 0;
+    private final GpsRecoveryState gpsRecoveryState = new GpsRecoveryState();
     private int softRecoveryCount = 0;
     private int hardRecoveryCount = 0;
     private int runtimeRecoveryCount = 0;
@@ -135,6 +131,9 @@ public class NativeGpsForegroundService extends Service {
     }
 
     private void createLocationRuntime(String reason) {
+        satelliteCount = 0;
+        satellitesUsedInFix = 0;
+        lastGnssStatusAt = 0L;
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         locationThread = new HandlerThread("CapClairGpsLocation-" + System.currentTimeMillis());
         locationThread.start();
@@ -266,12 +265,20 @@ public class NativeGpsForegroundService extends Service {
     private void handleLocationChanged(Location location, String source) {
         if (location == null) return;
         long now = System.currentTimeMillis();
-        long previousLocationAt = lastLocationAt;
-        lastLocationAt = now;
+        long previousAnyLocationAt = gpsRecoveryState.getLastAnyLocationAt();
+        boolean continuous = "continuous".equals(source);
+        boolean streamRestored = continuous
+            ? gpsRecoveryState.onContinuousLocation(now)
+            : false;
+        if (!continuous) gpsRecoveryState.onProbeLocation(now);
+
         locationCallbackCount += 1L;
-        recoveryStage = 0;
-        consecutiveRuntimeRecoveryCount = 0;
-        lastRecoveryActionAt = 0L;
+        if (continuous) continuousLocationCallbackCount += 1L;
+        else probeLocationCallbackCount += 1L;
+
+        // A delivered callback completes the current one-shot request. A probe
+        // never resets recovery. A continuous callback only restores the stream
+        // after the state machine has observed three tightly-spaced fixes.
         cancelImmediateProbe();
 
         if (locationCallbackCount == 1L) {
@@ -279,15 +286,32 @@ public class NativeGpsForegroundService extends Service {
             details.put("locationTimestamp", location.getTime());
             details.put("source", source);
             NativeGpsStore.recordDiagnosticEvent("first_location", details);
-        } else if (previousLocationAt > 0L && now - previousLocationAt > LOCATION_GAP_EVENT_MS) {
+        } else if (
+            previousAnyLocationAt > 0L
+            && now - previousAnyLocationAt > LOCATION_GAP_EVENT_MS
+        ) {
             JSObject details = serviceStateDetails();
-            details.put("gapMs", now - previousLocationAt);
-            details.put("previousLocationAt", previousLocationAt);
+            details.put("gapMs", now - previousAnyLocationAt);
+            details.put("previousLocationAt", previousAnyLocationAt);
             details.put("locationTimestamp", location.getTime());
             details.put("source", source);
             NativeGpsStore.recordDiagnosticEvent("location_resumed_after_gap", details);
         }
-        NativeGpsStore.addPoint(toPoint(location));
+
+        if (streamRestored) {
+            consecutiveRuntimeRecoveryCount = 0;
+            JSObject details = serviceStateDetails();
+            details.put("locationTimestamp", location.getTime());
+            details.put("source", source);
+            NativeGpsStore.recordDiagnosticEvent("continuous_location_stream_restored", details);
+        } else if (continuous && gpsRecoveryState.isRecovering()) {
+            JSObject details = serviceStateDetails();
+            details.put("locationTimestamp", location.getTime());
+            details.put("source", source);
+            NativeGpsStore.recordDiagnosticEvent("continuous_location_recovery_progress", details);
+        }
+
+        NativeGpsStore.addPoint(toPoint(location, source));
     }
 
     private void handleProviderDisabled(String provider) {
@@ -336,35 +360,38 @@ public class NativeGpsForegroundService extends Service {
 
     private void runLocationWatchdog(long now) {
         if (locationManager == null) return;
-        long reference = lastLocationAt > 0L ? lastLocationAt : serviceCreatedAt;
-        long staleForMs = now - reference;
-        if (staleForMs < SOFT_RECOVERY_AFTER_MS) return;
-        if (lastRecoveryActionAt > 0L && now - lastRecoveryActionAt < RECOVERY_ACTION_COOLDOWN_MS) return;
+        GpsRecoveryState.Decision decision = gpsRecoveryState.evaluate(
+            now,
+            serviceCreatedAt,
+            probeActive,
+            consecutiveRuntimeRecoveryCount
+        );
 
-        if (recoveryStage == 0) {
-            recoveryStage = 1;
-            lastRecoveryActionAt = now;
+        if (decision.enteredDegraded) {
+            JSObject details = serviceStateDetails();
+            details.put("staleForMs", decision.staleForMs);
+            NativeGpsStore.recordDiagnosticEvent("continuous_location_stream_degraded", details);
+        }
+
+        if (decision.action == GpsRecoveryState.RecoveryAction.SOFT) {
             softRecoveryCount += 1;
-            performSoftRecovery(staleForMs);
+            performSoftRecovery(decision.staleForMs);
             return;
         }
-
-        if (recoveryStage == 1 && staleForMs >= HARD_RECOVERY_AFTER_MS) {
-            recoveryStage = 2;
-            lastRecoveryActionAt = now;
+        if (decision.action == GpsRecoveryState.RecoveryAction.HARD) {
             hardRecoveryCount += 1;
-            performHardRecovery(staleForMs);
+            performHardRecovery(decision.staleForMs);
             return;
         }
-
-        long runtimeThreshold = RUNTIME_RECOVERY_AFTER_MS
-            + (long) consecutiveRuntimeRecoveryCount * RUNTIME_RECOVERY_BACKOFF_MS;
-        if (recoveryStage >= 2 && staleForMs >= runtimeThreshold) {
-            recoveryStage = 3;
-            lastRecoveryActionAt = now;
+        if (decision.action == GpsRecoveryState.RecoveryAction.RUNTIME) {
             runtimeRecoveryCount += 1;
             consecutiveRuntimeRecoveryCount += 1;
-            performRuntimeRecovery(staleForMs);
+            performRuntimeRecovery(decision.staleForMs);
+            return;
+        }
+
+        if (decision.requestProbe) {
+            requestImmediateGpsProbe("watchdog_fallback");
         }
     }
 
@@ -383,25 +410,8 @@ public class NativeGpsForegroundService extends Service {
         before.put("recoveryStage", "hard");
         NativeGpsStore.recordDiagnosticEvent("location_watchdog_hard_recovery", before);
 
-        HandlerThread oldThread = locationThread;
-        Handler oldHeartbeatHandler = heartbeatHandler;
-        Runnable oldHeartbeatRunnable = heartbeatRunnable;
-        heartbeatGeneration += 1;
-        if (oldHeartbeatHandler != null && oldHeartbeatRunnable != null) {
-            oldHeartbeatHandler.removeCallbacks(oldHeartbeatRunnable);
-        }
-        heartbeatRunnable = null;
-
-        cancelImmediateProbe();
-        removeLocationUpdates();
-        unregisterGnssStatusCallback();
-        locationManager = null;
-        locationThread = null;
-        locationLooper = null;
-        locationHandler = null;
-        heartbeatHandler = null;
-        if (oldThread != null) oldThread.quitSafely();
-
+        stopHeartbeat();
+        destroyLocationRuntime();
         createLocationRuntime("watchdog_hard");
         switchToBestProvider(true, "watchdog_hard");
         requestImmediateGpsProbe("watchdog_hard");
@@ -418,9 +428,6 @@ public class NativeGpsForegroundService extends Service {
         // service and native session avoids Android background-start restrictions
         // while rebuilding every GNSS component that can become wedged on OEM ROMs.
         stopHeartbeat();
-        cancelImmediateProbe();
-        removeLocationUpdates();
-        unregisterGnssStatusCallback();
         releaseCpuWakeLock();
         destroyLocationRuntime();
         createLocationRuntime("watchdog_runtime");
@@ -436,14 +443,16 @@ public class NativeGpsForegroundService extends Service {
         if (!hasLocationPermission() || locationManager == null || locationHandler == null) return;
         String provider = chooseBestProvider();
         if (provider == null) return;
+        final int generation = ++probeGeneration;
         probeActive = true;
+        gpsRecoveryState.markProbeRequested(System.currentTimeMillis());
         JSObject details = serviceStateDetails();
         details.put("reason", reason);
         details.put("probeProvider", provider);
         NativeGpsStore.recordDiagnosticEvent("location_probe_requested", details);
 
         probeTimeoutRunnable = () -> {
-            if (!probeActive) return;
+            if (!probeActive || generation != probeGeneration) return;
             JSObject timeoutDetails = serviceStateDetails();
             timeoutDetails.put("reason", reason);
             NativeGpsStore.recordDiagnosticEvent("location_probe_timeout", timeoutDetails);
@@ -459,7 +468,7 @@ public class NativeGpsForegroundService extends Service {
                     if (handler != null) handler.post(command);
                 };
                 locationManager.getCurrentLocation(provider, currentLocationCancellation, executor, location -> {
-                    if (!probeActive || location == null) return;
+                    if (!probeActive || generation != probeGeneration || location == null) return;
                     if (!isFreshProbeLocation(location)) {
                         JSObject staleDetails = serviceStateDetails();
                         staleDetails.put("reason", reason);
@@ -476,7 +485,7 @@ public class NativeGpsForegroundService extends Service {
             } else {
                 legacyProbeListener = new LocationListener() {
                     @Override public void onLocationChanged(Location location) {
-                        if (!probeActive) return;
+                        if (!probeActive || generation != probeGeneration) return;
                         if (!isFreshProbeLocation(location)) {
                             JSObject staleDetails = serviceStateDetails();
                             staleDetails.put("reason", reason);
@@ -516,6 +525,7 @@ public class NativeGpsForegroundService extends Service {
     }
 
     private void cancelImmediateProbe() {
+        probeGeneration += 1;
         probeActive = false;
         if (locationHandler != null && probeTimeoutRunnable != null) {
             locationHandler.removeCallbacks(probeTimeoutRunnable);
@@ -595,15 +605,55 @@ public class NativeGpsForegroundService extends Service {
         JSObject details = new JSObject();
         details.put("provider", activeProvider);
         details.put("listening", listening);
-        details.put("lastLocationAt", lastLocationAt > 0L ? lastLocationAt : null);
+        details.put(
+            "lastLocationAt",
+            gpsRecoveryState.getLastAnyLocationAt() > 0L
+                ? gpsRecoveryState.getLastAnyLocationAt()
+                : null
+        );
+        details.put(
+            "lastAnyLocationAt",
+            gpsRecoveryState.getLastAnyLocationAt() > 0L
+                ? gpsRecoveryState.getLastAnyLocationAt()
+                : null
+        );
+        details.put(
+            "lastContinuousLocationAt",
+            gpsRecoveryState.getLastContinuousLocationAt() > 0L
+                ? gpsRecoveryState.getLastContinuousLocationAt()
+                : null
+        );
+        details.put(
+            "lastProbeLocationAt",
+            gpsRecoveryState.getLastProbeLocationAt() > 0L
+                ? gpsRecoveryState.getLastProbeLocationAt()
+                : null
+        );
+        details.put(
+            "lastConfirmedContinuousAt",
+            gpsRecoveryState.getLastConfirmedContinuousAt() > 0L
+                ? gpsRecoveryState.getLastConfirmedContinuousAt()
+                : null
+        );
+        details.put(
+            "recoveryStartedAt",
+            gpsRecoveryState.getRecoveryStartedAt() > 0L
+                ? gpsRecoveryState.getRecoveryStartedAt()
+                : null
+        );
         details.put("locationCallbackCount", locationCallbackCount);
+        details.put("continuousLocationCallbackCount", continuousLocationCallbackCount);
+        details.put("probeLocationCallbackCount", probeLocationCallbackCount);
         details.put("serviceCreatedAt", serviceCreatedAt);
-        details.put("recoveryStage", recoveryStage);
+        details.put("continuousStreamHealthy", gpsRecoveryState.isContinuousStreamHealthy());
+        details.put("continuousRecoveryStreak", gpsRecoveryState.getContinuousRecoveryStreak());
+        details.put("recoveryStage", gpsRecoveryState.getRecoveryStage());
         details.put("softRecoveryCount", softRecoveryCount);
         details.put("hardRecoveryCount", hardRecoveryCount);
         details.put("runtimeRecoveryCount", runtimeRecoveryCount);
         details.put("consecutiveRuntimeRecoveryCount", consecutiveRuntimeRecoveryCount);
         details.put("probeActive", probeActive);
+        details.put("probeGeneration", probeGeneration);
         details.put("satelliteCount", satelliteCount);
         details.put("satellitesUsedInFix", satellitesUsedInFix);
         details.put("lastGnssStatusAt", lastGnssStatusAt > 0L ? lastGnssStatusAt : null);
@@ -619,7 +669,7 @@ public class NativeGpsForegroundService extends Service {
         return details;
     }
 
-    private JSObject toPoint(Location location) {
+    private JSObject toPoint(Location location, String source) {
         JSObject point = new JSObject();
         point.put("latitude", location.getLatitude());
         point.put("longitude", location.getLongitude());
@@ -634,6 +684,7 @@ public class NativeGpsForegroundService extends Service {
         point.put("timestamp", location.getTime() > 0 ? location.getTime() : System.currentTimeMillis());
         point.put("precision", location.hasAccuracy() ? location.getAccuracy() : null);
         point.put("provider", location.getProvider());
+        point.put("locationSource", source);
         point.put("native", true);
         return point;
     }

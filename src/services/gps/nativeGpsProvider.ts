@@ -19,6 +19,7 @@ export interface NativeGpsPointPayload {
   timestamp?: number;
   precision?: number | null;
   provider?: string;
+  locationSource?: 'continuous' | 'probe' | string;
   native?: boolean;
   cached?: boolean;
   persisted?: boolean;
@@ -53,6 +54,9 @@ export interface NativeGpsSessionDiagnosticPayload {
   journalSizeBytes?: number;
   eventsSizeBytes?: number;
   validPointCount?: number;
+  continuousPointCount?: number;
+  probePointCount?: number;
+  unknownSourcePointCount?: number;
   malformedPointLines?: number;
   firstPointAt?: number | null;
   lastPointAt?: number | null;
@@ -75,8 +79,11 @@ export interface NativeGpsSessionDiagnosticPayload {
   probeRequestedCount?: number;
   probeSucceededCount?: number;
   probeTimeoutCount?: number;
+  continuousStreamDegradedCount?: number;
+  continuousStreamRestoredCount?: number;
+  continuousRecoveryProgressCount?: number;
   wakeLockAcquiredCount?: number;
-  likelyCause?: 'journal_missing' | 'native_journal_continuous' | 'insufficient_heartbeat_data' | 'location_callbacks_missing_while_service_alive' | 'service_suspended_killed_or_restarted' | string;
+  likelyCause?: 'journal_missing' | 'native_journal_continuous' | 'continuous_stream_recovered' | 'probe_fallback_without_continuous_recovery' | 'insufficient_heartbeat_data' | 'location_callbacks_missing_while_service_alive' | 'service_suspended_killed_or_restarted' | string;
   metadata?: Record<string, unknown>;
   error?: string;
   metadataError?: string;
@@ -185,7 +192,10 @@ export function nativePayloadToGpsPosition(payload: NativeGpsPointPayload): GpsP
     vitesse: normalizeNumber(payload.vitesse),
     track: normalizeNumber(payload.track),
     timestamp: normalizeNumber(payload.timestamp) ?? Date.now(),
-    precision: normalizeNumber(payload.precision)
+    precision: normalizeNumber(payload.precision),
+    locationSource: typeof payload.locationSource === 'string'
+      ? payload.locationSource
+      : undefined
   };
 }
 

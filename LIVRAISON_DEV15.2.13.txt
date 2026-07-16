@@ -1,0 +1,61 @@
+CAP CLAIR DEV15.2.13 - BACKGROUND GPS RECOVERY
+
+VERSION
+- versionName : 15.2.13
+- versionCode : 1502013
+- APP_VERSION : CAP CLAIR DEV15.2.13 - BACKGROUND GPS RECOVERY
+- Artifact GitHub Actions : cap-clair-dev15-2-13-debug-apk
+- Commit conseillé : DEV15.2.13 - Background GPS recovery
+
+CORRECTIONS
+- Séparation stricte des positions continuous et probe.
+- Un probe réussi ne remet plus le watchdog à zéro.
+- Reprise du flux confirmée uniquement après 3 callbacks continus rapprochés.
+- Détection de flux dégradé après 15 secondes sans callback continu.
+- Récupération légère après 30 secondes.
+- Reconstruction complète du thread, du LocationManager, du listener et du callback GNSS après 60 secondes.
+- Recyclage complet du runtime GPS natif après 120 secondes.
+- Probes de secours toutes les 5 secondes, puis toutes les 10 secondes si la panne persiste.
+- Même sessionId, même journal et même route prévue pendant toute la récupération.
+- Protection par génération contre les callbacks de probes anciens ou annulés.
+- Source de chaque point enregistrée dans le journal natif.
+- Diagnostics enrichis : points continus, points de secours, dégradations et reprises réelles.
+- Pagination, reconstruction, Replay, PDF Log nav et calculs de navigation inchangés.
+
+CONTROLES
+- 20 fichiers de tests Vitest.
+- 106 tests Vitest réussis.
+- 5 tests unitaires Android ajoutés pour la machine d'états GPS.
+- Régression Java autonome réussie sur 5 scénarios : flux sain, probe sans fausse reprise, escalade soft/hard/runtime, reprise après 3 callbacks, callbacks isolés.
+- Compilation Java du service Android réussie avec stubs Android et Capacitor.
+- npm run build:web réussi.
+- npm run build:android réussi.
+- npx cap sync android réussi.
+- npm audit production : 0 vulnérabilité.
+- Versionnement et lockfile validés.
+- Service worker absent des ressources APK.
+- Gabarit PDF Log nav présent et inchangé.
+
+CONTROLE GITHUB ACTIONS
+- Le workflow exécute désormais `testDebugUnitTest` avant la compilation APK.
+- La compilation Gradle locale n'a pas pu télécharger Gradle depuis services.gradle.org dans l'environnement de travail.
+- Prendre uniquement l'artifact du dernier run GitHub Actions entièrement vert.
+
+PROCEDURE GITHUB DESKTOP
+1. Conserver uniquement `.git` dans le dossier local de la branche APK.
+2. Copier tout le contenu du ZIP dans ce dossier.
+3. Commit : DEV15.2.13 - Background GPS recovery
+4. Push sur `main`.
+5. Attendre le dernier run GitHub Actions entièrement vert.
+6. Télécharger uniquement `cap-clair-dev15-2-13-debug-apk`.
+7. Installer par-dessus l'application actuelle, sans désinstaller ni effacer les données.
+8. Vérifier `DEV15.2.13` et le hash du build dans l'application.
+
+TEST RECOMMANDE AVANT VOL
+- Démarrer l'enregistrement avec écran allumé pendant 2 minutes.
+- Éteindre l'écran pendant au moins 20 minutes.
+- Faire une immobilisation de 5 à 10 minutes au milieu.
+- Reprendre le déplacement avec écran toujours éteint.
+- Rallumer uniquement à l'arrivée.
+- Vérifier une seule trace, la durée, la distance, le Replay et le GPX.
+- Exporter le diagnostic GPS même si la trace semble correcte.

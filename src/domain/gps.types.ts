@@ -7,6 +7,7 @@ export interface GpsPosition {
   track: number | null;
   timestamp: number;
   precision: number | null;
+  locationSource?: 'continuous' | 'probe' | string;
 }
 
 export type GpsStatus =

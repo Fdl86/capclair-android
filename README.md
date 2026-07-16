@@ -1,47 +1,47 @@
-# CAP CLAIR DEV15.2.12 - GPS RECOVERY INTEGRITY
+# CAP CLAIR DEV15.2.13 - BACKGROUND GPS RECOVERY
 
 Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-Cette version corrige deux défauts distincts observés pendant le test routier du 15 juillet 2026 :
+Cette version corrige le défaut observé sur Xiaomi avec écran éteint : les positions ponctuelles du watchdog étaient prises pour une reprise du flux GPS continu. Le service restait alors en boucle de récupération légère et ne déclenchait jamais les niveaux de récupération complets.
 
-- l'offset de pagination transmis par JavaScript pouvait être décodé à `0` par le bridge Android à partir de la page 2 ;
-- sur le téléphone Xiaomi, le service restait vivant mais le listener GNSS pouvait ne plus recevoir de positions après une immobilisation prolongée.
+## Correction principale
 
-## Pagination du journal
+Le service Android distingue désormais :
 
-- décodage indépendant du type numérique Java reçu (`Integer`, `Long`, `Double` ou chaîne) ;
-- écho séparé de l'offset demandé et de l'offset réellement utilisé ;
-- refus d'un offset hors limites ou modifié par le bridge ;
-- lecture obligatoire jusqu'au dernier octet avant sauvegarde ou réparation ;
-- aucune trace existante remplacée par une lecture incomplète.
+- le dernier point reçu, quelle que soit sa source ;
+- le dernier point du flux GPS continu ;
+- le dernier point ponctuel de secours ;
+- le dernier flux continu réellement confirmé.
 
-## Récupération GNSS
+Une position ponctuelle est enregistrée dans le journal, mais elle ne remet jamais la récupération à zéro. Le flux n'est déclaré rétabli qu'après trois positions continues rapprochées.
 
-Le watchdog applique désormais trois niveaux espacés :
+## Récupération écran éteint
 
-1. réinscription du listener et demande immédiate de position après 30 secondes ;
-2. reconstruction complète du `LocationManager`, du listener, du callback GNSS et du thread dédié après 75 secondes ;
-3. recyclage complet du runtime GPS natif, du Wake Lock et de la notification après 150 secondes, puis avec recul progressif.
+En cas de perte du flux continu :
 
-Les positions ponctuelles trop anciennes ne peuvent pas masquer une panne réelle. Les diagnostics enregistrent les satellites visibles/utilisés, les sondes, les reprises et chaque niveau de récupération.
+1. état dégradé détecté après 15 secondes ;
+2. réinscription du listener après 30 secondes ;
+3. reconstruction du thread, du LocationManager, du listener et du callback GNSS après 60 secondes ;
+4. recyclage complet du runtime GPS natif après 120 secondes ;
+5. positions ponctuelles de secours toutes les 5 secondes, puis toutes les 10 secondes si la panne persiste.
 
-## Régression réelle
+Le même sessionId, le même journal natif et la même route prévue sont conservés pendant toute la récupération.
 
-Le journal LFBI-LFOU de 971 592 octets a été relu :
+## Protections
 
-- 10 pages ;
-- 4 583 points bruts ;
-- dernier offset 971 592 ;
-- 1 296 points reconstruits ;
-- 84 min 15 s ;
-- 81,314886 NM ;
-- 2 segments.
+- un probe ne peut plus simuler une reprise ;
+- trois callbacks continus sont obligatoires pour revenir à l'état sain ;
+- les anciens callbacks de probe sont ignorés grâce à un numéro de génération ;
+- un seul probe est actif à la fois ;
+- aucune action supplémentaire n'est exécutée tant que le flux normal est sain ;
+- les points du journal indiquent désormais leur source : continuous ou probe ;
+- les diagnostics distinguent flux continu, secours ponctuel, dégradation et récupération réelle.
 
 ## Version
 
-- versionName : 15.2.12
-- versionCode : 1502012
-- APP_VERSION : CAP CLAIR DEV15.2.12 - GPS RECOVERY INTEGRITY
-- artifact : cap-clair-dev15-2-12-debug-apk
+- versionName : 15.2.13
+- versionCode : 1502013
+- APP_VERSION : CAP CLAIR DEV15.2.13 - BACKGROUND GPS RECOVERY
+- artifact : cap-clair-dev15-2-13-debug-apk
 
-Consulter `LIVRAISON_DEV15.2.12.txt`.
+Consulter `LIVRAISON_DEV15.2.13.txt`.
