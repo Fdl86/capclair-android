@@ -1,4 +1,4 @@
-# CAP CLAIR DEV15.2.13 - BACKGROUND GPS RECOVERY
+# CAP CLAIR DEV15.2.14 - CI SYNC ORDER HOTFIX
 
 Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
@@ -37,11 +37,15 @@ Le même sessionId, le même journal natif et la même route prévue sont conser
 - les points du journal indiquent désormais leur source : continuous ou probe ;
 - les diagnostics distinguent flux continu, secours ponctuel, dégradation et récupération réelle.
 
+## Correctif de build GitHub Actions
+
+Le code GPS de DEV15.2.13 est inchangé. Le workflow exécute désormais le build web natif et `npx cap sync android` avant les tests Gradle Android, afin de générer `android/capacitor-cordova-android-plugins/cordova.variables.gradle` avant toute configuration Gradle.
+
 ## Version
 
-- versionName : 15.2.13
-- versionCode : 1502013
-- APP_VERSION : CAP CLAIR DEV15.2.13 - BACKGROUND GPS RECOVERY
-- artifact : cap-clair-dev15-2-13-debug-apk
+- versionName : 15.2.14
+- versionCode : 1502014
+- APP_VERSION : CAP CLAIR DEV15.2.14 - CI SYNC ORDER HOTFIX
+- artifact : cap-clair-dev15-2-14-debug-apk
 
-Consulter `LIVRAISON_DEV15.2.13.txt`.
+Consulter `LIVRAISON_DEV15.2.14.txt`.

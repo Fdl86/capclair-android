@@ -1,0 +1,41 @@
+CAP CLAIR DEV15.2.14 - CI SYNC ORDER HOTFIX
+
+VERSION
+- versionName : 15.2.14
+- versionCode : 1502014
+- APP_VERSION : CAP CLAIR DEV15.2.14 - CI SYNC ORDER HOTFIX
+- Artifact GitHub Actions : cap-clair-dev15-2-14-debug-apk
+- Commit conseillé : DEV15.2.14 - CI sync order hotfix
+
+CORRECTION
+- Aucun changement dans la logique GPS de DEV15.2.13.
+- Le workflow GitHub Actions exécute maintenant `npm run build:android` puis `npx cap sync android` avant `./gradlew testDebugUnitTest`.
+- Ajout d'un contrôle explicite de présence de `android/capacitor-cordova-android-plugins/cordova.variables.gradle`.
+- Les tests Android natifs et la compilation APK utilisent ainsi les fichiers Capacitor générés au bon moment.
+
+CAUSE DU RUN ROUGE DEV15.2.13
+- Les 106 tests Vitest étaient réussis.
+- Le workflow lançait Gradle avant la synchronisation Capacitor.
+- Gradle échouait à la configuration car `cordova.variables.gradle` n'existait pas encore.
+- Le code GPS n'était pas en cause et aucun APK DEV15.2.13 n'a été produit par ce run.
+
+CONTROLES LOCAUX
+- npm run version:check
+- npm test
+- npm run build:android
+- npx cap sync android
+- présence du fichier Gradle généré contrôlée
+
+PROCEDURE GITHUB DESKTOP
+1. Conserver uniquement `.git` dans le dossier local de la branche APK.
+2. Copier tout le contenu du ZIP dans ce dossier.
+3. Commit : DEV15.2.14 - CI sync order hotfix
+4. Push sur `main`.
+5. Attendre le dernier run GitHub Actions entièrement vert.
+6. Télécharger uniquement `cap-clair-dev15-2-14-debug-apk`.
+7. Installer par-dessus l'application actuelle, sans désinstaller ni effacer les données.
+8. Vérifier `DEV15.2.14` et le hash du build dans l'application.
+
+TEST GPS
+- Le protocole écran éteint prévu pour DEV15.2.13 reste inchangé.
+- Exporter le diagnostic GPS après le test, même si la trace semble correcte.

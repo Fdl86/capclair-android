@@ -72,6 +72,22 @@ jobs:
           java-version: 21
           cache: gradle
 
+      - name: Build native web assets
+        run: |
+          npm run build:android
+          test ! -f dist/sw.js || { echo "Service worker must not be packaged in APK"; exit 1; }
+          test ! -f dist/registerSW.js || { echo "PWA registration must not be packaged in APK"; exit 1; }
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Verify Capacitor generated Gradle files
+        run: |
+          test -f android/capacitor-cordova-android-plugins/cordova.variables.gradle || {
+            echo "Capacitor sync did not generate cordova.variables.gradle"
+            exit 1
+          }
+
       - name: Run Android GPS recovery unit tests
         run: |
           cd android
@@ -82,15 +98,6 @@ jobs:
         run: |
           echo "$SIGNING_KEY_BASE64" | base64 --decode > android/app/capclair-dev.keystore
           test -s android/app/capclair-dev.keystore
-
-      - name: Build native web assets
-        run: |
-          npm run build:android
-          test ! -f dist/sw.js || { echo "Service worker must not be packaged in APK"; exit 1; }
-          test ! -f dist/registerSW.js || { echo "PWA registration must not be packaged in APK"; exit 1; }
-
-      - name: Sync Capacitor Android
-        run: npx cap sync android
 
       - name: Build Android debug APK
         run: |
@@ -123,7 +130,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cap-clair-dev15-2-13-debug-apk
+          name: cap-clair-dev15-2-14-debug-apk
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             apk-signature.txt
