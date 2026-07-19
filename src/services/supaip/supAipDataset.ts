@@ -5,10 +5,15 @@ export interface SupAipDatasetStatus {
   mode: 'bootstrap' | 'automatic';
   beta: boolean;
   generatedAt: string;
+  datasetGeneratedAt?: string;
+  lastSuccessfulCheckAt?: string;
+  checkMode?: string;
   sourceUpdatedAt?: string | null;
   sourceUrl: string;
   parserVersion: string;
   datasetRevision?: string;
+  businessContentSha256?: string;
+  manifestUrl?: string;
   listingPublicationCount: number;
   processedPublicationCount?: number;
   nonSpatialPublicationCount?: number;
@@ -35,6 +40,19 @@ export interface SupAipDatasetStatus {
   message: string;
 }
 
+export interface SupAipLatestPointer {
+  schemaVersion: number;
+  datasetRevision: string;
+  datasetGeneratedAt: string;
+  lastSuccessfulCheckAt: string;
+  staleAfterHours: number;
+  checkMode: string;
+  manifestUrl: string;
+  manifestSha256: string;
+  manifestSize: number;
+  businessContentSha256: string;
+}
+
 export interface SupAipManifestPublication {
   supAip: string;
   title: string;
@@ -52,12 +70,27 @@ export interface SupAipManifestPublication {
   parserVersion?: string;
 }
 
+export interface SupAipManifestFile {
+  sha256: string;
+  size: number;
+}
+
 export interface SupAipManifest {
   schemaVersion: number;
   generatedAt: string;
+  datasetGeneratedAt?: string;
   parserVersion: string;
   datasetRevision: string;
+  businessContentSha256?: string;
   sourceUrl: string;
+  featureCount?: number;
+  publicationCount?: number;
+  publicationsWithGeometry?: number;
+  featuresWithVerticalLimits?: number;
+  featuresWithoutVerticalLimits?: number;
+  geoJsonSha256?: string;
+  geoJsonSize?: number;
+  files?: Record<string, SupAipManifestFile>;
   publications: SupAipManifestPublication[];
 }
 
@@ -80,8 +113,10 @@ export interface SupAipUnmappedPublication {
 export interface SupAipUnmappedDataset {
   schemaVersion: number;
   generatedAt: string;
+  datasetGeneratedAt?: string;
   parserVersion: string;
   datasetRevision: string;
+  businessContentSha256?: string;
   sourceUrl: string;
   publications: SupAipUnmappedPublication[];
 }
@@ -100,7 +135,18 @@ export interface SupAipGeoJsonFeature {
 
 export interface SupAipGeoJson {
   type: 'FeatureCollection';
+  generatedAt?: string;
+  datasetGeneratedAt?: string;
+  datasetRevision?: string;
+  businessContentSha256?: string;
   features: SupAipGeoJsonFeature[];
+}
+
+export interface SupAipServerValidation {
+  manifestSha256: string;
+  manifestSize: number;
+  geoJsonSha256: string;
+  geoJsonSize: number;
 }
 
 export type SupAipBundleSource = 'server' | 'cache' | 'embedded';
@@ -110,11 +156,15 @@ export interface SupAipDatasetBundle {
   manifest: SupAipManifest;
   unmapped: SupAipUnmappedDataset;
   geoJson: SupAipGeoJson;
+  latest: SupAipLatestPointer | null;
+  serverValidation: SupAipServerValidation | null;
   source: SupAipBundleSource;
   activatedAtIso: string;
+  lastDeviceCheckAtIso: string | null;
   integrityHash: string;
 }
 
+export const SUP_AIP_LATEST_PATH = '/data/supaip/latest.json';
 export const SUP_AIP_STATUS_PATH = '/data/supaip-status.json';
 export const SUP_AIP_MANIFEST_PATH = '/data/supaip-manifest.json';
 export const SUP_AIP_UNMAPPED_PATH = '/data/supaip-unmapped.json';
@@ -133,6 +183,18 @@ function requireString(value: unknown, label: string): string {
 function requireInteger(value: unknown, label: string): number {
   if (!Number.isInteger(value) || Number(value) < 0) throw new Error(`${label} invalide.`);
   return Number(value);
+}
+
+function requireIsoDate(value: unknown, label: string): string {
+  const text = requireString(value, label);
+  if (!Number.isFinite(Date.parse(text))) throw new Error(`${label} invalide.`);
+  return text;
+}
+
+function requireSha256(value: unknown, label: string): string {
+  const text = requireString(value, label).toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(text)) throw new Error(`${label} invalide.`);
+  return text;
 }
 
 function assertHttpsUrl(value: unknown, label: string): string {
@@ -164,12 +226,38 @@ function validateCoordinateNode(value: unknown, depth = 0): void {
   value.forEach((entry) => validateCoordinateNode(entry, depth + 1));
 }
 
+function validateRevisionPath(path: string, revision: string): void {
+  const expected = `/data/supaip/revisions/${revision}/manifest.json`;
+  if (path !== expected) throw new Error('Chemin du manifeste SUP AIP inattendu.');
+}
+
+export function parseSupAipLatest(value: unknown): SupAipLatestPointer {
+  if (!isRecord(value)) throw new Error('Pointeur SUP AIP invalide.');
+  const latest = value as unknown as SupAipLatestPointer;
+  if (latest.schemaVersion !== 2) throw new Error(`Schéma SUP AIP non supporté (${String(latest.schemaVersion)}).`);
+  const revision = requireSha256(latest.datasetRevision, 'Révision SUP AIP');
+  requireIsoDate(latest.datasetGeneratedAt, 'Date métier SUP AIP');
+  requireIsoDate(latest.lastSuccessfulCheckAt, 'Dernier contrôle SIA');
+  requireInteger(latest.staleAfterHours, 'Seuil de péremption SUP AIP');
+  requireString(latest.checkMode, 'Mode de contrôle SUP AIP');
+  validateRevisionPath(requireString(latest.manifestUrl, 'URL du manifeste SUP AIP'), revision);
+  requireSha256(latest.manifestSha256, 'Empreinte du manifeste SUP AIP');
+  if (requireInteger(latest.manifestSize, 'Taille du manifeste SUP AIP') === 0) {
+    throw new Error('Taille du manifeste SUP AIP invalide.');
+  }
+  requireSha256(latest.businessContentSha256, 'Empreinte métier SUP AIP');
+  return latest;
+}
+
 export function parseSupAipStatus(value: unknown): SupAipDatasetStatus {
   if (!isRecord(value)) throw new Error('Statut SUP AIP invalide.');
   const status = value as unknown as SupAipDatasetStatus;
   if (status.schemaVersion !== 2) throw new Error(`Schéma SUP AIP non supporté (${String(status.schemaVersion)}).`);
   requireString(status.datasetRevision, 'Révision SUP AIP');
-  requireString(status.generatedAt, 'Date de génération SUP AIP');
+  requireIsoDate(status.generatedAt, 'Date de génération SUP AIP');
+  if (status.datasetGeneratedAt) requireIsoDate(status.datasetGeneratedAt, 'Date métier SUP AIP');
+  if (status.lastSuccessfulCheckAt) requireIsoDate(status.lastSuccessfulCheckAt, 'Dernier contrôle SIA');
+  if (status.businessContentSha256) requireSha256(status.businessContentSha256, 'Empreinte métier SUP AIP');
   requireString(status.parserVersion, 'Version du parseur SUP AIP');
   assertHttpsUrl(status.sourceUrl, 'Source SUP AIP');
   requireInteger(status.listingPublicationCount, 'Nombre de publications SUP AIP');
@@ -181,12 +269,67 @@ export function parseSupAipStatus(value: unknown): SupAipDatasetStatus {
   return status;
 }
 
+export function applyLatestSupAipFreshness(
+  status: SupAipDatasetStatus,
+  latest: SupAipLatestPointer
+): SupAipDatasetStatus {
+  if (status.datasetRevision !== latest.datasetRevision) {
+    throw new Error('Révision du statut SUP AIP incompatible avec le pointeur serveur.');
+  }
+  return {
+    ...status,
+    datasetGeneratedAt: latest.datasetGeneratedAt,
+    lastSuccessfulCheckAt: latest.lastSuccessfulCheckAt,
+    staleAfterHours: latest.staleAfterHours,
+    checkMode: latest.checkMode,
+    manifestUrl: latest.manifestUrl,
+    businessContentSha256: latest.businessContentSha256
+  };
+}
+
+export function validateSupAipRevisionManifest(
+  value: unknown,
+  latest: SupAipLatestPointer
+): SupAipManifest {
+  if (!isRecord(value) || !Array.isArray(value.publications)) {
+    throw new Error('Manifest SUP AIP invalide.');
+  }
+  const manifest = value as unknown as SupAipManifest;
+  if (manifest.schemaVersion !== 2) throw new Error('Schéma du manifeste SUP AIP non supporté.');
+  if (manifest.datasetRevision !== latest.datasetRevision) throw new Error('Révision du manifeste SUP AIP incohérente.');
+  if (requireIsoDate(manifest.datasetGeneratedAt ?? manifest.generatedAt, 'Date métier du manifeste SUP AIP') !== latest.datasetGeneratedAt) {
+    throw new Error('Date métier du manifeste SUP AIP incohérente.');
+  }
+  if (manifest.businessContentSha256 !== latest.businessContentSha256) {
+    throw new Error('Empreinte métier du manifeste SUP AIP incohérente.');
+  }
+  requireInteger(manifest.featureCount, 'Nombre de géométries du manifeste SUP AIP');
+  requireInteger(manifest.publicationCount, 'Nombre de publications du manifeste SUP AIP');
+  requireInteger(manifest.publicationsWithGeometry, 'Nombre de publications cartographiées');
+  requireInteger(manifest.featuresWithVerticalLimits, 'Nombre de limites verticales extraites');
+  requireInteger(manifest.featuresWithoutVerticalLimits, 'Nombre de limites verticales manquantes');
+  requireSha256(manifest.geoJsonSha256, 'Empreinte GeoJSON SUP AIP');
+  if (requireInteger(manifest.geoJsonSize, 'Taille GeoJSON SUP AIP') === 0) throw new Error('Taille GeoJSON SUP AIP invalide.');
+  if (!isRecord(manifest.files)) throw new Error('Index de fichiers du manifeste SUP AIP absent.');
+  for (const fileName of ['data.geojson', 'status.json', 'unmapped.json']) {
+    const file = manifest.files[fileName];
+    if (!isRecord(file)) throw new Error(`Métadonnées de ${fileName} absentes.`);
+    requireSha256(file.sha256, `Empreinte de ${fileName}`);
+    if (requireInteger(file.size, `Taille de ${fileName}`) === 0) throw new Error(`Taille de ${fileName} invalide.`);
+  }
+  if (manifest.files['data.geojson'].sha256 !== manifest.geoJsonSha256
+    || manifest.files['data.geojson'].size !== manifest.geoJsonSize) {
+    throw new Error('Métadonnées GeoJSON incohérentes dans le manifeste SUP AIP.');
+  }
+  return manifest;
+}
+
 export function validateSupAipBundle(input: {
   status: unknown;
   manifest: unknown;
   unmapped: unknown;
   geoJson: unknown;
-}): Omit<SupAipDatasetBundle, 'source' | 'activatedAtIso' | 'integrityHash'> {
+}): Omit<SupAipDatasetBundle, 'latest' | 'serverValidation' | 'source' | 'activatedAtIso' | 'lastDeviceCheckAtIso' | 'integrityHash'> {
   const status = parseSupAipStatus(input.status);
   if (!isRecord(input.manifest) || !Array.isArray(input.manifest.publications)) {
     throw new Error('Manifest SUP AIP invalide.');
@@ -205,12 +348,29 @@ export function validateSupAipBundle(input: {
   if (manifest.datasetRevision !== revision || unmapped.datasetRevision !== revision) {
     throw new Error('Révisions SUP AIP incohérentes entre les fichiers.');
   }
+  if (geoJson.datasetRevision && geoJson.datasetRevision !== revision) {
+    throw new Error('Révision GeoJSON SUP AIP incohérente.');
+  }
   if (geoJson.features.length === 0 || geoJson.features.length !== status.featureCount) {
     throw new Error('Nombre de géométries SUP AIP incohérent.');
   }
   if (manifest.publications.length !== status.listingPublicationCount) {
     throw new Error('Nombre de publications SUP AIP incohérent.');
   }
+  if (typeof manifest.featureCount === 'number' && manifest.featureCount !== geoJson.features.length) {
+    throw new Error('Compteur de géométries du manifeste SUP AIP incohérent.');
+  }
+  if (typeof manifest.publicationCount === 'number' && manifest.publicationCount !== manifest.publications.length) {
+    throw new Error('Compteur de publications du manifeste SUP AIP incohérent.');
+  }
+
+  const businessHashes = [
+    status.businessContentSha256,
+    manifest.businessContentSha256,
+    unmapped.businessContentSha256,
+    geoJson.businessContentSha256
+  ].filter((value): value is string => Boolean(value));
+  if (new Set(businessHashes).size > 1) throw new Error('Empreintes métier SUP AIP incohérentes.');
 
   const publicationIds = new Set<string>();
   for (const publication of manifest.publications) {
@@ -261,8 +421,56 @@ export function validateSupAipBundle(input: {
   if (typeof status.missingVerticalFeatureCount === 'number' && status.missingVerticalFeatureCount !== verticalMissing) {
     throw new Error('Compteur des limites verticales manquantes incohérent.');
   }
+  if (typeof manifest.featuresWithVerticalLimits === 'number' && manifest.featuresWithVerticalLimits !== verticalComplete) {
+    throw new Error('Compteur vertical du manifeste SUP AIP incohérent.');
+  }
+  if (typeof manifest.featuresWithoutVerticalLimits === 'number' && manifest.featuresWithoutVerticalLimits !== verticalMissing) {
+    throw new Error('Compteur vertical incomplet du manifeste SUP AIP incohérent.');
+  }
 
   return { status, manifest, unmapped, geoJson };
+}
+
+export function supAipBundleIntegrityInput(input: {
+  status: SupAipDatasetStatus;
+  manifest: SupAipManifest;
+  unmapped: SupAipUnmappedDataset;
+  geoJson: SupAipGeoJson;
+  latest?: SupAipLatestPointer | null;
+  serverValidation?: SupAipServerValidation | null;
+  lastDeviceCheckAtIso?: string | null;
+}): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    status: input.status,
+    manifest: input.manifest,
+    unmapped: input.unmapped,
+    geoJson: input.geoJson
+  };
+  if (input.latest) result.latest = input.latest;
+  if (input.serverValidation) result.serverValidation = input.serverValidation;
+  if (input.lastDeviceCheckAtIso) result.lastDeviceCheckAtIso = input.lastDeviceCheckAtIso;
+  return result;
+}
+
+export async function sha256Text(value: string): Promise<string> {
+  if (!globalThis.crypto?.subtle) throw new Error('Vérification SHA-256 indisponible sur cet appareil.');
+  const bytes = new TextEncoder().encode(value);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((entry) => entry.toString(16).padStart(2, '0')).join('');
+}
+
+export function utf8TextSize(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+export async function verifySupAipTextPayload(
+  text: string,
+  expectedSha256: string,
+  expectedSize: number,
+  label: string
+): Promise<void> {
+  if (utf8TextSize(text) !== expectedSize) throw new Error(`Taille de ${label} incorrecte.`);
+  if (await sha256Text(text) !== expectedSha256.toLowerCase()) throw new Error(`Empreinte SHA-256 de ${label} incorrecte.`);
 }
 
 export async function hashSupAipBundle(input: {
@@ -270,8 +478,11 @@ export async function hashSupAipBundle(input: {
   manifest: SupAipManifest;
   unmapped: SupAipUnmappedDataset;
   geoJson: SupAipGeoJson;
+  latest?: SupAipLatestPointer | null;
+  serverValidation?: SupAipServerValidation | null;
+  lastDeviceCheckAtIso?: string | null;
 }): Promise<string> {
-  const serialized = JSON.stringify(input);
+  const serialized = JSON.stringify(supAipBundleIntegrityInput(input));
   const bytes = new TextEncoder().encode(serialized);
   if (globalThis.crypto?.subtle) {
     const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
@@ -282,11 +493,23 @@ export async function hashSupAipBundle(input: {
   return `fnv-${(hash >>> 0).toString(16)}`;
 }
 
+export function supAipDatasetReferenceTimestamp(status: SupAipDatasetStatus | null): string | null {
+  return status?.lastSuccessfulCheckAt
+    ?? status?.datasetGeneratedAt
+    ?? status?.generatedAt
+    ?? null;
+}
+
+export function supAipDatasetGeneratedTimestamp(status: SupAipDatasetStatus | null): string | null {
+  return status?.datasetGeneratedAt ?? status?.generatedAt ?? null;
+}
+
 export function supAipDatasetAgeHours(status: SupAipDatasetStatus | null, now = Date.now()): number | null {
-  if (!status) return null;
-  const generatedAt = Date.parse(status.generatedAt);
-  if (!Number.isFinite(generatedAt)) return null;
-  return Math.max(0, (now - generatedAt) / 3_600_000);
+  const reference = supAipDatasetReferenceTimestamp(status);
+  if (!reference) return null;
+  const timestamp = Date.parse(reference);
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, (now - timestamp) / 3_600_000);
 }
 
 export function isSupAipDatasetStale(status: SupAipDatasetStatus | null, now = Date.now()): boolean {

@@ -204,5 +204,10 @@
     "other": "Autre format à contrôler"
   },
   "staleAfterHours": 36,
-  "message": "Parser V3.2: chaque publication est comparée à la dernière base valide. Toute chute non restaurée bloque le workflow avant écriture; les ZRT portant un code LF-R restent reconnues comme zones temporaires. Vérifier le PDF, SOFIA et les NOTAM avant le vol."
+  "message": "Parser V3.2: chaque publication est comparée à la dernière base valide. Toute chute non restaurée bloque le workflow avant écriture; les ZRT portant un code LF-R restent reconnues comme zones temporaires. Vérifier le PDF, SOFIA et les NOTAM avant le vol.",
+  "datasetGeneratedAt": "2026-07-16T04:39:32Z",
+  "lastSuccessfulCheckAt": "2026-07-16T04:39:32Z",
+  "checkMode": "seed-existing",
+  "manifestUrl": "/data/supaip/revisions/882607b7a9cb9681d5a4bfc0349090ebd42edf512b523d724f8ffd81bc5bedff/manifest.json",
+  "businessContentSha256": "b887acccb58ac4311e101a5cd574a7c31dbe4eeb044cd2cc7bd364536cfd27c0"
 }

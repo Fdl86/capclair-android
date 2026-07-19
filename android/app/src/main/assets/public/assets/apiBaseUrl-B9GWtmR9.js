@@ -1,0 +1,1 @@
+import{t as e}from"./dist-COcOCb7M.js";var t=`https://capclair.pages.dev`;function n(e){return e.trim().replace(/\/+$/,``)}function r(){return n(``)||(e.isNativePlatform()?t:``)}function i(e){let t=e.startsWith(`/`)?e:`/${e}`,n=r();return n?`${n}${t}`:t}export{i as t};

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "datasetRevision": "882607b7a9cb9681d5a4bfc0349090ebd42edf512b523d724f8ffd81bc5bedff",
+  "datasetGeneratedAt": "2026-07-16T04:39:32Z",
+  "lastSuccessfulCheckAt": "2026-07-16T04:39:32Z",
+  "staleAfterHours": 36,
+  "checkMode": "seed-existing",
+  "manifestUrl": "/data/supaip/revisions/882607b7a9cb9681d5a4bfc0349090ebd42edf512b523d724f8ffd81bc5bedff/manifest.json",
+  "manifestSha256": "9a7d28f170748efe4749b5ee5510437d9675f271893225f5c3ae629d1c31e28c",
+  "manifestSize": 76257,
+  "businessContentSha256": "b887acccb58ac4311e101a5cd574a7c31dbe4eeb044cd2cc7bd364536cfd27c0"
+}

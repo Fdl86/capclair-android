@@ -6,6 +6,8 @@ import { usePibBriefing } from '../hooks/usePibBriefing';
 import { buildSupAipPublicationCatalog, type SupAipPublicationView } from '../services/supaip/supAipCatalog';
 import {
   formatSupAipDatasetTimestamp,
+  supAipDatasetGeneratedTimestamp,
+  supAipDatasetReferenceTimestamp,
   SUP_AIP_VERTICAL_NOTICE
 } from '../services/supaip/supAipDataset';
 import { formatSupAipDateRange, supAipStatusLabel } from '../services/supaip/supAipStatus';
@@ -224,13 +226,15 @@ export function BriefingScreen({ route, alternateCode, dataset, onBack }: Briefi
             </div>
             {dataset.bundle && (
               <dl className="briefing-data-grid">
-                <div><dt>Génération serveur</dt><dd>{formatSupAipDatasetTimestamp(dataset.bundle.status.generatedAt)}</dd></div>
-                <div><dt>Dernier contrôle</dt><dd>{formatSupAipDatasetTimestamp(dataset.lastCheckedAtIso)}</dd></div>
+                <div><dt>Dernière modification</dt><dd>{formatSupAipDatasetTimestamp(supAipDatasetGeneratedTimestamp(dataset.bundle.status))}</dd></div>
+                <div><dt>Dernier contrôle SIA</dt><dd>{formatSupAipDatasetTimestamp(supAipDatasetReferenceTimestamp(dataset.bundle.status))}</dd></div>
+                <div><dt>Vérification appareil</dt><dd>{formatSupAipDatasetTimestamp(dataset.lastCheckedAtIso)}</dd></div>
+                <div><dt>Révision</dt><dd>{dataset.bundle.status.datasetRevision?.slice(0, 12) ?? 'inconnue'}</dd></div>
                 <div><dt>Publications</dt><dd>{dataset.bundle.status.listingPublicationCount}</dd></div>
                 <div><dt>Géométries</dt><dd>{dataset.bundle.status.featureCount}</dd></div>
               </dl>
             )}
-            {dataset.stale && <p className="briefing-warning">Base SUP AIP ancienne. Les zones restent affichées, mais leur actualité n’a pas pu être confirmée dans le délai de sécurité.</p>}
+            {dataset.stale && dataset.state !== 'checking' && dataset.state !== 'updating' && <p className="briefing-warning">Contrôle SIA trop ancien. Les zones restent affichées, mais leur actualité n’a pas pu être confirmée dans le délai de sécurité.</p>}
             {dataset.error && <p className="briefing-warning">Contrôle serveur impossible: {dataset.error}. La dernière base valide est conservée.</p>}
           </Card>
 

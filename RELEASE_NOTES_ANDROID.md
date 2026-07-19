@@ -1,16 +1,14 @@
-# CAP CLAIR DEV15.4.0
+# CAP CLAIR DEV15.4.1
 
-- Nouvel espace Briefing aéronautique accessible depuis Plus.
-- Import local des PDF PIB SOFIA et analyse du texte sans envoi serveur ni OCR.
-- Liste, recherche, filtres et détails des NOTAM pertinents pour la navigation.
-- Base SUP AIP complète avec 107 publications et 404 géométries embarquées en secours.
-- Contrôle automatique de la base serveur au lancement, au retour en ligne, au retour au premier plan et toutes les 30 minutes hors activité GPS sensible.
-- Téléchargement de la base complète uniquement lorsqu'une nouvelle révision serveur est disponible.
-- Validation croisée du statut, du manifeste, des publications incomplètes et du GeoJSON avant activation.
-- Cache IndexedDB transactionnel protégé par une empreinte SHA-256 et conservation de la dernière base valide.
-- Avertissement visible lorsque la dernière génération serveur dépasse le seuil de 36 heures.
-- Toutes les SUP AIP restent visibles sur la carte, sans filtre vertical et sans mode OFF.
-- Affichage systématique du plancher et du plafond, ou du message "Limites verticales non extraites - consulter le PDF SIA".
-- Accès direct aux PDF officiels SIA dans le navigateur Android.
-- Carte Briefing indépendante du GPS, du Suivi, des traces, du Replay et du relief.
+- Adoption du pipeline SUP AIP versionné de WEB13.30.4 via `latest.json` et ses révisions immuables.
+- Distinction entre la date de dernière modification métier et la date du dernier contrôle SIA réussi.
+- Vérification de la taille et du SHA-256 du manifeste avant toute utilisation.
+- Vérification de la taille et du SHA-256 du statut, du GeoJSON et de l'index des publications incomplètes.
+- Installation transactionnelle de chaque nouvelle base SUP AIP après validation complète de son contenu.
+- Conservation locale d'une base active, d'une base précédente et de la base embarquée de secours.
+- Retour automatique vers la base précédente si la base active locale est absente, corrompue ou incohérente.
+- Aucun téléchargement de la base complète lorsque la révision serveur n'a pas changé.
+- Actualisation séparée de la fraîcheur serveur et de la dernière vérification effectuée par l'appareil.
+- Ajout d'un pont Android natif limité au domaine CAP CLAIR pour préserver les octets exacts nécessaires aux contrôles SHA-256.
+- Maintien temporaire de la compatibilité avec l'ancien contrat serveur SUP AIP.
 - Aucun changement fonctionnel du GPS, du Suivi, des traces, du Replay, du relief, du PDF Log nav ou de l'auto-update.

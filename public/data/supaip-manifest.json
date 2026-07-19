@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "2026-07-16T04:39:32Z",
   "datasetRevision": "882607b7a9cb9681d5a4bfc0349090ebd42edf512b523d724f8ffd81bc5bedff",
   "sourceUrl": "https://www.sia.aviation-civile.gouv.fr/documents/supaip/aip/id/6",
@@ -1793,5 +1793,45 @@
       "sourceFingerprint": "ac407ba3ecb5f80dc7bb",
       "parserVersion": "capclair-supaip-parser-3.0.2"
     }
-  ]
+  ],
+  "datasetGeneratedAt": "2026-07-16T04:39:32Z",
+  "featureCount": 404,
+  "publicationCount": 107,
+  "publicationsWithGeometry": 71,
+  "featuresWithVerticalLimits": 402,
+  "featuresWithoutVerticalLimits": 2,
+  "geoJsonSha256": "702aee7eccbf0dfd59966b962e909eb625deb7e97eb20fd86415329e87eb6963",
+  "geoJsonSize": 1475301,
+  "files": {
+    "data.geojson": {
+      "sha256": "702aee7eccbf0dfd59966b962e909eb625deb7e97eb20fd86415329e87eb6963",
+      "size": 1475301
+    },
+    "status.json": {
+      "sha256": "dbb91cd38461cd4ee3e475645702a2e4f827053b8320036b9676a8e0e14a4775",
+      "size": 5932
+    },
+    "unmapped.json": {
+      "sha256": "d7c00929137e89803b696a7ed34b63bf7eb57563fce6d74b8c998c03ff546241",
+      "size": 70749
+    }
+  },
+  "legacyInvalidGeometryExceptions": [
+    {
+      "id": "077-26-zrt-guerande-lf-r17",
+      "geometrySha256": "bb27f88471c916b078ae0e8ee3c7f4acbb46002b212ffc574c6f5093ea6ff9ac",
+      "reason": "Exception historique figée: Self-intersection[-2.5269444 47.4947222]"
+    },
+    {
+      "id": "188-25-zrt-cesa-couloir-hourtin-plage",
+      "geometrySha256": "dcc711f85ef9e960045c96fcd02b5ae4be5eaf3d6d98345b65af8525f7af530e",
+      "reason": "Exception historique figée: Ring Self-intersection[-1.2308333 45.2327778]"
+    },
+    {
+      "id": "206-25-zrt-2-le-croisic",
+      "geometrySha256": "c64acea17d22e7decf76eb7278198d1a4ccef4dd38877645515a7623745ca91a",
+      "reason": "Exception historique figée: Self-intersection[-2.6025 47.3705556]"
+    }
+  ],
+  "businessContentSha256": "b887acccb58ac4311e101a5cd574a7c31dbe4eeb044cd2cc7bd364536cfd27c0"
 }

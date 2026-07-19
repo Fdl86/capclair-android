@@ -1663,5 +1663,7 @@
       "sourceFingerprint": "ac407ba3ecb5f80dc7bb",
       "parserVersion": "capclair-supaip-parser-3.0.2"
     }
-  ]
+  ],
+  "datasetGeneratedAt": "2026-07-16T04:39:32Z",
+  "businessContentSha256": "b887acccb58ac4311e101a5cd574a7c31dbe4eeb044cd2cc7bd364536cfd27c0"
 }

@@ -1,71 +1,53 @@
-# CAP CLAIR DEV15.3.3 - AUTO UPDATE UX VALIDATION
+# CAP CLAIR DEV15.4.1 - SUP AIP LOCAL DATABASE
 
-Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
+Application VFR mobile-first construite avec Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.3.3 améliore l'expérience du système de mise à jour semi-automatique introduit en DEV15.3.0 et corrigé en DEV15.3.2. Cette version sert de première validation complète d'une mise à jour détectée, téléchargée, vérifiée et installée directement depuis CAP CLAIR.
+DEV15.4.1 consolide l'espace Briefing introduit en DEV15.4.0. L'application utilise désormais le pipeline SUP AIP versionné de WEB13.30.4, vérifie chaque fichier avant activation et conserve une base locale complète utilisable hors ligne.
 
-## Recherche automatique
+## Briefing aéronautique
 
-CAP CLAIR lance une vérification légère environ 7 secondes après son démarrage lorsque l'application est disponible.
+L'espace Briefing fournit :
 
-La recherche est reportée si l'une des activités suivantes est en cours :
+- import local d'un PIB SOFIA ;
+- analyse et classement des NOTAM ;
+- liste, détails et carte des SUP AIP ;
+- accès aux PDF officiels SIA ;
+- mise en évidence des éléments sélectionnés ;
+- carte indépendante du GPS, du Suivi et du Replay.
 
-- enregistrement ou finalisation GPS ;
-- récupération ou vérification d'une trace ;
-- export du log de navigation.
+Toutes les SUP AIP restent affichées sans filtrage vertical. Les limites plancher et plafond sont indiquées, ou le message `Limites verticales non extraites - consulter le PDF SIA` est utilisé.
 
-La recherche ne déclenche jamais le téléchargement ni l'installation.
+## Base SUP AIP locale
 
-## Information utilisateur
+L'application consulte `latest.json`, vérifie le manifeste et les fichiers immuables par taille et SHA-256, puis installe la nouvelle révision dans IndexedDB en une transaction.
 
-Lorsqu'une version plus récente est disponible :
+Trois niveaux de secours sont disponibles :
 
-- une notification discrète apparaît dans l'application ;
-- un badge est affiché sur l'onglet `Plus` ;
-- le bouton `Voir` ouvre la fiche complète ;
-- le bouton `Plus tard` masque la notification pendant 12 heures ;
-- la fiche de mise à jour reste toujours accessible dans `Plus`.
+- base locale active ;
+- base locale précédente ;
+- base complète embarquée dans l'APK.
 
-L'écran affiche aussi la date et l'heure de la dernière tentative de vérification.
-
-## Téléchargement et vérifications
-
-Le téléchargement reste volontaire et utilise le DownloadManager Android. Les étapes de sécurité sont désormais affichées précisément :
-
-- calcul du SHA-256 ;
-- vérification du package `fr.capclair.app` ;
-- vérification du versionCode et du versionName ;
-- vérification de la signature Android ;
-- APK prêt à installer.
-
-Un journal diagnostic local conserve les 30 derniers événements de l'updater. Il ne contient ni jeton, ni donnée de vol, ni information sensible et peut être effacé depuis l'écran `Plus`.
-
-## Nettoyage
-
-- un APK plus ancien est supprimé lorsqu'une Release plus récente est détectée ;
-- après une installation réussie, l'ancien APK est supprimé au prochain lancement ;
-- les téléchargements interrompus ou invalides continuent d'être supprimés immédiatement.
+Une révision inchangée ne provoque pas le retéléchargement du GeoJSON complet. Seules les informations de fraîcheur sont actualisées.
 
 ## Fonctions conservées
 
-DEV15.3.3 conserve intégralement :
+DEV15.4.1 conserve les fonctions validées de DEV15.3.3 et DEV15.4.0 :
 
-- le relief terrain du Replay ;
-- la prise en charge des anciennes traces et GPX importés ;
-- les protections SHA-256, package, versionCode et signature ;
-- le refus des versions identiques ou plus anciennes ;
-- l'ouverture de l'installateur système avec confirmation Android.
-
-## Invariants
-
-Le moteur GPS, le Suivi, la collecte des positions, le stockage natif des traces, le Replay, le relief et le PDF Log nav ne sont pas modifiés.
+- GPS écran éteint ;
+- Suivi ;
+- enregistrement et récupération des traces ;
+- Replay et relief ;
+- PDF Log nav ;
+- profils et réglages ;
+- mise à jour semi-automatique Android ;
+- conservation des données après mise à jour.
 
 ## Version
 
-- versionName : 15.3.3
-- versionCode : 1503003
-- APP_VERSION : CAP CLAIR DEV15.3.3 - AUTO UPDATE UX VALIDATION
-- artifact : cap-clair-dev15-3-3-release-apk
-- tag Release : android-v15.3.3
+- versionName : 15.4.1
+- versionCode : 1504001
+- APP_VERSION : CAP CLAIR DEV15.4.1 - SUP AIP LOCAL DATABASE
+- artifact : cap-clair-dev15-4-1-release-apk
+- tag Release : android-v15.4.1
 
-Consulter `LIVRAISON_DEV15.3.3.txt`, `docs/AUTO_UPDATE_UX_VALIDATION_DEV15.3.3.md`, `docs/AUTO_UPDATE_BRIDGE_HOTFIX_DEV15.3.2.md` et `docs/AUTO_UPDATE_DEV15.3.0.md`.
+Consulter `LIVRAISON_DEV15.4.1.txt`, `docs/SUP_AIP_LOCAL_DATABASE_DEV15.4.1.md` et `docs/ANDROID_BRIEFING_DEV15.4.0.md`.

@@ -45,12 +45,10 @@ export function useSupAipDataset(networkSyncEnabled = true): SupAipDatasetState 
       try {
         const result = await synchronizeSupAipBundle(current);
         setLastCheckedAtIso(result.checkedAtIso);
-        if (result.changed) {
-          setState('updating');
-          activeBundleRef.current = result.bundle;
-          setBundle(result.bundle);
-          setLastChangedAtIso(result.bundle.activatedAtIso);
-        }
+        if (result.downloaded) setState('updating');
+        activeBundleRef.current = result.bundle;
+        setBundle(result.bundle);
+        if (result.datasetChanged) setLastChangedAtIso(result.bundle.activatedAtIso);
         setState('ready');
       } catch (cause) {
         setState('error');
@@ -69,6 +67,7 @@ export function useSupAipDataset(networkSyncEnabled = true): SupAipDatasetState 
       if (cancelled) return;
       activeBundleRef.current = loaded;
       setBundle(loaded);
+      setLastCheckedAtIso(loaded.lastDeviceCheckAtIso);
       setState('ready');
       if (networkSyncEnabledRef.current) void refresh();
     }).catch((cause) => {
@@ -81,18 +80,18 @@ export function useSupAipDataset(networkSyncEnabled = true): SupAipDatasetState 
     };
   }, [refresh]);
 
+  useEffect(() => {
+    if (networkSyncEnabled && activeBundleRef.current) void refresh();
+  }, [networkSyncEnabled, refresh]);
 
   useEffect(() => {
-    if (networkSyncEnabled && bundle) void refresh();
-  }, [bundle, networkSyncEnabled, refresh]);
-
-  useEffect(() => {
+    if (!networkSyncEnabled) return undefined;
     const interval = window.setInterval(() => void refresh(), CHECK_INTERVAL_MS);
     const online = () => void refresh();
-    window.addEventListener('online', online);
     const visibility = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
+    window.addEventListener('online', online);
     window.addEventListener('focus', online);
     document.addEventListener('visibilitychange', visibility);
     return () => {
@@ -101,7 +100,7 @@ export function useSupAipDataset(networkSyncEnabled = true): SupAipDatasetState 
       window.removeEventListener('focus', online);
       document.removeEventListener('visibilitychange', visibility);
     };
-  }, [refresh]);
+  }, [networkSyncEnabled, refresh]);
 
   return {
     bundle,

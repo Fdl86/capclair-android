@@ -186,7 +186,7 @@ export function BriefingMap({
   const supFeatures = useMemo(() => {
     const format = new GeoJSON({ featureProjection: 'EPSG:3857' });
     return format.readFeatures(bundle.geoJson) as Feature<Geometry>[];
-  }, [bundle.integrityHash]);
+  }, [bundle.status.datasetRevision]);
 
   useEffect(() => {
     if (!targetRef.current || mapRef.current) return;

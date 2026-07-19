@@ -20,8 +20,11 @@ async function bundle(): Promise<SupAipDatasetBundle> {
   });
   return {
     ...validated,
+    latest: null,
+    serverValidation: null,
     source: 'embedded',
     activatedAtIso: '2026-07-19T00:00:00.000Z',
+    lastDeviceCheckAtIso: null,
     integrityHash: await hashSupAipBundle(validated)
   };
 }

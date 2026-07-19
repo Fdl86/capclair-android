@@ -1,0 +1,42 @@
+CAP CLAIR DEV15.4.1 - SUP AIP LOCAL DATABASE
+
+Version : 15.4.1
+versionCode : 1504001
+Artifact GitHub Actions : cap-clair-dev15-4-1-release-apk
+Release : android-v15.4.1
+APK : cap-clair-dev15-4-1.apk
+
+Objectif principal :
+- connecter l'APK au pipeline SUP AIP versionné de WEB13.30.4 ;
+- conserver sur l'appareil une base complète active et une base précédente de secours ;
+- vérifier les tailles, les SHA-256 et le contenu métier avant activation ;
+- distinguer la dernière modification de la base du dernier contrôle SIA réussi ;
+- préserver toutes les fonctions Android déjà validées.
+
+Procédure de publication :
+1. Dans le dossier local de la branche Android, conserver uniquement le dossier .git.
+2. Copier tout le contenu de ce ZIP, dossier .github inclus.
+3. Effectuer le commit sur main puis Push origin avec GitHub Desktop.
+4. Attendre les deux jobs verts du workflow Android Release APK.
+5. Utiliser uniquement l'artifact du dernier run vert.
+6. Vérifier que la Release android-v15.4.1 et ses fichiers de mise à jour ont été publiés.
+7. Installer DEV15.4.1 par-dessus DEV15.4.0 avec le système de mise à jour CAP CLAIR.
+8. Vérifier que la version affichée est DEV15.4.1.
+9. Vérifier la conservation des traces, réglages, profils avion, briefing et données locales.
+10. Ouvrir Plus puis Briefing aéronautique et contrôler les informations de fraîcheur SUP AIP.
+
+Contrôles prioritaires sur téléphone réel :
+- lecture de /data/supaip/latest.json ;
+- absence de retéléchargement complet lorsque datasetRevision est inchangée ;
+- téléchargement d'une nouvelle révision immuable lorsqu'elle change ;
+- validation du manifeste et des fichiers par taille et SHA-256 ;
+- conservation de la base active après fermeture et relance ;
+- fonctionnement hors ligne avec la dernière base valide ;
+- conservation et restauration de la base précédente ;
+- affichage séparé de la dernière modification métier, du dernier contrôle SIA et de la dernière vérification appareil ;
+- ouverture des PDF officiels SIA ;
+- import d'un PDF PIB SOFIA ;
+- absence de régression GPS écran éteint, Suivi, enregistrement, récupération des traces, Replay, relief, PDF et auto-update.
+
+Aucun fichier android/app/src/main/assets/public n'a été modifié manuellement.
+Ces fichiers doivent provenir de npm run build:android puis npx cap sync android.
