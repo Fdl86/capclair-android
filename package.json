@@ -1,7 +1,7 @@
 {
   "name": "cap-clair",
   "private": true,
-  "version": "15.3.3",
+  "version": "15.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,9 +19,11 @@
     "lockfile:check": "node tools/check-lockfile-registry.mjs"
   },
   "dependencies": {
+    "@capacitor/browser": "8.0.0",
     "@capacitor/core": "^8.4.1",
     "ol": "^10.6.1",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "5.7.284",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

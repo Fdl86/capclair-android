@@ -1,0 +1,37 @@
+CAP CLAIR DEV15.4.0 - ANDROID BRIEFING FOUNDATION
+
+Version : 15.4.0
+versionCode : 1504000
+Artifact GitHub Actions : cap-clair-dev15-4-0-release-apk
+Release : android-v15.4.0
+APK : cap-clair-dev15-4-0.apk
+
+Objectif principal :
+- intégrer les NOTAM et les SUP AIP dans une section Android dédiée ;
+- conserver une base SUP AIP actualisée automatiquement depuis le serveur CAP CLAIR ;
+- garantir un repli hors ligne sur la dernière base validée ou la base complète embarquée ;
+- ne pas toucher aux fonctions de vol déjà validées.
+
+Procédure de publication :
+1. Conserver uniquement .git dans le dossier local de la branche Android.
+2. Copier tout le contenu de ce ZIP, dossier .github inclus.
+3. Commit sur main puis Push origin avec GitHub Desktop.
+4. Attendre les deux jobs verts du workflow Android Release APK.
+5. Prendre uniquement l'artifact du dernier run vert.
+6. Installer DEV15.4.0 par-dessus DEV15.3.3 depuis le système de mise à jour CAP CLAIR.
+7. Vérifier que la version affichée est DEV15.4.0.
+8. Vérifier que les traces, réglages, profils avion et données sont conservés.
+9. Ouvrir Plus puis Briefing aéronautique.
+10. Contrôler la date de la base SUP AIP, importer un PIB SOFIA et tester la carte.
+
+Contrôles prioritaires sur téléphone réel :
+- récupération serveur de supaip-status.json puis de la base complète uniquement si la révision change ;
+- ouverture du PDF officiel SIA ;
+- import d'un PDF SOFIA via le sélecteur Android ;
+- persistance du dernier briefing après fermeture et relance ;
+- fonctionnement hors ligne avec la dernière base valide ;
+- affichage des 2 cas de limites verticales non extraites avec le message obligatoire ;
+- absence de régression GPS écran éteint, enregistrement, Replay, relief, PDF et auto-update.
+
+Aucun fichier android/app/src/main/assets/public n'a été modifié manuellement.
+Ces fichiers doivent provenir de npm run build:android puis npx cap sync android.

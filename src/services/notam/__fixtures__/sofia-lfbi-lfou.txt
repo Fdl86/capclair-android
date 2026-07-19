@@ -1,0 +1,565 @@
+     PIB TRAJET
+      Date et Heure de production (UTC)         Date et heure de départ (UTC)   Durée
+      16-07-2026 04:54                          16-07-2026 07:15                1200
+      Règle de vol                              Départ                          Destination
+      VFR                                       LFBI                            LFOU
+      Plancher (en FL)                          Plafond (en FL)                 Rayon (en NM)
+      0                                         115                             30
+      Demi-couloir (en NM)                      Dégagements
+      15                                        LFJB, LFCT
+
+
+
+     AÉRODROME DE DÉPART
+     LFBI POITIERS BIARD
+     INSTALLATIONS ET SERVICES
+             LFFA-B2555/26
+               DU: 09 07 2026 00:00 AU: 22 07 2026 23:59
+               A)LFBI
+               Q) LFBB / QFATT / IV / BO / A / 000/999 / 4635N00018E005
+               E) NOTAM TRIGGER - AMDT AIP AIRAC PERM 07/26 WEF 09 JUL 2026.
+               MODIFICATIONS :
+               - FREQ TWR ET A/A
+               - ACCES 'PCZSAR'
+               - PORTEE DME PT
+               - MNM LNAV VNAV RWY 03 ET 21
+               CREATION INA RNP BI215 RWY 21
+
+
+             LFFA-B3123/26
+               DU: 10 07 2026 00:00 AU: 31 07 2026 23:59
+               A)LFBI
+               Q) LFBB / QFFAH / IV / BO / A / 000/999 / 4635N00018E005
+               E) NIVEAUX ET HORAIRES RFFS (NORMES UE) :
+               -NIVEAU 7 :
+                . LUN : 0500-0900
+                . MER : 0530-1630
+                . VEN : 1400-1800
+                . SAM : 0630-1630
+                . DIM : 1300-1700
+               -NIVEAU 5 :
+                . LUN : 0900-1800
+                . MAR JEU : 0600-1800
+                . MER : 1630-1800
+                . VEN : 0600-1400
+                . SAM : 0600-0630 1630-1800
+                . DIM : 0600-1300 1700-1800
+               -NIVEAU 2 :
+                . LUN : 0400-0500 1800-2359
+                . MAR JEU : 0000-0600 1800-2359
+                . MER : 0000-0530 1800-2359
+                . VEN : 0000-0600 1800-2359
+                . SAM : 0500-0600 1630-1800
+               -EN DEHORS DE CES HORAIRES, RFFS NON ASSURE
+               -NIVEAUX 5 ET 7 POSSIBLES SUR PPR 48HR PAR EMAIL A :
+               TRAFIC(A)POITIERS.AEROPORT.FR
+
+
+             LFFA-B3027/26
+               DU: 03 07 2026 10:17 AU: 31 07 2026 23:59
+               A)LFBI
+               Q) LFBB / QFUAH / IV / BO / A / 000/999 / 4635N00018E005
+               E) HORAIRES AVITAILLEMENT :
+               - LUN, MER : 0430-1500 SAUF 15 0500-1500
+               - MAR, JEU, VEN : 0700-1600 SAUF 07 0400-0700, 09 ET 14 :
+SIA France - SOFIA-Briefing                                                                     1/9
+                INDISPONIBLE
+                - SAM : 0500-1500 SAUF 11 ET 18 0500-1600
+                - DIM : 1100-1500
+                AVITAILLEMENT 100LL : AUTOMATE H24 AVEC CARTE 'BP'.
+
+     AIRE DE MANŒUVRE
+             LFFA-B1796/26
+               DU: 01 05 2026 00:00 AU: 31 07 2026 23:59
+               A)LFBI
+               Q) LFBB / QMRLC / IV / NBO / A / 000/999 / 4635N00018E005
+               E) PISTE NON REVETUE AVION 03R/21L FERMEE.
+
+     AIDES À L'ATTERRISSAGE, INSTALLATIONS RADIONAVIGATION ET GNSS
+             LFFA-B2858/26
+               DU: 09 07 2026 00:00 AU: PERM
+               A)LFBI
+               Q) LFBB / QNXCS / V / BO / AE / 000/195 / 4635N00018E025
+               E) STATION DE RADIOGONIOMETRIE INSTALLEE :
+               - VDF 124.000MHZ (POITIERS INFO)
+               - VDF 134.100MHZ (POITIERS APP)
+               REF AIP : AD 2 LFBI.18.
+
+     ORGANISATION DE L'ESPACE AÉRIEN ET SERVICES DE LA CIRCULATION AÉRIENNE
+             LFFA-B1634/26
+               DU: 17 04 2026 10:07 AU: PERM
+               A)LFBI
+               Q) LFBB / QCAXX / V / BO / AE / 000/115 / 4627N00051E068
+               E) FREQ INFO MANQUANTE SUR CARTE 500 000 :
+               NE PAS TENIR COMPTE DE LA FREQ 127.675MHZ EN DEHORS HOR ATS POITIERS.
+
+
+             LFFA-B2893/26
+               DU: 30 06 2026 06:00 AU: PERM
+               A)LFBI
+               Q) LFBB / QCACF / IV / BO / AE / 000/025 / 4635N00018E011
+               E) MODIFICATION FREQ POITIERS :
+               - FREQ POITIERS TWR : LIRE 118.505MHZ (AU LIEU DE 118.500MHZ)
+               - FREQ POITIERS A/A : LIRE 118.505MHZ (AU LIEU DE 118.500MHZ)
+               REF AIP :
+               AD 2 LFBI.18
+               AD 2 LFBI APP
+               POITIERS CENTRE HOSPITALIER AD 3 APP
+
+     OBSTACLES
+             LFFA-P1475/26
+               DU: 20 04 2026 05:00 AU: 20 11 2026 18:00
+               A)LFBI
+               Q) LFBB / QOBCE / IV / M / A / 000/999 / 4635N00018E005
+               E) GRUE FIXE A TOUR - RUE DES AUGUSTINS - BIARD :
+               RDL177/0.83NM ARP LFBI POITIERS BIARD
+               PSN : 463425.40N 0001828.21E
+               HAUTEUR : 85FT
+               ALT SOMMET : 478FT
+               BALISAGE : NIL.
+
+     AÉRODROME DE DESTINATION
+     LFOU CHOLET LE PONTREAU
+     INSTALLATIONS ET SERVICES
+             LFFA-E3454/26
+               DU: 11 07 2026 00:00 AU: 31 07 2026 23:59
+               A)LFOU
+
+SIA France - SOFIA-Briefing                                                            2/9
+                Q) LFRR / QFFAH / IV / BO / A / 000/999 / 4705N00053W005
+                E) HORAIRES ET NIVEAUX RFFS :
+                NIVEAU 2 : 0600-1000 1200-1600
+                SAUF 11 12 13 14 19 20 25 26 29 JUILLET : NIVEAU 1.
+
+     BALISAGE
+             LFFA-E3146/26
+               DU: 25 06 2026 06:09 AU: 31 12 2026 00:00
+               A)LFOU
+               Q) LFRR / QLIXX / IV / BO / A / 000/999 / 4705N00053W005
+               E) FEUX D'EXTREMITE PHYSIQUE PISTE 20 SITUES A 90M AU DELA DES
+               DISTANCES DECLAREES.
+               REF AD2 LFOU AD 2.14
+
+     ORGANISATION DE L'ESPACE AÉRIEN ET SERVICES DE LA CIRCULATION AÉRIENNE
+             LFFA-E3353/26
+               DU: 11 07 2026 00:00 AU: 27 07 2026 00:00
+               A)LFOU
+               Q) LFRR / QSFAH / IV / BO / A / 000/999 / 4705N00053W005
+               E) HOR AFIS :
+               0600-1000 1130-1600 SAUF : 12 14 15 19 26 JUILLET : NON ASSURE
+                              22 23 JUILLET : 0400-1130.
+
+     OBSTACLES
+             LFFA-P2573/26
+               DU: 09 07 2026 05:00 AU: PERM
+               A)LFOU
+               Q) LFRR / QOBCE / IV / M / AE / 000/006 / 4706N00056W001
+               E) PYLONE ERIGE A 'SAINT LEGER SOUS CHOLET', RDL 292/2.15NM ARP LFOU PSN : 470542.78N 0005534.13W
+               HAUTEUR : 202FT
+               ALTITUDE AU SOMMET : 595FT
+               BALISAGE : JOUR ET NUIT
+               REF AIP FRANCE DATASET ENR 5.4
+
+     EN-ROUTE
+
+     ORGANISATION DE L'ESPACE AÉRIEN ET PROCÉDURES
+
+     LFFF FIR PARIS FIR
+
+             LFFA-F0960/26
+               DU: 06 05 2026 11:00 AU: 30 11 2026 23:59
+               A)LFFF
+               Q) LFFF / QAFLV / V / NBO / E / 115/195 / 4838N00249E155
+               E) VFR INTERDIT AU-DESSUS DU FL115 DANS LES SECTEURS GERES PAR 'PARIS
+               CONTROLE' SAUF ACTIVITES PARTICULIERES AUTORISEES PAR PARIS CTL.
+
+
+     LFBL LIMOGES BELLEGARDE
+
+             LFFA-A0416/26
+               DU: 20 01 2026 14:39 AU: PERM
+               A)LFBL
+               Q) LFBB / QATCA / IV / NBO / AE / 000/145 / 4556N00133E076
+               E) HOR ATS : DU LUN 0515 AU SAM 2200
+               AUTRES JOURS SANS CHANGEMENT
+               REF AD2 LFBL.3
+                 AD2 LFBL TXT 03
+
+
+     SERVICES DE LA CIRCULATION AÉRIENNE ET VOLMET
+
+
+SIA France - SOFIA-Briefing                                                                                        3/9
+     LFRR FIR BREST - LFFF FIR PARIS FIR - LFEE FIR REIMS - LFBB FIR BORDEAUX
+
+             LFFA-F1418/25
+               DU: 10 10 2025 00:00 AU: PERM
+               A)LFRR LFFF LFEE LFBB
+               Q) LFXX / QSCXX / IV / NBO / E / 000/999 / 4912N00005E325
+               E) EN RAISON D'UNE MISE A JOUR TECHNIQUE, CERTAINS NUMEROS DE
+               TELEPHONES DU CENTRE DE DETECTION ET DE CONTROLE (CDC) DE
+               CINQ-MARS-LA-PILE VONT CHANGER.
+               SEULS LES NUMEROS SUIVANTS DOIVENT ETRE UTILISES:
+               CSCAM: 02.45.34.16.02 (862 927 1602)
+               BIV: 02.45.34.16.03 (862 927 1603)
+               MC: 02.45.34.16.05 (862 927 1605) ET 02.45.34.16.06 (862 927 1606)
+               TPO: 02.45.34.16.09 (862 927 1609)
+               OMC: 02.45.34.16.10 (862 927 1610)
+               FA: 02.45.34.16.11 (862 927 1611)
+               CHEF OPS: 02.45.34.14.00 (862 927 1400)
+               CDC CINQ MARS LA PILE POC : 02 45 34 28 63
+
+
+     LFBB FIR BORDEAUX - LFFF FIR PARIS FIR - LFMM FIR MARSEILLE
+
+             LFFA-F1552/26
+               DU: 16 07 2026 07:00 AU: 17 07 2026 18:00
+               A)LFBB LFFF LFMM
+               Q) LFXX / QSELT / IV / BO / E / 000/115 / 4550N00239E116
+               D) 16 0700 - 1600, 17 1100 - 1800
+               E) SERVICE D'INFORMATION DE VOL DEGRADE DANS LES SIV CLERMONT 1 A 7 :
+               - SERVICE D'ALERTE ASSURE
+               - TRANSIT VFR : PLANIFIEZ UN VOL EVITANT LA PENETRATION EN ESPACE
+               AERIEN DE CLASSE D
+
+
+     LFFF FIR PARIS FIR - LFRR FIR BREST
+
+             LFFA-F1558/26
+               DU: 16 07 2026 07:00 AU: 31 07 2026 18:30
+               A)LFFF LFRR
+               Q) LFXX / QSEAU / IV / BO / E / 000/115 / 4900N00116W091
+               D) 16 20 29 0700-1830, 17 1530-1830, 18 19 21 22 23 24 25 26 27 28
+               30 31 0800-1830
+               E) SERVICE D'INFORMATION DE VOL 'RENNES' INDISPONIBLE SUR LES
+               FREQUENCES 134.000MHZ (SIV RENNES SUD PARTIE A ET B), 126.950MHZ (SIV
+               RENNES NORD), 134.200MHZ (SIV COTENTIN PARTIE A RENNES ET COTENTIN
+               PARTIE B RENNES) ET 120.350MHZ (SIV COTENTIN PARTIE A RENNES ET
+               COTENTIN PARTIE C RENNES)
+               - VFR : PLANIFIEZ UN VOL EVITANT LA PENETRATION EN TMA/CTA RENNES DE
+               CLASSE D
+               - CONSIDEREZ TOUTES ACTIVITES ET ZONES COMME ACTIVES
+               - EN CAS D'URGENCE, CONTACTEZ 'RENNES APP'
+
+
+     INSTALLATIONS DE COMMUNICATION ET DE SURVEILLANCE
+
+     LFRR FIR BREST - LFFF FIR PARIS FIR - LFBB FIR BORDEAUX
+
+             LFFA-F1081/26
+               DU: 22 05 2026 14:15 AU: 19 08 2026 23:59
+               A)LFRR LFFF LFBB
+               Q) LFXX / QCACS / IV / NBO / E / 000/115 / 4720N00118W096
+               E) MISE EN OEUVRE POSSIBLE D'UN RAIZ SUR UNE OU PLUSIEURS FREQUENCES 'NANTES INFO' DU SIV 'NANTES'.
+
+
+     LFBL LIMOGES BELLEGARDE
+
+
+SIA France - SOFIA-Briefing                                                                                          4/9
+             LFFA-A2439/26
+               DU: 17 04 2026 10:04 AU: PERM
+               A)LFBL
+               Q) LFBB / QCAXX / V / BO / AE / 000/115 / 4555N00134E076
+               E) FREQ INFO SUR CARTE 500 000 :
+               NE PAS TENIR COMPTE DE LA FREQ 127.675MHZ EN DEHORS HOR ATS LIMOGES.
+
+
+     LFBH LA ROCHELLE ILE DE RE
+
+             LFFA-A4125/26
+               DU: 23 06 2026 20:30 AU: PERM
+               A)LFBH
+               Q) LFBB / QCACF / IV / BO / AE / 000/115 / 4601N00108W037
+               E) MODIFICATION FREQ :
+               - FREQ LA ROCHELLE TWR : LIRE 118.005MHZ (AU LIEU DE 118.000MHZ).
+               - FREQ LA ROCHELLE APP : LIRE 124.205MHZ (AU LIEU DE 124.200MHZ).
+               - FREQ LA ROCHELLE INFO : LIRE 124.205MHZ (AU LIEU DE 124.200MHZ).
+               - FREQ LA ROCHELLE A/A: LIRE 118.005MHZ (AU LIEU DE 118.000MHZ).
+               REF AIP : AD 2 LFBH.AD2.18, AD 2 LFBH APP ET LA ROCHELLE CENTRE
+               HOSPITALIER AD 3 APP 01
+
+
+     RESTRICTIONS DE L'ESPACE AÉRIEN
+
+     LFBB FIR BORDEAUX - LFRR FIR BREST
+
+             LFFA-R1168/26
+               DU: 01 05 2026 00:00 AU: 30 04 2027 23:59
+               A)LFBB LFRR
+               Q) LFXX / QRTTT / IV / BO / W / 000/095 / 4720N00522W181
+               E) NOTAM TRIGGER - SUP AIP 077/26.
+               CREATION DE 7 ZONES REGLEMENTEES TEMPORAIRES ('ZRT') AU PROFIT
+               D'ACTIVITES SPECIFIQUES DEFENSE, MISE EN SOMMEIL DES ZONES LF-D18A1
+               ET A2 ET MODIFICATION DES ZONES LF-D18A3 ET A5 EN FIR BREST ET
+               BORDEAUX.
+               LE CONTOURNEMENT OBLIGATOIRE, DANS UNE OU PLUSIEURS 'ZRT', POUR LES
+               VOLS CAG VFR SERA ANNONCE PAR NOTAM A J-2.
+               CE SUP AIP EST DISPONIBLE SUR WWW.SIA.AVIATION-CIVILE.GOUV.FR
+               F) SFC
+               G) FL095
+
+
+     LFRR FIR BREST - LFBB FIR BORDEAUX
+
+             LFFA-R1871/26
+               DU: 18 06 2026 14:25 AU: 21 01 2027 23:59
+               A)LFRR LFBB
+               Q) LFXX / QRTTT / IV / BO / W / 000/999 / 4551N00432W190
+               E) NOTAM TRIGGER - SUP AIP AIRAC 207/25 MODIFIE :
+               TIRS DE MISSILE EN ATLANTIQUE NECESSITANT LA CREATION DE 6 ZONES
+               REGLEMENTEES TEMPORAIRES ('ZRT'), DE 16 ZONES DANGEREUSES
+               TEMPORAIRES ('ZDT') ET FBZ ASSOCIEES.
+               CES 'ZRT/ZDT' SONT ACTIVEES PAR NOTAM A J-7.
+               -----------------------------------------------------------------
+               MODIFICATIONS :
+               - PAGE 8 : REMPLACER LES COORDONNES DE LA ZONE LFDB21Z PAR :
+               455421N 0013949W - 455643N 0013942W - 455237N 0011542W -
+               455136N 0011253W - 454929N 0011048W - 453516N 0010344W -
+               453127N 0010358W - 452845N 0011022W - 452848N 0014111W -
+               453113N 0014103W - 453110N 0015559W - 453117N 0015703W -
+               453136N 0015801W - 453207N 0015848W - 453246N 0015919W -
+               453330N 0015933W - 453415N 0015928W - 453848N 0015754W -
+               453930N 0020815W - 454128N 0025012W - 454139N 0025119W -
+               454203N 0025217W - 454239N 0025301W - 454323N 0025327W -
+
+SIA France - SOFIA-Briefing                                                           5/9
+                454410N 0025333W - 454714N 0025311W - 454756N 0025257W -
+                454833N 0025227W - 455904N 0024055W - 455942N 0023954W -
+                460001N 0023837W - 460136N 0022359W - 460134N 0022236W -
+                455421N 0013949W.
+                - A COMPTER DU 23/06/2026, FREQ LA ROCHELLE INFO : LIRE '124.205MHZ' (AU LIEU DE '124.200MHZ').
+                ------------------------------------------------------------------
+                CE SUP AIP EST DISPONIBLE SUR WWW.SIA.AVIATION-CIVILE.GOUV.FR
+                F) SFC
+                G) UNL
+
+
+     LFBB FIR BORDEAUX - LFMM FIR MARSEILLE
+
+             LFFA-R1880/26
+               DU: 18 06 2026 15:00 AU: 12 04 2028 23:59
+               A)LFBB LFMM
+               Q) LFXX / QRTTT / IV / BO / W / 095/245 / 4312N00409E269
+               E) NOTAM TRIGGER - SUP AIP 055/26 MODIFIE :
+               CREATION DE 99 ZONES TEMPORAIRES (ZRT/ZDT) POUR LES TRANSITS ET LES EVOLUTIONS D'AERONEFS D'ETAT
+               SANS EQUIPAGE A BORD DANS LE SUD DE LA FRANCE.
+               ACTIVATION ANNONCEE PAR NOTAM AVEC UN PREAVIS DE 06 HEURES LORSQUE LES ZRT SONT ACTIVEES POUR
+               DES RAISONS DE SURETE ET A J-1 OUVRE AVANT 1100 (ETE -1HR) DANS LE CADRE D'UN EXERCICE OU D'UN
+               ENTRAINEMENT.
+               ---------------------------------------------------------------------
+               A COMPTER DU 22/07/2026, FREQ BIARRITZ INFO : LIRE '119.180MHZ' (AU LIEU DE '119.175MHZ').
+               A COMPTER DU 26/08/2026, FREQ AQUITAINE APP : LIRE '129.880MHZ' (AU LIEU DE '129.875MHZ').
+               A COMPTER DU 08/09/2026, FREQ PYRENEES INFO : LIRE '126.530MHZ' (AU LIEU DE '126.525MHZ').
+               ---------------------------------------------------------------------
+               CE SUP AIP EST DISPONIBLE SUR WWW.SIA.AVIATION-CIVILE.GOUV.FR
+               F) FL095
+               G) FL245
+
+
+     AVERTISSEMENTS
+
+     LFRR FIR BREST
+
+             LFFA-W0947/26
+               DU: 01 06 2026 04:11 AU: 30 09 2026 17:46
+               A)LFRR
+               Q) LFRR / QWULW / IV / BO / W / 000/009 / 4726N00056W005
+               D) SR-SS
+               E) AEROMODELISME A SAINT SIGISMOND(49) RDL079/10NM LFFI
+               PSN: 472623N 0005612W.
+               F) SFC
+               G) 900FT AMSL
+
+
+     LFBB FIR BORDEAUX
+
+             LFFA-W0774/26
+               DU: 06 05 2026 04:36 AU: 06 11 2026 16:36
+               A)LFBB
+               Q) LFBB / QWGLW / IV / M / W / 000/025 / 4632N00033E005
+               D) SR-SS
+               E) ACTIVITE DE TREUILLAGE PARAPENTE A POUILLE :
+               RDL 106/10.8NM AD LFBI
+               PSN : 463212N 0003326E
+               TREUIL EQUIPE D'UN FEU A ECLAT
+               F) SFC
+               G) 2500FT AMSL
+
+
+     OBSTACLES
+
+
+SIA France - SOFIA-Briefing                                                                                       6/9
+     LFBB FIR BORDEAUX
+
+             LFFA-P1590/26
+               DU: 27 04 2026 14:08 AU: PERM
+               A)LFBB
+               Q) LFBB / QOBCE / IV / M / E / 000/012 / 4621N00027E001
+               E) CONSTRUCTION PARC 4 EOLIENNES A BRION ET SAINT-SECONDIN
+               RDL : 067.91DEG/11.77NM ARP LFDV COUHE-VERAC
+               EOLIENNE 1 : 462049.911N 0002636.73E - HAUTEUR 681FT - ALT AU SOMMET
+               1109FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 2 : 462045.009N 0002704.731E - HAUTEUR 681FT - ALT AU SOMMET
+               1108FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 3 : 462032.865N 0002716.554E - HAUTEUR 681FT - ALT AU SOMMET
+               1120FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 4 : 462018.391N 0002724.414E - HAUTEUR 681FT - ALT AU SOMMET
+               1120FT
+               BALISAGE : JOUR ET NUIT
+               REF AIP FRANCE DATASET ENR 5.4
+
+
+             LFFA-P1606/26
+               DU: 28 04 2026 09:29 AU: PERM
+               A)LFBB
+               Q) LFBB / QOBCE / IV / M / E / 000/011 / 4611N00025E001
+               E) CONSTRUCTION PARC 6 EOLIENNES A LA CHAPELLE BATON
+               RDL : 119.7DEG/11.06NM ARP LFDV COUHE VERAC
+               EOLIENNE 1 : 461001.92N 0002438.47E - HAUTEUR 542FT - ALT AU SOMMET
+               1080FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 2 : 461019.27N 0002442.36E - HAUTEUR 542FT - ALT AU SOMMET
+               1057FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 3 : 461031.8N 0002508.67E - HAUTEUR 542FT - ALT AU SOMMET
+               1067FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 4 : 461056.35N 0002507.18E - HAUTEUR 542FT - ALT AU SOMMET
+               1054FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 5 : 461111.21N 0002537.31E - HAUTEUR 542FT - ALT AU SOMMET
+               1063FT
+               BALISAGE : JOUR ET NUIT
+               EOLIENNE 6 : 461126N 0002538.81E - HAUTEUR 542FT - ALT AU SOMMET
+               1060FT
+               BALISAGE : JOUR ET NUIT
+               REF AIP FRANCE DATASET ENR 5.4
+
+
+             LFFA-P2162/26
+               DU: 08 06 2026 15:43 AU: PERM
+               A)LFBB
+               Q) LFBB / QOBCE / IV / M / E / 000/009 / 4642N00011E001
+               E) MAT DE MESURE A 'SAINT MARTIN LA PALLU', RDL 322/8.4NM ARP LFBI
+               PSN : 464152.211N 0001053.672E
+               HAUTEUR : 468FT
+               ALT AU SOMMET : 835FT
+               BALISAGE : JOUR ET NUIT
+               REF AIP FRANCE DATASET ENR 5.4
+
+
+             LFFA-P2569/26
+               DU: 08 07 2026 11:27 AU: PERM
+               A)LFBB
+               Q) LFBB / QOBCE / IV / M / E / 000/009 / 4618N00024E001
+               E) MAT DE MESURE A 'LA FERRIERE AIROUX', RDL076/9.11NM ARP LFDV
+
+SIA France - SOFIA-Briefing                                                            7/9
+                PSN : 461828.13N 0002404.603E
+                HAUT : 397FT
+                ALT AU SOMMET : 823FT
+                BALISAGE : JOUR ET NUIT
+                REF AIP FRANCE DATASET ENR 5.4
+
+
+     LFRR FIR BREST
+
+             LFFA-P1518/26
+               DU: 27 04 2026 04:00 AU: PERM
+               A)LFRR
+               Q) LFRR / QOBCE / IV / M / E / 000/007 / 4658N00018W001
+               E) MAT DE MESURE A THOUARS
+               PSN : 465748.45N 0001732.85W
+               RDL : 271DEG/5.72NM ARP LFCT THOUARS
+               HAUTEUR : 265FT
+               ALT SOMMET : 609FT
+               BALISAGE : JOUR ET NUIT
+               REF AIP FRANCE DATASET ENR 5.4
+
+
+             LFFA-P1869/26
+               DU: 19 05 2026 15:19 AU: PERM
+               A)LFRR
+               Q) LFRR / QOBCE / IV / M / E / 000/011 / 4641N00032W001
+               E) MAT DE MESURE A LARGEASSE
+               PSN : 464100.4N 0003136.4W
+               RDL : 152DEG/14.94NM ARP LFJB MAULEON
+               HAUTEUR : 340FT
+               ALT SOMMET : 1006FT
+               BALISAGE : JOUR ET NUIT
+               REF AIP FRANCE DATASET ENR 5.4
+
+
+             LFFA-P2203/26
+               DU: 22 06 2026 07:00 AU: PERM
+               A)LFRR
+               Q) LFRR / QOBCE / IV / M / E / 000/006 / 4730N00116W001
+               E) MAT DE MESURE SUR LA COMMUNE DE RIAILLE
+               RDL 324DEG/6.43NM ARP LFFI
+               PSN 472938.43N 0011618.34W
+               HAUTEUR : 417FT
+               ALT SOMMITALE : 596FT
+               BALISAGE : JOUR ET NUIT
+               REF AIP FRANCE DATASET ENR 5.4
+
+
+     LFXX AD OU HEL SANS CODE OACI
+
+             LFFA-P2328/26
+               DU: 29 06 2026 06:00 AU: 31 12 2026 18:00
+               A)LFXX
+               Q) LFRR / QOBCE / IV / M / AE / 000/002 / 4713N00134W001
+               E) NANTES QUAI MONCOUSU CENTRE HOSPITALIER :
+               OBST: 2 GRUES MOBILES PROCHES HELISTATION : RDL 258/0.47NM HLP HRP
+               PSN MOY : 471232N 0013401W
+               HAUTEUR : 164FT
+               ALTITUDE: 189FT
+               BALISAGE: JOUR ET NUIT
+
+
+     LFBB FIR BORDEAUX
+
+             LFFA-P2267/26
+               DU: 18 06 2026 14:00 AU: 18 08 2026 00:00
+               A)LFBB
+               Q) LFBB / QOLAS / IV / M / E / 000/013 / 4640N00027W001
+
+SIA France - SOFIA-Briefing                                                         8/9
+                E) BALISAGE EOLIENNE NR E7913-2 HORS SERVICE - RDL 145/17.2NM ARP LFJB :
+                - PSN : 463947N 0002704W
+                - HAUTEUR : 486FT
+                - ALTITUDE AU SOMMET : 1201FT.
+
+
+     LFRR FIR BREST
+
+             LFFA-P2563/26
+               DU: 08 07 2026 07:49 AU: 08 10 2026 23:59
+               A)LFRR
+               Q) LFRR / QOLAS / IV / M / E / 000/007 / 4720N00039W001
+               E) BALISAGE PYLONE 49001 (RDL031/17.9NM LFOU) HORS SERVICE :
+               PSN : 472012N 0003857W
+
+
+     LFFI ANCENIS
+
+             LFFA-P2138/26
+               DU: 08 06 2026 08:48 AU: 08 06 2027 23:59
+               A)LFFI
+               Q) LFRR / QOLXX / IV / M / AE / 000/005 / 4725N00111W004
+               E) BALISAGE INEXISTANT SUR LA LIGNE TRES HAUTE TENSION RELIANT CORDEMAIS A MAUGES SUR LOIRE RDL
+               348/1NM AD ANCENIS:
+               PSN MOYENNE: 472522.28N 0011103.28W
+               HAUTEUR 220FT
+               ALTITUDE 450FT
+
+
+
+
+SIA France - SOFIA-Briefing                                                                                      9/9
+

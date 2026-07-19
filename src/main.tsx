@@ -8,6 +8,7 @@ import './styles/components.css';
 import './styles/map.css';
 import './styles/responsive.css';
 import './styles/replay.css';
+import './styles/briefing.css';
 import { App } from './app/App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

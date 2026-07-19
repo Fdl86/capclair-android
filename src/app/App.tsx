@@ -16,6 +16,7 @@ import { runStorageMaintenance } from "../services/storage/storageMaintenance";
 import { Button } from "../components/ui/Button";
 import { exportNavLogPdf } from "../services/export/navLogExport";
 import { useAndroidUpdate } from "../hooks/useAndroidUpdate";
+import { useSupAipDataset } from "../hooks/useSupAipDataset";
 import { UpdateAvailableNotice } from "../components/update/UpdateAvailableNotice";
 
 const CalculationsScreen = lazy(() =>
@@ -46,6 +47,11 @@ const TraceReplayScreen = lazy(() =>
 const MoreScreen = lazy(() =>
   import("../screens/MoreScreen").then((module) => ({
     default: module.MoreScreen,
+  })),
+);
+const BriefingScreen = lazy(() =>
+  import("../screens/BriefingScreen").then((module) => ({
+    default: module.BriefingScreen,
   })),
 );
 
@@ -131,6 +137,12 @@ export function App() {
     busyReason: updateBusyReason,
     autoCheckEnabled: true,
   });
+  const supAipDataset = useSupAipDataset(
+    !gpsBlocksUpdate &&
+      !traceState.recoveryInProgress &&
+      !exportInProgress &&
+      !androidUpdate.operationActive,
+  );
   const replayTrace = replayTraceId
     ? (traceState.traces.find((trace) => trace.id === replayTraceId) ?? null)
     : null;
@@ -210,7 +222,8 @@ export function App() {
       {androidUpdate.showUpdateNotice &&
         currentScreen !== "more" &&
         currentScreen !== "tracking" &&
-        currentScreen !== "replay" && (
+        currentScreen !== "replay" &&
+        currentScreen !== "briefing" && (
           <UpdateAvailableNotice
             update={androidUpdate}
             onOpen={() => setCurrentScreen("more")}
@@ -328,6 +341,14 @@ export function App() {
             </Button>
           </div>
         )}
+        {currentScreen === "briefing" && (
+          <BriefingScreen
+            route={routeState.route}
+            alternateCode={safeAlternateCode}
+            dataset={supAipDataset}
+            onBack={() => setCurrentScreen("more")}
+          />
+        )}
         {currentScreen === "more" && (
           <MoreScreen
             onNavigate={setCurrentScreen}
@@ -341,6 +362,7 @@ export function App() {
               routeState.setTasKt(selected.cruiseTasKt);
             }}
             androidUpdate={androidUpdate}
+            supAipDataset={supAipDataset}
           />
         )}
       </Suspense>

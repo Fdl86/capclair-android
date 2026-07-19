@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 2,
+  "mode": "automatic",
+  "beta": true,
+  "generatedAt": "2026-07-16T04:39:32Z",
+  "sourceUpdatedAt": "2026-07-16T00:00:00Z",
+  "sourceUrl": "https://www.sia.aviation-civile.gouv.fr/documents/supaip/aip/id/6",
+  "parserVersion": "capclair-supaip-parser-3.0.2",
+  "datasetRevision": "882607b7a9cb9681d5a4bfc0349090ebd42edf512b523d724f8ffd81bc5bedff",
+  "overrideRevision": "092a0d66c8ab300d198ad01eeb48da5d5bf812164cc9eca1e9236d0ece81b73f",
+  "listingPublicationCount": 107,
+  "processedPublicationCount": 107,
+  "nonSpatialPublicationCount": 24,
+  "zonalPublicationCount": 83,
+  "mappedPublicationCount": 71,
+  "fullyMappedPublicationCount": 24,
+  "conservativelyMappedPublicationCount": 26,
+  "fallbackMappedPublicationCount": 8,
+  "featureCount": 404,
+  "expectedNamedGeometryCount": 445,
+  "declaredZoneCount": 413,
+  "verticalCompleteFeatureCount": 402,
+  "missingVerticalFeatureCount": 2,
+  "unmappedPublicationCount": 59,
+  "reviewPublicationCount": 59,
+  "completeUnmappedPublicationCount": 12,
+  "partialPublicationCount": 13,
+  "conservativePublicationCount": 26,
+  "fallbackPublicationCount": 8,
+  "reusedPublicationCount": 0,
+  "downloadedPublicationCount": 107,
+  "safetyFallbackPublicationCount": 9,
+  "safetyFallbackFeatureCount": 10,
+  "safetyFallbackDetails": [
+    {
+      "supAip": "216/25",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT METZ - THIONVILLE"
+      ]
+    },
+    {
+      "supAip": "210/25",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT L'AIGLE - VERNEUIL D'AVRE"
+      ]
+    },
+    {
+      "supAip": "167/25",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT OCHEY"
+      ]
+    },
+    {
+      "supAip": "154/26",
+      "featureCount": 2,
+      "featureNames": [
+        "ZRT MAGNAC BRAVO",
+        "ZRT MAGNAC ALPHA"
+      ]
+    },
+    {
+      "supAip": "150/25",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT SOTAME BRAVO"
+      ]
+    },
+    {
+      "supAip": "119/26",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT DEFILE"
+      ]
+    },
+    {
+      "supAip": "060/26",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT CHENEVIERES"
+      ]
+    },
+    {
+      "supAip": "051/26",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT SPAHIS"
+      ]
+    },
+    {
+      "supAip": "018/26",
+      "featureCount": 1,
+      "featureNames": [
+        "ZRT 'PUITS LA LANDE' et 'PUITS LA FONTENNELLE'"
+      ]
+    }
+  ],
+  "regressionRecoveredPublicationCount": 9,
+  "regressionRecoveredFeatureCount": 10,
+  "regressionRecoveredDetails": [
+    {
+      "supAip": "216/25",
+      "candidateFeatureCount": 0,
+      "previousFeatureCount": 1,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT METZ - THIONVILLE"
+      ]
+    },
+    {
+      "supAip": "210/25",
+      "candidateFeatureCount": 0,
+      "previousFeatureCount": 1,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT L'AIGLE - VERNEUIL D'AVRE"
+      ]
+    },
+    {
+      "supAip": "167/25",
+      "candidateFeatureCount": 0,
+      "previousFeatureCount": 1,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT OCHEY"
+      ]
+    },
+    {
+      "supAip": "154/26",
+      "candidateFeatureCount": 2,
+      "previousFeatureCount": 4,
+      "recoveredFeatureCount": 2,
+      "recoveredFeatureNames": [
+        "ZRT MAGNAC BRAVO",
+        "ZRT MAGNAC ALPHA"
+      ]
+    },
+    {
+      "supAip": "150/25",
+      "candidateFeatureCount": 1,
+      "previousFeatureCount": 2,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT SOTAME BRAVO"
+      ]
+    },
+    {
+      "supAip": "119/26",
+      "candidateFeatureCount": 0,
+      "previousFeatureCount": 1,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT DEFILE"
+      ]
+    },
+    {
+      "supAip": "060/26",
+      "candidateFeatureCount": 0,
+      "previousFeatureCount": 1,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT CHENEVIERES"
+      ]
+    },
+    {
+      "supAip": "051/26",
+      "candidateFeatureCount": 0,
+      "previousFeatureCount": 1,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT SPAHIS"
+      ]
+    },
+    {
+      "supAip": "018/26",
+      "candidateFeatureCount": 1,
+      "previousFeatureCount": 2,
+      "recoveredFeatureCount": 1,
+      "recoveredFeatureNames": [
+        "ZRT 'PUITS LA LANDE' et 'PUITS LA FONTENNELLE'"
+      ]
+    }
+  ],
+  "unresolvedRegressionCount": 0,
+  "ignoredReferenceObjectCount": 12,
+  "incompleteCausePublicationCounts": {
+    "zone-block-not-detected": 0,
+    "lateral-boundary-not-extracted": 17,
+    "internal-exclusion-not-cut": 31,
+    "named-geometry-missing": 23,
+    "vertical-limit-not-extracted": 2,
+    "safety-fallback": 9,
+    "other": 0
+  },
+  "incompleteCauseLabels": {
+    "zone-block-not-detected": "Blocs de zones non reconnus",
+    "lateral-boundary-not-extracted": "Limites latérales non extraites",
+    "internal-exclusion-not-cut": "Exclusions internes non découpées",
+    "named-geometry-missing": "Géométries nommées manquantes",
+    "vertical-limit-not-extracted": "Limites verticales non extraites",
+    "safety-fallback": "Repli de sécurité depuis une ancienne géométrie",
+    "other": "Autre format à contrôler"
+  },
+  "staleAfterHours": 36,
+  "message": "Parser V3.2: chaque publication est comparée à la dernière base valide. Toute chute non restaurée bloque le workflow avant écriture; les ZRT portant un code LF-R restent reconnues comme zones temporaires. Vérifier le PDF, SOFIA et les NOTAM avant le vol."
+}
