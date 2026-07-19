@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NativeGpsPlugin.class);
         registerPlugin(NativeTraceExportPlugin.class);
+        registerPlugin(NativeUpdatePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

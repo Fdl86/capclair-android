@@ -1,0 +1,45 @@
+CAP CLAIR DEV15.3.0 - AUTO UPDATE
+
+Base : DEV15.2.15 validée en usage réel.
+
+Fonctions ajoutées :
+- Vérification des GitHub Releases publiques depuis l'écran Plus.
+- Affichage version installée, version distante, versionCode, taille APK et changelog.
+- Téléchargement natif Android avec progression.
+- Restauration de l'état du téléchargement après retour dans l'application.
+- Nettoyage des téléchargements échoués, interrompus ou obsolètes.
+- Vérification SHA-256 du fichier téléchargé.
+- Vérification du package fr.capclair.app.
+- Vérification stricte du versionCode, avec refus des versions identiques ou inférieures.
+- Vérification de la signature de l'APK contre l'application installée et l'empreinte CAP CLAIR épinglée.
+- Ouverture du réglage Android « Autoriser depuis cette source » si nécessaire.
+- Ouverture de l'installateur Android avec confirmation utilisateur obligatoire.
+- Possibilité de rouvrir l'installateur après une annulation.
+
+Verrous :
+- Mise à jour impossible pendant acquisition/enregistrement GPS, simulation, finalisation ou erreur de sauvegarde.
+- Mise à jour impossible pendant récupération/réparation des traces.
+- Mise à jour impossible pendant export PDF.
+- Démarrage GPS et simulation impossibles pendant téléchargement/vérification APK.
+- Export PDF impossible pendant téléchargement/vérification APK.
+- Contrôle natif supplémentaire de l'état du journal GPS avant téléchargement, vérification et installation.
+
+Publication :
+- APK release signé, et non plus APK debug, pour les GitHub Releases.
+- Génération automatique de update.json, SHA256SUMS.txt, CHANGELOG.md et apk-signature.txt.
+- GitHub Release créée uniquement après build et tests verts.
+- Refus d'écraser un tag ou une Release existante.
+- Artifact attendu : cap-clair-dev15-3-0-release-apk.
+
+Permissions Android ajoutées :
+- android.permission.REQUEST_INSTALL_PACKAGES.
+
+Stockage :
+- APK temporaire dans le dossier privé externe de l'application.
+- Aucun READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE ou MANAGE_EXTERNAL_STORAGE.
+- Les traces, réglages et données CAP CLAIR sont conservés lors d'une installation par-dessus l'application existante.
+
+Invariants :
+- Aucun changement du moteur GPS Android, de son service ou de son journal.
+- Aucun changement du calcul de trace, du Replay ou du PDF.
+- android/app/src/main/assets/public provient uniquement de npm run build:android puis npx cap sync android.

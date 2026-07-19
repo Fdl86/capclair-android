@@ -1,51 +1,55 @@
-# CAP CLAIR DEV15.2.15 - NAV LOG UI HOTFIX
+# CAP CLAIR DEV15.3.0 - AUTO UPDATE
 
 Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-Cette version corrige le défaut observé sur Xiaomi avec écran éteint : les positions ponctuelles du watchdog étaient prises pour une reprise du flux GPS continu. Le service restait alors en boucle de récupération légère et ne déclenchait jamais les niveaux de récupération complets.
+DEV15.3.0 ajoute un système de mise à jour Android semi-automatique à la base stable DEV15.2.15.
 
-## Correction principale
+## Mise à jour Android
 
-Le service Android distingue désormais :
+Dans l'écran `Plus`, CAP CLAIR peut désormais :
 
-- le dernier point reçu, quelle que soit sa source ;
-- le dernier point du flux GPS continu ;
-- le dernier point ponctuel de secours ;
-- le dernier flux continu réellement confirmé.
-
-Une position ponctuelle est enregistrée dans le journal, mais elle ne remet jamais la récupération à zéro. Le flux n'est déclaré rétabli qu'après trois positions continues rapprochées.
-
-## Récupération écran éteint
-
-En cas de perte du flux continu :
-
-1. état dégradé détecté après 15 secondes ;
-2. réinscription du listener après 30 secondes ;
-3. reconstruction du thread, du LocationManager, du listener et du callback GNSS après 60 secondes ;
-4. recyclage complet du runtime GPS natif après 120 secondes ;
-5. positions ponctuelles de secours toutes les 5 secondes, puis toutes les 10 secondes si la panne persiste.
-
-Le même sessionId, le même journal natif et la même route prévue sont conservés pendant toute la récupération.
+- vérifier la dernière version publiée sur le dépôt public `Fdl86/capclair-android` ;
+- afficher la version installée, la version disponible, la taille de l'APK et le changelog ;
+- télécharger l'APK avec le DownloadManager Android ;
+- reprendre l'affichage d'un téléchargement après retour dans l'application ;
+- supprimer les téléchargements échoués, interrompus ou trop anciens ;
+- vérifier le SHA-256, le package, le versionCode et la signature Android ;
+- ouvrir l'installateur système sans jamais confirmer l'installation à la place de l'utilisateur.
 
 ## Protections
 
-- un probe ne peut plus simuler une reprise ;
-- trois callbacks continus sont obligatoires pour revenir à l'état sain ;
-- les anciens callbacks de probe sont ignorés grâce à un numéro de génération ;
-- un seul probe est actif à la fois ;
-- aucune action supplémentaire n'est exécutée tant que le flux normal est sain ;
-- les points du journal indiquent désormais leur source : continuous ou probe ;
-- les diagnostics distinguent flux continu, secours ponctuel, dégradation et récupération réelle.
+- package attendu : `fr.capclair.app` ;
+- certificat SHA-256 épinglé dans le code natif ;
+- refus d'une version identique ou plus ancienne ;
+- refus d'un APK corrompu, mal signé ou associé à un autre package ;
+- nouvelle vérification complète juste avant l'ouverture de l'installateur ;
+- aucune installation silencieuse ;
+- aucun accès général au stockage Android ;
+- téléchargement interdit pendant le GPS, la finalisation ou récupération d'une trace et l'export PDF ;
+- démarrage GPS et export PDF bloqués pendant un téléchargement ou une vérification APK.
 
-## Correctif de build GitHub Actions
+## Publication GitHub Release
 
-Le code GPS de DEV15.2.13 est inchangé. Le workflow exécute désormais le build web natif et `npx cap sync android` avant les tests Gradle Android, afin de générer `android/capacitor-cordova-android-plugins/cordova.variables.gradle` avant toute configuration Gradle.
+Le workflow GitHub Actions :
+
+1. vérifie les versions et exécute les tests ;
+2. lance `npm run build:android` puis `npx cap sync android` ;
+3. exécute les tests Gradle Android ;
+4. produit un APK `release` signé avec la clé CAP CLAIR actuelle ;
+5. vérifie package, versionCode, versionName et certificat ;
+6. génère `update.json`, `SHA256SUMS.txt`, `CHANGELOG.md` et `apk-signature.txt` ;
+7. publie une GitHub Release immuable uniquement après un build entièrement vert.
+
+## Invariants
+
+Le moteur GPS, le Suivi, la collecte des positions, le Replay, le stockage des traces et le PDF Log nav ne sont pas modifiés. Seuls des verrous d'activité globaux empêchent leur lancement simultané avec une opération de mise à jour.
 
 ## Version
 
-- versionName : 15.2.15
-- versionCode : 1502015
-- APP_VERSION : CAP CLAIR DEV15.2.15 - NAV LOG UI HOTFIX
-- artifact : cap-clair-dev15-2-15-debug-apk
+- versionName : 15.3.0
+- versionCode : 1503000
+- APP_VERSION : CAP CLAIR DEV15.3.0 - AUTO UPDATE
+- artifact : cap-clair-dev15-3-0-release-apk
+- tag Release : android-v15.3.0
 
-Consulter `LIVRAISON_DEV15.2.15.txt`.
+Consulter `LIVRAISON_DEV15.3.0.txt` et `docs/AUTO_UPDATE_DEV15.3.0.md`.

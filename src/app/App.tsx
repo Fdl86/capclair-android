@@ -1,48 +1,85 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import type { ScreenId } from './routes';
-import { findAerodrome } from '../data/aerodromeCatalog';
-import { AppShell } from '../components/layout/AppShell';
-import { PlanningScreen } from '../screens/PlanningScreen';
-import { useActiveRoute } from '../hooks/useActiveRoute';
-import { useTraces } from '../hooks/useTraces';
-import { useLocalStorageState } from '../hooks/useLocalStorageState';
-import { useAircraftProfiles } from '../hooks/useAircraftProfiles';
-import { useAerodromeWeather } from '../hooks/useAerodromeWeather';
-import { useGpsTracking } from '../hooks/useGpsTracking';
-import { useScreenWakeLock } from '../hooks/useScreenWakeLock';
-import { DEFAULT_FUEL_PLAN_CONFIG } from '../domain/aircraft.types';
-import type { MapBaseLayer } from '../mapEngine/mapTypes';
-import { runStorageMaintenance } from '../services/storage/storageMaintenance';
-import { Button } from '../components/ui/Button';
-import { exportNavLogPdf } from '../services/export/navLogExport';
+import { lazy, Suspense, useEffect, useState } from "react";
+import type { ScreenId } from "./routes";
+import { findAerodrome } from "../data/aerodromeCatalog";
+import { AppShell } from "../components/layout/AppShell";
+import { PlanningScreen } from "../screens/PlanningScreen";
+import { useActiveRoute } from "../hooks/useActiveRoute";
+import { useTraces } from "../hooks/useTraces";
+import { useLocalStorageState } from "../hooks/useLocalStorageState";
+import { useAircraftProfiles } from "../hooks/useAircraftProfiles";
+import { useAerodromeWeather } from "../hooks/useAerodromeWeather";
+import { useGpsTracking } from "../hooks/useGpsTracking";
+import { useScreenWakeLock } from "../hooks/useScreenWakeLock";
+import { DEFAULT_FUEL_PLAN_CONFIG } from "../domain/aircraft.types";
+import type { MapBaseLayer } from "../mapEngine/mapTypes";
+import { runStorageMaintenance } from "../services/storage/storageMaintenance";
+import { Button } from "../components/ui/Button";
+import { exportNavLogPdf } from "../services/export/navLogExport";
+import { useAndroidUpdate } from "../hooks/useAndroidUpdate";
 
+const CalculationsScreen = lazy(() =>
+  import("../screens/CalculationsScreen").then((module) => ({
+    default: module.CalculationsScreen,
+  })),
+);
+const ZonesScreen = lazy(() =>
+  import("../screens/ZonesScreen").then((module) => ({
+    default: module.ZonesScreen,
+  })),
+);
+const TrackingScreen = lazy(() =>
+  import("../screens/TrackingScreen").then((module) => ({
+    default: module.TrackingScreen,
+  })),
+);
+const TracesScreen = lazy(() =>
+  import("../screens/TracesScreen").then((module) => ({
+    default: module.TracesScreen,
+  })),
+);
+const TraceReplayScreen = lazy(() =>
+  import("../screens/TraceReplayScreen").then((module) => ({
+    default: module.TraceReplayScreen,
+  })),
+);
+const MoreScreen = lazy(() =>
+  import("../screens/MoreScreen").then((module) => ({
+    default: module.MoreScreen,
+  })),
+);
 
-const CalculationsScreen = lazy(() => import('../screens/CalculationsScreen').then((module) => ({ default: module.CalculationsScreen })));
-const ZonesScreen = lazy(() => import('../screens/ZonesScreen').then((module) => ({ default: module.ZonesScreen })));
-const TrackingScreen = lazy(() => import('../screens/TrackingScreen').then((module) => ({ default: module.TrackingScreen })));
-const TracesScreen = lazy(() => import('../screens/TracesScreen').then((module) => ({ default: module.TracesScreen })));
-const TraceReplayScreen = lazy(() => import('../screens/TraceReplayScreen').then((module) => ({ default: module.TraceReplayScreen })));
-const MoreScreen = lazy(() => import('../screens/MoreScreen').then((module) => ({ default: module.MoreScreen })));
-
-function routeEndpointCode(route: ReturnType<typeof useActiveRoute>['route'], type: 'depart' | 'destination') {
-  return route.points.find((point) => point.type === type)?.code ?? '';
+function routeEndpointCode(
+  route: ReturnType<typeof useActiveRoute>["route"],
+  type: "depart" | "destination",
+) {
+  return route.points.find((point) => point.type === type)?.code ?? "";
 }
 
-function safeAerodromeCode(code: string, fallback = '') {
+function safeAerodromeCode(code: string, fallback = "") {
   const normalized = code.trim().toUpperCase();
-  if (!normalized) return '';
+  if (!normalized) return "";
   return findAerodrome(normalized) ? normalized : fallback;
 }
 
 export function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>('planning');
+  const [currentScreen, setCurrentScreen] = useState<ScreenId>("planning");
   const [replayTraceId, setReplayTraceId] = useState<string | null>(null);
+  const [exportInProgress, setExportInProgress] = useState(false);
   const routeState = useActiveRoute();
   const traceState = useTraces();
   const aircraftState = useAircraftProfiles();
-  const [alternateCode, setAlternateCode] = useLocalStorageState('capclair.alternateCode.v3.native', '');
-  const [fuelPlanConfigRaw, setFuelPlanConfig] = useLocalStorageState('capclair.fuelPlan.v1', DEFAULT_FUEL_PLAN_CONFIG);
-  const [mapBaseLayer, setMapBaseLayer] = useLocalStorageState<MapBaseLayer>('capclair.mapBaseLayer.v1', 'free');
+  const [alternateCode, setAlternateCode] = useLocalStorageState(
+    "capclair.alternateCode.v3.native",
+    "",
+  );
+  const [fuelPlanConfigRaw, setFuelPlanConfig] = useLocalStorageState(
+    "capclair.fuelPlan.v1",
+    DEFAULT_FUEL_PLAN_CONFIG,
+  );
+  const [mapBaseLayer, setMapBaseLayer] = useLocalStorageState<MapBaseLayer>(
+    "capclair.mapBaseLayer.v1",
+    "free",
+  );
   const fuelPlanConfig = { ...DEFAULT_FUEL_PLAN_CONFIG, ...fuelPlanConfigRaw };
 
   useEffect(() => {
@@ -50,27 +87,58 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (routeState.route.profile.tasKt !== aircraftState.activeProfile.cruiseTasKt) {
+    if (
+      routeState.route.profile.tasKt !== aircraftState.activeProfile.cruiseTasKt
+    ) {
       routeState.setTasKt(aircraftState.activeProfile.cruiseTasKt);
     }
   }, [aircraftState.activeProfile.cruiseTasKt, routeState.route.profile.tasKt]);
 
-  const departureCode = routeEndpointCode(routeState.route, 'depart');
-  const destinationCode = routeEndpointCode(routeState.route, 'destination');
-  const safeAlternateCode = safeAerodromeCode(alternateCode, '');
-  const aerodromeWeatherState = useAerodromeWeather([departureCode, destinationCode, safeAlternateCode].filter(Boolean));
-  const gpsState = useGpsTracking(routeState.route, traceState.saveTrace, aircraftState.activeProfile);
-  const gpsIsRecording = gpsState.status === 'active'
-    || gpsState.status === 'degraded'
-    || gpsState.status === 'frozen'
-    || gpsState.status === 'simulating';
-  const replayTrace = replayTraceId ? traceState.traces.find((trace) => trace.id === replayTraceId) ?? null : null;
+  const departureCode = routeEndpointCode(routeState.route, "depart");
+  const destinationCode = routeEndpointCode(routeState.route, "destination");
+  const safeAlternateCode = safeAerodromeCode(alternateCode, "");
+  const aerodromeWeatherState = useAerodromeWeather(
+    [departureCode, destinationCode, safeAlternateCode].filter(Boolean),
+  );
+  const gpsState = useGpsTracking(
+    routeState.route,
+    traceState.saveTrace,
+    aircraftState.activeProfile,
+  );
+  const gpsIsRecording =
+    gpsState.status === "active" ||
+    gpsState.status === "degraded" ||
+    gpsState.status === "frozen" ||
+    gpsState.status === "simulating";
+  const gpsBlocksUpdate =
+    gpsState.status === "requesting" ||
+    gpsState.status === "active" ||
+    gpsState.status === "degraded" ||
+    gpsState.status === "frozen" ||
+    gpsState.status === "simulating" ||
+    gpsState.status === "simulation-complete" ||
+    gpsState.status === "saving" ||
+    gpsState.status === "save-error";
+  const updateBusyReason = traceState.recoveryInProgress
+    ? "Mise à jour indisponible pendant la récupération ou la vérification des traces."
+    : gpsBlocksUpdate
+      ? "Mise à jour indisponible pendant un enregistrement GPS ou sa finalisation."
+      : exportInProgress
+        ? "Mise à jour indisponible pendant l’export du log de navigation."
+        : null;
+  const androidUpdate = useAndroidUpdate({
+    busyReason: updateBusyReason,
+    autoCheckEnabled: currentScreen === "more",
+  });
+  const replayTrace = replayTraceId
+    ? (traceState.traces.find((trace) => trace.id === replayTraceId) ?? null)
+    : null;
   const wakeLockActive = useScreenWakeLock(gpsIsRecording);
 
   const setAlternate = (code: string): boolean => {
     const normalized = code.trim().toUpperCase();
     if (!normalized) {
-      setAlternateCode('');
+      setAlternateCode("");
       return true;
     }
     if (!findAerodrome(normalized)) return false;
@@ -80,7 +148,7 @@ export function App() {
 
   const resetNavigation = () => {
     routeState.resetRoute(aircraftState.activeProfile.cruiseTasKt);
-    setAlternateCode('');
+    setAlternateCode("");
   };
 
   const selectAircraft = (profileId: string) => {
@@ -88,9 +156,15 @@ export function App() {
     routeState.setTasKt(selected.cruiseTasKt);
   };
 
-  const updateAircraft = (profileId: string, patch: Parameters<typeof aircraftState.updateProfile>[1]) => {
+  const updateAircraft = (
+    profileId: string,
+    patch: Parameters<typeof aircraftState.updateProfile>[1],
+  ) => {
     aircraftState.updateProfile(profileId, patch);
-    if (profileId === aircraftState.activeProfile.id && typeof patch.cruiseTasKt === 'number') {
+    if (
+      profileId === aircraftState.activeProfile.id &&
+      typeof patch.cruiseTasKt === "number"
+    ) {
       routeState.setTasKt(patch.cruiseTasKt);
     }
   };
@@ -100,117 +174,164 @@ export function App() {
     routeState.setTasKt(profile.cruiseTasKt);
   };
 
-  const updateFuelPlanConfig = (patch: Partial<typeof DEFAULT_FUEL_PLAN_CONFIG>) => {
+  const updateFuelPlanConfig = (
+    patch: Partial<typeof DEFAULT_FUEL_PLAN_CONFIG>,
+  ) => {
     setFuelPlanConfig((current) => ({ ...current, ...patch }));
   };
 
+  const handleNavLogExport = async () => {
+    if (androidUpdate.operationActive) {
+      throw new Error(
+        "Export indisponible pendant le téléchargement ou la vérification d’une mise à jour Android.",
+      );
+    }
+    setExportInProgress(true);
+    try {
+      return await exportNavLogPdf({
+        route: routeState.route,
+        aircraft: aircraftState.activeProfile,
+        fuelPlanConfig,
+        alternateCode: safeAlternateCode,
+      });
+    } finally {
+      setExportInProgress(false);
+    }
+  };
+
   return (
-    <AppShell currentScreen={currentScreen} onNavigate={setCurrentScreen} immersive={currentScreen === 'replay'}>
-      <Suspense fallback={<div className="screen-loading">Chargement de l’écran...</div>}>
-      {currentScreen === 'planning' && (
-        <PlanningScreen
-          route={routeState.route}
-          selectedPointId={routeState.selectedPointId}
-          routeMessage={routeState.routeMessage}
-          onSelectPoint={routeState.setSelectedPointId}
-          onSetDepartureCode={routeState.setDepartureCode}
-          onSetDestinationCode={routeState.setDestinationCode}
-          onAddWaypointAt={routeState.addWaypointAt}
-          onRemovePoint={routeState.removePoint}
-          onReverseRoute={routeState.reverseRoute}
-          onResetRoute={resetNavigation}
-          alternateCode={safeAlternateCode}
-          onSetAlternateCode={setAlternate}
-          onCalculations={() => setCurrentScreen('calculations')}
-          mapBaseLayer={mapBaseLayer}
-          onMapBaseLayerChange={setMapBaseLayer}
-          aircraftPosition={gpsState.currentPosition}
-          onRequestPosition={gpsState.requestCurrentPosition}
-          locating={gpsState.locating}
-          locationError={gpsState.locationError}
-        />
-      )}
-      {currentScreen === 'calculations' && (
-        <CalculationsScreen
-          route={routeState.route}
-          weatherStatus={routeState.weatherStatus}
-          onSetBranchAltitude={routeState.setBranchAltitudeFt}
-          onRefreshWinds={routeState.refreshWinds}
-          onSetDefaultAltitudeFt={routeState.setDefaultAltitudeFt}
-          onApplyDefaultAltitudeToAll={routeState.applyDefaultAltitudeToAllBranches}
-          aircraftProfiles={aircraftState.profiles}
-          activeAircraft={aircraftState.activeProfile}
-          onSelectAircraft={selectAircraft}
-          fuelPlanConfig={fuelPlanConfig}
-          onSetFuelPlanConfig={updateFuelPlanConfig}
-          alternateCode={safeAlternateCode}
-          aerodromeWeatherReports={aerodromeWeatherState.reports}
-          aerodromeWeatherStatus={aerodromeWeatherState.status}
-          aerodromeWeatherUpdatedAt={aerodromeWeatherState.updatedAtIso}
-          onRefreshAerodromeWeather={aerodromeWeatherState.refresh}
-          onValidate={() => setCurrentScreen('tracking')}
-          onExport={() => exportNavLogPdf({
-            route: routeState.route,
-            aircraft: aircraftState.activeProfile,
-            fuelPlanConfig,
-            alternateCode: safeAlternateCode
-          })}
-          onBackPlanning={() => setCurrentScreen('planning')}
-        />
-      )}
-      {currentScreen === 'zones' && <ZonesScreen route={routeState.route} aircraft={aircraftState.activeProfile} />}
-      {currentScreen === 'tracking' && (
-        <TrackingScreen
-          route={routeState.route}
-          mapBaseLayer={mapBaseLayer}
-          onMapBaseLayerChange={setMapBaseLayer}
-          gps={gpsState}
-          wakeLockActive={wakeLockActive}
-        />
-      )}
-      {currentScreen === 'traces' && (
-        <TracesScreen
-          traces={traceState.traces}
-          onDeleteTrace={traceState.deleteTrace}
-          onOpenReplay={(traceId) => {
-            setReplayTraceId(traceId);
-            setCurrentScreen('replay');
-          }}
-          replayDisabled={gpsIsRecording}
-          storageError={traceState.storageError}
-        />
-      )}
-      {currentScreen === 'replay' && replayTrace && (
-        <TraceReplayScreen
-          trace={replayTrace}
-          mapBaseLayer={mapBaseLayer}
-          onMapBaseLayerChange={setMapBaseLayer}
-          onBack={() => {
-            setCurrentScreen('traces');
-            setReplayTraceId(null);
-          }}
-        />
-      )}
-      {currentScreen === 'replay' && !replayTrace && (
-        <div className="replay-missing-trace">
-          <strong>Trace introuvable</strong>
-          <Button variant="secondary" onClick={() => setCurrentScreen('traces')}>Retour aux traces</Button>
-        </div>
-      )}
-      {currentScreen === 'more' && (
-        <MoreScreen
-          onNavigate={setCurrentScreen}
-          aircraftProfiles={aircraftState.profiles}
-          activeAircraft={aircraftState.activeProfile}
-          onSelectAircraft={selectAircraft}
-          onUpdateAircraft={updateAircraft}
-          onCreateAircraft={createAircraft}
-          onDeleteAircraft={(profileId) => {
-            const selected = aircraftState.deleteProfile(profileId);
-            routeState.setTasKt(selected.cruiseTasKt);
-          }}
-        />
-      )}
+    <AppShell
+      currentScreen={currentScreen}
+      onNavigate={setCurrentScreen}
+      immersive={currentScreen === "replay"}
+    >
+      <Suspense
+        fallback={
+          <div className="screen-loading">Chargement de l’écran...</div>
+        }
+      >
+        {currentScreen === "planning" && (
+          <PlanningScreen
+            route={routeState.route}
+            selectedPointId={routeState.selectedPointId}
+            routeMessage={routeState.routeMessage}
+            onSelectPoint={routeState.setSelectedPointId}
+            onSetDepartureCode={routeState.setDepartureCode}
+            onSetDestinationCode={routeState.setDestinationCode}
+            onAddWaypointAt={routeState.addWaypointAt}
+            onRemovePoint={routeState.removePoint}
+            onReverseRoute={routeState.reverseRoute}
+            onResetRoute={resetNavigation}
+            alternateCode={safeAlternateCode}
+            onSetAlternateCode={setAlternate}
+            onCalculations={() => setCurrentScreen("calculations")}
+            mapBaseLayer={mapBaseLayer}
+            onMapBaseLayerChange={setMapBaseLayer}
+            aircraftPosition={gpsState.currentPosition}
+            onRequestPosition={gpsState.requestCurrentPosition}
+            locating={gpsState.locating}
+            locationError={gpsState.locationError}
+          />
+        )}
+        {currentScreen === "calculations" && (
+          <CalculationsScreen
+            route={routeState.route}
+            weatherStatus={routeState.weatherStatus}
+            onSetBranchAltitude={routeState.setBranchAltitudeFt}
+            onRefreshWinds={routeState.refreshWinds}
+            onSetDefaultAltitudeFt={routeState.setDefaultAltitudeFt}
+            onApplyDefaultAltitudeToAll={
+              routeState.applyDefaultAltitudeToAllBranches
+            }
+            aircraftProfiles={aircraftState.profiles}
+            activeAircraft={aircraftState.activeProfile}
+            onSelectAircraft={selectAircraft}
+            fuelPlanConfig={fuelPlanConfig}
+            onSetFuelPlanConfig={updateFuelPlanConfig}
+            alternateCode={safeAlternateCode}
+            aerodromeWeatherReports={aerodromeWeatherState.reports}
+            aerodromeWeatherStatus={aerodromeWeatherState.status}
+            aerodromeWeatherUpdatedAt={aerodromeWeatherState.updatedAtIso}
+            onRefreshAerodromeWeather={aerodromeWeatherState.refresh}
+            onValidate={() => setCurrentScreen("tracking")}
+            onExport={handleNavLogExport}
+            exportBlockedReason={
+              androidUpdate.operationActive
+                ? "Export indisponible pendant la mise à jour Android."
+                : null
+            }
+            onBackPlanning={() => setCurrentScreen("planning")}
+          />
+        )}
+        {currentScreen === "zones" && (
+          <ZonesScreen
+            route={routeState.route}
+            aircraft={aircraftState.activeProfile}
+          />
+        )}
+        {currentScreen === "tracking" && (
+          <TrackingScreen
+            route={routeState.route}
+            mapBaseLayer={mapBaseLayer}
+            onMapBaseLayerChange={setMapBaseLayer}
+            gps={gpsState}
+            wakeLockActive={wakeLockActive}
+            activityBlockedReason={
+              androidUpdate.operationActive
+                ? "Arrête ou annule la mise à jour Android avant de démarrer un enregistrement."
+                : null
+            }
+          />
+        )}
+        {currentScreen === "traces" && (
+          <TracesScreen
+            traces={traceState.traces}
+            onDeleteTrace={traceState.deleteTrace}
+            onOpenReplay={(traceId) => {
+              setReplayTraceId(traceId);
+              setCurrentScreen("replay");
+            }}
+            replayDisabled={gpsIsRecording}
+            storageError={traceState.storageError}
+          />
+        )}
+        {currentScreen === "replay" && replayTrace && (
+          <TraceReplayScreen
+            trace={replayTrace}
+            mapBaseLayer={mapBaseLayer}
+            onMapBaseLayerChange={setMapBaseLayer}
+            onBack={() => {
+              setCurrentScreen("traces");
+              setReplayTraceId(null);
+            }}
+          />
+        )}
+        {currentScreen === "replay" && !replayTrace && (
+          <div className="replay-missing-trace">
+            <strong>Trace introuvable</strong>
+            <Button
+              variant="secondary"
+              onClick={() => setCurrentScreen("traces")}
+            >
+              Retour aux traces
+            </Button>
+          </div>
+        )}
+        {currentScreen === "more" && (
+          <MoreScreen
+            onNavigate={setCurrentScreen}
+            aircraftProfiles={aircraftState.profiles}
+            activeAircraft={aircraftState.activeProfile}
+            onSelectAircraft={selectAircraft}
+            onUpdateAircraft={updateAircraft}
+            onCreateAircraft={createAircraft}
+            onDeleteAircraft={(profileId) => {
+              const selected = aircraftState.deleteProfile(profileId);
+              routeState.setTasKt(selected.cruiseTasKt);
+            }}
+            androidUpdate={androidUpdate}
+          />
+        )}
       </Suspense>
     </AppShell>
   );

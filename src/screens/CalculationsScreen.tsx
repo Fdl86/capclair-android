@@ -1,25 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { BranchZoneProfile } from '../domain/airspace.types';
-import type { AircraftProfile, FuelPlanConfig } from '../domain/aircraft.types';
-import type { AerodromeWeather } from '../domain/weather.types';
-import type { NavPoint, NavRoute } from '../domain/navigation.types';
-import { Page } from '../components/layout/Page';
-import { BranchTable } from '../components/navigation/BranchTable';
-import { ZoneCompleteRouteBanner } from '../components/navigation/ZoneCompleteRouteBanner';
-import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
-import { Accordion } from '../components/ui/Accordion';
-import { buildZoneProfiles } from '../services/airspace/airspaceEngine';
-import { computeFuelPlan } from '../services/navigation/fuelPlanning';
-import { fetchTerrainProfile, type TerrainSample } from '../services/navigation/terrainService';
-import { buildVerticalProfile } from '../services/navigation/verticalProfileService';
-import { AircraftSelectorPanel } from '../components/flight/AircraftSelectorPanel';
-import { AerodromeWeatherPanel } from '../components/flight/AerodromeWeatherPanel';
-import { FuelPlanningPanel } from '../components/flight/FuelPlanningPanel';
-import { findAerodrome } from '../data/aerodromeCatalog';
-import { diversionMinutes } from '../services/navigation/diversion';
-import type { NavLogExportResult } from '../services/export/navLogExport.types';
-import { formatFlightLevel, parseAltitudeInput } from '../services/navigation/altitudeInput';
+import { useEffect, useMemo, useState } from "react";
+import type { BranchZoneProfile } from "../domain/airspace.types";
+import type { AircraftProfile, FuelPlanConfig } from "../domain/aircraft.types";
+import type { AerodromeWeather } from "../domain/weather.types";
+import type { NavPoint, NavRoute } from "../domain/navigation.types";
+import { Page } from "../components/layout/Page";
+import { BranchTable } from "../components/navigation/BranchTable";
+import { ZoneCompleteRouteBanner } from "../components/navigation/ZoneCompleteRouteBanner";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { Accordion } from "../components/ui/Accordion";
+import { buildZoneProfiles } from "../services/airspace/airspaceEngine";
+import { computeFuelPlan } from "../services/navigation/fuelPlanning";
+import {
+  fetchTerrainProfile,
+  type TerrainSample,
+} from "../services/navigation/terrainService";
+import { buildVerticalProfile } from "../services/navigation/verticalProfileService";
+import { AircraftSelectorPanel } from "../components/flight/AircraftSelectorPanel";
+import { AerodromeWeatherPanel } from "../components/flight/AerodromeWeatherPanel";
+import { FuelPlanningPanel } from "../components/flight/FuelPlanningPanel";
+import { findAerodrome } from "../data/aerodromeCatalog";
+import { diversionMinutes } from "../services/navigation/diversion";
+import type { NavLogExportResult } from "../services/export/navLogExport.types";
+import {
+  formatFlightLevel,
+  parseAltitudeInput,
+} from "../services/navigation/altitudeInput";
 
 interface CalculationsScreenProps {
   route: NavRoute;
@@ -40,10 +46,11 @@ interface CalculationsScreenProps {
   onRefreshAerodromeWeather: () => void;
   onValidate: () => void;
   onExport: () => Promise<NavLogExportResult>;
+  exportBlockedReason?: string | null;
   onBackPlanning: () => void;
 }
 
-function pointByType(route: NavRoute, type: NavPoint['type']) {
+function pointByType(route: NavRoute, type: NavPoint["type"]) {
   return route.points.find((point) => point.type === type);
 }
 
@@ -54,17 +61,25 @@ function aerodromeName(code: string) {
 function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  return `${hours}:${String(mins).padStart(2, '0')}`;
+  return `${hours}:${String(mins).padStart(2, "0")}`;
 }
 
 function timeZulu(iso?: string) {
-  if (!iso) return '-';
+  if (!iso) return "-";
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '-';
-  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}Z`;
+  if (Number.isNaN(date.getTime())) return "-";
+  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}Z`;
 }
 
-function SummaryCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
+function SummaryCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
   return (
     <div className="navlog-summary-card">
       <span>{label}</span>
@@ -74,7 +89,13 @@ function SummaryCard({ label, value, detail }: { label: string; value: string; d
   );
 }
 
-function DefaultAltitudeInput({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
+function DefaultAltitudeInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (value: number) => void;
+}) {
   const [draft, setDraft] = useState(String(value));
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +108,7 @@ function DefaultAltitudeInput({ value, onCommit }: { value: number; onCommit: (v
     const parsed = parseAltitudeInput(draft);
     if (parsed === null) {
       setDraft(String(value));
-      setError('Saisir 500 à 12500 ft, par exemple 9500 ou FL095.');
+      setError("Saisir 500 à 12500 ft, par exemple 9500 ou FL095.");
       return;
     }
     setDraft(String(parsed));
@@ -96,7 +117,7 @@ function DefaultAltitudeInput({ value, onCommit }: { value: number; onCommit: (v
   };
 
   return (
-    <label className={`navlog-direct-field ${error ? 'is-invalid' : ''}`}>
+    <label className={`navlog-direct-field ${error ? "is-invalid" : ""}`}>
       <span>Altitude de croisière</span>
       <div>
         <input
@@ -106,8 +127,8 @@ function DefaultAltitudeInput({ value, onCommit }: { value: number; onCommit: (v
           onChange={(event) => setDraft(event.target.value.toUpperCase())}
           onBlur={commit}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur();
-            if (event.key === 'Escape') {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
               setDraft(String(value));
               setError(null);
             }
@@ -117,7 +138,9 @@ function DefaultAltitudeInput({ value, onCommit }: { value: number; onCommit: (v
         />
         <strong>ft</strong>
       </div>
-      <small>{error ?? `${formatFlightLevel(value)} - saisie directe autorisée`}</small>
+      <small>
+        {error ?? `${formatFlightLevel(value)} - saisie directe autorisée`}
+      </small>
     </label>
   );
 }
@@ -141,31 +164,49 @@ export function CalculationsScreen({
   onRefreshAerodromeWeather,
   onValidate,
   onExport,
-  onBackPlanning
+  exportBlockedReason,
+  onBackPlanning,
 }: CalculationsScreenProps) {
-  const departure = pointByType(route, 'depart');
-  const destination = pointByType(route, 'destination');
-  const windModelTime = route.branches.find((branch) => branch.wind?.sourceTimeIso)?.wind?.sourceTimeIso;
-  const [zoneProfiles, setZoneProfiles] = useState<Record<string, BranchZoneProfile>>({});
-  const [zoneStatus, setZoneStatus] = useState('Calcul zones...');
+  const departure = pointByType(route, "depart");
+  const destination = pointByType(route, "destination");
+  const windModelTime = route.branches.find(
+    (branch) => branch.wind?.sourceTimeIso,
+  )?.wind?.sourceTimeIso;
+  const [zoneProfiles, setZoneProfiles] = useState<
+    Record<string, BranchZoneProfile>
+  >({});
+  const [zoneStatus, setZoneStatus] = useState("Calcul zones...");
   const [terrain, setTerrain] = useState<TerrainSample[]>([]);
   const [shownZoneCount, setShownZoneCount] = useState(0);
   const [pdfExporting, setPdfExporting] = useState(false);
-  const [pdfExportStatus, setPdfExportStatus] = useState<{ kind: 'success' | 'warning' | 'error'; message: string } | null>(null);
+  const [pdfExportStatus, setPdfExportStatus] = useState<{
+    kind: "success" | "warning" | "error";
+    message: string;
+  } | null>(null);
 
   const handlePdfExport = async () => {
     if (pdfExporting) return;
+    if (exportBlockedReason) {
+      setPdfExportStatus({ kind: "error", message: exportBlockedReason });
+      return;
+    }
     setPdfExporting(true);
-    setPdfExportStatus({ kind: 'warning', message: 'Préparation du PDF...' });
+    setPdfExportStatus({ kind: "warning", message: "Préparation du PDF..." });
     try {
       const result = await onExport();
       setPdfExportStatus({
-        kind: result.warnings.length ? 'warning' : 'success',
-        message: `${result.fileName} - ${result.message}`
+        kind: result.warnings.length ? "warning" : "success",
+        message: `${result.fileName} - ${result.message}`,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error || 'Erreur inconnue');
-      setPdfExportStatus({ kind: 'error', message: `Génération PDF impossible : ${message}` });
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error || "Erreur inconnue");
+      setPdfExportStatus({
+        kind: "error",
+        message: `Génération PDF impossible : ${message}`,
+      });
     } finally {
       setPdfExporting(false);
     }
@@ -188,17 +229,17 @@ export function CalculationsScreen({
 
   useEffect(() => {
     let cancelled = false;
-    setZoneStatus('Calcul zones...');
+    setZoneStatus("Calcul zones...");
     buildZoneProfiles(route)
       .then((profiles) => {
         if (cancelled) return;
         setZoneProfiles(profiles);
-        setZoneStatus('Zones calculées');
+        setZoneStatus("Zones calculées");
       })
       .catch(() => {
         if (cancelled) return;
         setZoneProfiles({});
-        setZoneStatus('Zones à confirmer');
+        setZoneStatus("Zones à confirmer");
       });
 
     return () => {
@@ -206,41 +247,94 @@ export function CalculationsScreen({
     };
   }, [route]);
 
-  const verticalProfile = useMemo(() => buildVerticalProfile(route, activeAircraft), [route, activeAircraft]);
+  const verticalProfile = useMemo(
+    () => buildVerticalProfile(route, activeAircraft),
+    [route, activeAircraft],
+  );
   const fuel = useMemo(
-    () => computeFuelPlan(
-      route,
-      activeAircraft,
-      fuelPlanConfig,
-      diversionMinutes(destination?.code, alternateCode, route.profile.tasKt || activeAircraft.cruiseTasKt)
-    ),
-    [route, activeAircraft, fuelPlanConfig, destination?.code, alternateCode]
+    () =>
+      computeFuelPlan(
+        route,
+        activeAircraft,
+        fuelPlanConfig,
+        diversionMinutes(
+          destination?.code,
+          alternateCode,
+          route.profile.tasKt || activeAircraft.cruiseTasKt,
+        ),
+      ),
+    [route, activeAircraft, fuelPlanConfig, destination?.code, alternateCode],
   );
 
   return (
-    <Page title="Log de nav" subtitle="Préparation VFR - calculs, vent et frise zones complète.">
+    <Page
+      title="Log de nav"
+      subtitle="Préparation VFR - calculs, vent et frise zones complète."
+    >
       <div className="navlog-screen">
         <div className="navlog-summary-grid">
-          <SummaryCard label="Départ" value={departure?.code ?? '----'} detail={departure?.nom} />
-          <SummaryCard label="Arrivée" value={destination?.code ?? '----'} detail={destination?.nom} />
+          <SummaryCard
+            label="Départ"
+            value={departure?.code ?? "----"}
+            detail={departure?.nom}
+          />
+          <SummaryCard
+            label="Arrivée"
+            value={destination?.code ?? "----"}
+            detail={destination?.nom}
+          />
           <SummaryCard label="TAS" value={`${route.profile.tasKt} kt`} />
-          <SummaryCard label="Altitude défaut" value={`${route.profile.defaultAltitudeFt} ft`} />
-          <SummaryCard label="Distance totale" value={`${route.distanceTotale.toFixed(1)} NM`} />
+          <SummaryCard
+            label="Altitude défaut"
+            value={`${route.profile.defaultAltitudeFt} ft`}
+          />
+          <SummaryCard
+            label="Distance totale"
+            value={`${route.distanceTotale.toFixed(1)} NM`}
+          />
           <SummaryCard
             label="Temps estimé"
-            value={route.hasWindCalculationError ? 'NON CALCULABLE' : formatDuration(route.tempsEstimeMin)}
-            detail={route.hasWindCalculationError ? 'Vent incompatible sur une branche' : undefined}
+            value={
+              route.hasWindCalculationError
+                ? "NON CALCULABLE"
+                : formatDuration(route.tempsEstimeMin)
+            }
+            detail={
+              route.hasWindCalculationError
+                ? "Vent incompatible sur une branche"
+                : undefined
+            }
           />
-          <SummaryCard label="Vent modèle" value={windModelTime ? timeZulu(windModelTime) : 'À charger'} detail={weatherStatus} />
-          <SummaryCard label="Avion" value={activeAircraft.label} detail={`${activeAircraft.fuelBurnLh} L/h`} />
           <SummaryCard
-            label={!fuel.calculationValid ? 'Carburant non calculable' : fuel.isOverCapacity ? 'Carburant impossible' : 'Emport carburant'}
-            value={!fuel.calculationValid ? '-' : `${fuel.lines.fuelRequired.liters.toFixed(0)} L`}
-            detail={!fuel.calculationValid
-              ? 'Vent incompatible sur une branche'
-              : fuel.isOverCapacity
-                ? `Dépasse la capacité utile de ${fuel.fuelDeficitL.toFixed(0)} L`
-                : `Total nécessaire ${fuel.lines.totalNecessary.minutes} min`}
+            label="Vent modèle"
+            value={windModelTime ? timeZulu(windModelTime) : "À charger"}
+            detail={weatherStatus}
+          />
+          <SummaryCard
+            label="Avion"
+            value={activeAircraft.label}
+            detail={`${activeAircraft.fuelBurnLh} L/h`}
+          />
+          <SummaryCard
+            label={
+              !fuel.calculationValid
+                ? "Carburant non calculable"
+                : fuel.isOverCapacity
+                  ? "Carburant impossible"
+                  : "Emport carburant"
+            }
+            value={
+              !fuel.calculationValid
+                ? "-"
+                : `${fuel.lines.fuelRequired.liters.toFixed(0)} L`
+            }
+            detail={
+              !fuel.calculationValid
+                ? "Vent incompatible sur une branche"
+                : fuel.isOverCapacity
+                  ? `Dépasse la capacité utile de ${fuel.fuelDeficitL.toFixed(0)} L`
+                  : `Total nécessaire ${fuel.lines.totalNecessary.minutes} min`
+            }
           />
         </div>
 
@@ -257,36 +351,64 @@ export function CalculationsScreen({
                 <strong>{activeAircraft.cruiseTasKt} kt</strong>
                 <small>Réglage dans Plus - Avion</small>
               </div>
-              <DefaultAltitudeInput value={route.profile.defaultAltitudeFt} onCommit={onSetDefaultAltitudeFt} />
+              <DefaultAltitudeInput
+                value={route.profile.defaultAltitudeFt}
+                onCommit={onSetDefaultAltitudeFt}
+              />
               {Object.keys(route.branchAltitudeById).length > 0 && (
-                <Button variant="ghost" onClick={onApplyDefaultAltitudeToAll}>Appliquer à toutes les branches</Button>
+                <Button variant="ghost" onClick={onApplyDefaultAltitudeToAll}>
+                  Appliquer à toutes les branches
+                </Button>
               )}
             </div>
           </div>
         </Card>
 
-        <Accordion title="Devis carburant" className="fuel-card" defaultOpen storageKey="capclair.accordion.navlog.fuel.v1">
-          <FuelPlanningPanel fuel={fuel} config={fuelPlanConfig} onChangeConfig={onSetFuelPlanConfig} />
+        <Accordion
+          title="Devis carburant"
+          className="fuel-card"
+          defaultOpen
+          storageKey="capclair.accordion.navlog.fuel.v1"
+        >
+          <FuelPlanningPanel
+            fuel={fuel}
+            config={fuelPlanConfig}
+            onChangeConfig={onSetFuelPlanConfig}
+          />
         </Accordion>
 
         <Accordion
           title="Tableau de navigation"
           subtitle={route.nom}
           className="navlog-card"
-          action={<Button variant="secondary" onClick={onRefreshWinds}>Maj vent</Button>}
+          action={
+            <Button variant="secondary" onClick={onRefreshWinds}>
+              Maj vent
+            </Button>
+          }
           defaultOpen
           storageKey="capclair.accordion.navlog.table.v1"
         >
           <div className="navlog-table-scroll">
-            <BranchTable route={route} zoneProfiles={zoneProfiles} onSetBranchAltitude={onSetBranchAltitude} />
+            <BranchTable
+              route={route}
+              zoneProfiles={zoneProfiles}
+              onSetBranchAltitude={onSetBranchAltitude}
+            />
           </div>
         </Accordion>
 
         <Accordion
           title="Frise zones"
-          subtitle={shownZoneCount ? `${shownZoneCount} zones sur la nav` : zoneStatus}
+          subtitle={
+            shownZoneCount ? `${shownZoneCount} zones sur la nav` : zoneStatus
+          }
           className="zone-banner-card"
-          action={<Button variant="secondary" onClick={onBackPlanning}>Modifier route</Button>}
+          action={
+            <Button variant="secondary" onClick={onBackPlanning}>
+              Modifier route
+            </Button>
+          }
           defaultOpen
           storageKey="capclair.accordion.navlog.zones.v1"
         >
@@ -304,12 +426,41 @@ export function CalculationsScreen({
         </Accordion>
 
         <div className="navlog-bottom-grid navlog-bottom-grid-wide">
-          <Accordion title="Météo terrains" className="navlog-weather-card" defaultOpen storageKey="capclair.accordion.navlog.weather.v1">
+          <Accordion
+            title="Météo terrains"
+            className="navlog-weather-card"
+            defaultOpen
+            storageKey="capclair.accordion.navlog.weather.v1"
+          >
             <AerodromeWeatherPanel
               items={[
-                ...(departure?.code ? [{ role: 'Départ', code: departure.code, name: aerodromeName(departure.code) }] : []),
-                ...(destination?.code ? [{ role: 'Arrivée', code: destination.code, name: aerodromeName(destination.code) }] : []),
-                ...(alternateCode ? [{ role: 'Dégagement', code: alternateCode, name: aerodromeName(alternateCode) }] : [])
+                ...(departure?.code
+                  ? [
+                      {
+                        role: "Départ",
+                        code: departure.code,
+                        name: aerodromeName(departure.code),
+                      },
+                    ]
+                  : []),
+                ...(destination?.code
+                  ? [
+                      {
+                        role: "Arrivée",
+                        code: destination.code,
+                        name: aerodromeName(destination.code),
+                      },
+                    ]
+                  : []),
+                ...(alternateCode
+                  ? [
+                      {
+                        role: "Dégagement",
+                        code: alternateCode,
+                        name: aerodromeName(alternateCode),
+                      },
+                    ]
+                  : []),
               ]}
               reports={aerodromeWeatherReports}
               status={aerodromeWeatherStatus}
@@ -320,26 +471,46 @@ export function CalculationsScreen({
         </div>
 
         <div className="navlog-actions">
-          <Button variant="secondary" onClick={onBackPlanning}>Retour planification</Button>
+          <Button variant="secondary" onClick={onBackPlanning}>
+            Retour planification
+          </Button>
           <div>
-            <Button variant="secondary" onClick={handlePdfExport} disabled={pdfExporting}>{pdfExporting ? 'Préparation PDF...' : 'Exporter PDF'}</Button>
-            <Button variant="primary" onClick={onValidate}>Passer au suivi</Button>
+            <Button
+              variant="secondary"
+              onClick={handlePdfExport}
+              disabled={pdfExporting || Boolean(exportBlockedReason)}
+            >
+              {pdfExporting ? "Préparation PDF..." : "Exporter PDF"}
+            </Button>
+            <Button variant="primary" onClick={onValidate}>
+              Passer au suivi
+            </Button>
           </div>
         </div>
         {route.branches.length > 8 && (
           <p className="navlog-pdf-limit" role="note">
-            Le PDF imprimera les 8 premières branches. {route.branches.length - 8} branche(s) supplémentaire(s) ne seront pas incluse(s).
+            Le PDF imprimera les 8 premières branches.{" "}
+            {route.branches.length - 8} branche(s) supplémentaire(s) ne seront
+            pas incluse(s).
           </p>
         )}
         {pdfExportStatus && (
-          <p className={`navlog-pdf-status is-${pdfExportStatus.kind}`} role="status" aria-live="polite">
+          <p
+            className={`navlog-pdf-status is-${pdfExportStatus.kind}`}
+            role="status"
+            aria-live="polite"
+          >
             {pdfExportStatus.message}
           </p>
         )}
 
         <Card className="safety-card">
           <strong>Info frise</strong>
-          <p>Les zones sont calculées par position et altitude de branche. Les fréquences sont affichées seulement lorsqu'une fréquence exploitable est liée à la zone ; sinon le log indique à confirmer.</p>
+          <p>
+            Les zones sont calculées par position et altitude de branche. Les
+            fréquences sont affichées seulement lorsqu'une fréquence exploitable
+            est liée à la zone ; sinon le log indique à confirmer.
+          </p>
         </Card>
       </div>
     </Page>

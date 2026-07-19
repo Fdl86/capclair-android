@@ -1,0 +1,240 @@
+name: Android Release APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cap-clair-android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-android-release-apk:
+    name: Build and verify Android release APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      VITE_CAPCLAIR_API_BASE_URL: ${{ secrets.CAPCLAIR_API_BASE_URL || vars.CAPCLAIR_API_BASE_URL || 'https://capclair.pages.dev' }}
+      VITE_CAPCLAIR_UPDATE_MANIFEST_URL: https://github.com/${{ github.repository }}/releases/latest/download/update.json
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      SIGNING_KEY_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      VITE_BUILD_ID: ${{ github.sha }}
+      EXPECTED_CERTIFICATE_SHA256: d6d2de057dcd199dfbdaa3085b59d4c227530015f817355ddcc403f33ea0d737
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate signing secrets
+        run: |
+          test -n "$SIGNING_KEY_BASE64" || { echo "ANDROID_KEYSTORE_BASE64 missing"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "ANDROID_KEYSTORE_PASSWORD missing"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "ANDROID_KEY_ALIAS missing"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "ANDROID_KEY_PASSWORD missing"; exit 1; }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+
+      - name: Validate package lock registry
+        run: node tools/check-lockfile-registry.mjs
+
+      - name: Install npm dependencies
+        run: |
+          for attempt in 1 2 3; do
+            npm ci --no-audit --no-fund && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "npm ci failed on attempt $attempt - retrying..."
+              sleep $((attempt * 10))
+            fi
+          done
+          exit 1
+
+      - name: Read release version
+        id: version
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          SLUG="${VERSION//./-}"
+          VERSION_CODE="$(node -e "const [a,b,c]=require('./package.json').version.split('.').map(Number); process.stdout.write(String(a*100000+b*1000+c))")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=android-v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check version coherence
+        run: npm run version:check
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Build native web assets
+        run: |
+          npm run build:android
+          test ! -f dist/sw.js || { echo "Service worker must not be packaged in APK"; exit 1; }
+          test ! -f dist/registerSW.js || { echo "PWA registration must not be packaged in APK"; exit 1; }
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Verify Capacitor generated Gradle files
+        run: |
+          test -f android/capacitor-cordova-android-plugins/cordova.variables.gradle || {
+            echo "Capacitor sync did not generate cordova.variables.gradle"
+            exit 1
+          }
+
+      - name: Run Android unit tests
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Decode Android signing key
+        run: |
+          echo "$SIGNING_KEY_BASE64" | base64 --decode > android/app/capclair-dev.keystore
+          test -s android/app/capclair-dev.keystore
+
+      - name: Build Android release APK
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Verify APK package, version and signature
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+
+          test -f "$APK" || { echo "Release APK not found"; exit 1; }
+          test -x "$APKSIGNER" || { echo "apksigner not found"; exit 1; }
+          test -x "$AAPT" || { echo "aapt not found"; exit 1; }
+
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          ACTUAL_CERTIFICATE_SHA256="$(
+            grep -E "certificate SHA-256 digest:" apk-signature.txt \
+              | head -n 1 \
+              | awk '{print $NF}' \
+              | tr -d ':' \
+              | tr '[:upper:]' '[:lower:]'
+          )"
+          test "$ACTUAL_CERTIFICATE_SHA256" = "$EXPECTED_CERTIFICATE_SHA256" || {
+            echo "Unexpected APK signing certificate"
+            exit 1
+          }
+
+          BADGING="$($AAPT dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='fr.capclair.app'" >/dev/null || { echo "Unexpected APK package"; exit 1; }
+          echo "$BADGING" | grep -F "versionCode='${{ steps.version.outputs.version_code }}'" >/dev/null || { echo "Unexpected APK versionCode"; exit 1; }
+          echo "$BADGING" | grep -F "versionName='${{ steps.version.outputs.version }}'" >/dev/null || { echo "Unexpected APK versionName"; exit 1; }
+
+      - name: Generate signed release bundle
+        run: |
+          node tools/generate-android-release.mjs \
+            --apk android/app/build/outputs/apk/release/app-release.apk \
+            --signature-file apk-signature.txt \
+            --repository "$GITHUB_REPOSITORY" \
+            --output release-bundle
+          cd release-bundle
+          sha256sum -c SHA256SUMS.txt
+          test -s update.json
+          test -s CHANGELOG.md
+          test -s apk-signature.txt
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cap-clair-dev${{ steps.version.outputs.slug }}-release-apk
+          path: release-bundle/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-github-release:
+    name: Publish GitHub Release
+    needs: build-android-release-apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download verified release artifact
+        uses: actions/download-artifact@v5
+        with:
+          pattern: cap-clair-dev*-release-apk
+          path: release-bundle
+          merge-multiple: true
+
+      - name: Read release metadata
+        id: release
+        run: |
+          TAG="$(node -p "JSON.parse(require('fs').readFileSync('release-bundle/release-metadata.json','utf8')).tag")"
+          TITLE="$(node -p "JSON.parse(require('fs').readFileSync('release-bundle/release-metadata.json','utf8')).releaseTitle")"
+          APK_FILE="$(node -p "JSON.parse(require('fs').readFileSync('release-bundle/release-metadata.json','utf8')).apkFileName")"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "apk_file=$APK_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an existing immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Bump the CAP CLAIR version before publishing again."
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Existing releases are immutable."
+            exit 1
+          fi
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          gh release create "$TAG" \
+            release-bundle/${{ steps.release.outputs.apk_file }} \
+            release-bundle/update.json \
+            release-bundle/SHA256SUMS.txt \
+            release-bundle/CHANGELOG.md \
+            release-bundle/apk-signature.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.release.outputs.title }}" \
+            --notes-file release-bundle/CHANGELOG.md \
+            --latest
+
+      - name: Verify published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          ASSETS="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          for REQUIRED in "${{ steps.release.outputs.apk_file }}" update.json SHA256SUMS.txt CHANGELOG.md apk-signature.txt; do
+            echo "$ASSETS" | grep -Fx "$REQUIRED" >/dev/null || { echo "Missing release asset: $REQUIRED"; exit 1; }
+          done

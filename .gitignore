@@ -7,3 +7,6 @@ dist
 Thumbs.db
 android/app/*.keystore
 android/app/*.jks
+release-bundle
+android/.gradle
+android/**/build

@@ -6,7 +6,7 @@ const version = process.argv[2];
 const label = process.argv.slice(3).join(' ').trim() || 'BUILD';
 
 if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) {
-  console.error('Usage: npm run version:bump -- 15.1.6 "LABEL"');
+  console.error('Usage: npm run version:bump -- 15.3.0 "AUTO UPDATE"');
   process.exit(1);
 }
 
@@ -52,13 +52,6 @@ write(
     .replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${displayBase} - Navigation VFR Android native." />`)
 );
 
-write(
-  '.github/workflows/android-debug-apk.yml',
-  read('.github/workflows/android-debug-apk.yml').replace(
-    /name: cap-clair-dev\d+-\d+-\d+-debug-apk/,
-    `name: cap-clair-dev${major}-${minor}-${patch}-debug-apk`
-  )
-);
-
 console.log(`${displayBase}`);
 console.log(`versionCode ${versionCode}`);
+console.log(`artifact cap-clair-dev${major}-${minor}-${patch}-release-apk`);
