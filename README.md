@@ -1,31 +1,32 @@
-# CAP CLAIR DEV15.3.1 - REPLAY TERRAIN
+# CAP CLAIR DEV15.3.2 - AUTO UPDATE BRIDGE HOTFIX
 
 Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.3.1 ajoute le profil du relief aux traces existantes et sert de première mise à jour réelle distribuée par le système semi-automatique introduit en DEV15.3.0.
+DEV15.3.2 conserve intégralement le relief du Replay ajouté en DEV15.3.1 et corrige la transmission du `versionCode` entre TypeScript et le plugin Android de mise à jour.
+
+## Correctif de mise à jour
+
+La détection d'une nouvelle Release fonctionnait, mais le téléchargement était refusé avec le message `versionCode de mise à jour invalide`.
+
+Le pont Capacitor transmet les nombres JavaScript sous une forme numérique qui n'était pas récupérée correctement par `PluginCall.getLong()`. Le plugin utilise désormais le convertisseur numérique robuste déjà employé par le GPS.
+
+Le `versionCode` est accepté sous les formes suivantes :
+
+- entier Java ;
+- nombre JavaScript représenté en décimal ;
+- chaîne numérique.
+
+Une valeur absente, négative ou non numérique reste refusée.
 
 ## Relief dans le Replay
 
-À l'ouverture d'une trace, CAP CLAIR peut désormais :
+CAP CLAIR conserve toutes les fonctions de DEV15.3.1 :
 
-- calculer le profil du relief sous la trajectoire à partir des coordonnées enregistrées ;
-- enrichir les traces CAP CLAIR déjà présentes et les GPX importés ;
-- superposer le terrain et l'altitude GPS dans la frise verticale ;
-- afficher l'altitude terrain et la hauteur sol estimée au point courant ;
-- masquer ou afficher le relief ;
-- conserver le profil en cache pour les ouvertures suivantes et l'usage hors connexion.
-
-Le relief est calculé uniquement dans le Replay, après le vol. Aucun appel réseau n'est effectué pendant l'enregistrement GPS.
-
-## Source du relief
-
-- service : Open-Meteo Elevation API ;
-- modèle numérique : Copernicus DEM GLO-90 ;
-- résolution annoncée : 90 m ;
-- maximum CAP CLAIR : 180 échantillons par trace ;
-- requêtes découpées par lots de 100 coordonnées maximum.
-
-Le relief et la hauteur sol sont des estimations non réglementaires. Ils ne comprennent pas les obstacles, bâtiments, arbres ou antennes.
+- profil du relief sous les traces CAP CLAIR existantes ;
+- prise en charge des GPX importés ;
+- altitude terrain et hauteur sol estimée ;
+- cache local et réouverture hors connexion ;
+- aucun appel réseau pendant l'enregistrement GPS.
 
 ## Mise à jour Android
 
@@ -48,14 +49,14 @@ Dans l'écran `Plus`, CAP CLAIR :
 
 ## Invariants
 
-Le moteur GPS, le Suivi, la collecte des positions, le stockage natif des traces et le PDF Log nav ne sont pas modifiés. Le relief est une couche de lecture du Replay uniquement.
+Le moteur GPS, le Suivi, la collecte des positions, le stockage natif des traces et le PDF Log nav ne sont pas modifiés.
 
 ## Version
 
-- versionName : 15.3.1
-- versionCode : 1503001
-- APP_VERSION : CAP CLAIR DEV15.3.1 - REPLAY TERRAIN
-- artifact : cap-clair-dev15-3-1-release-apk
-- tag Release : android-v15.3.1
+- versionName : 15.3.2
+- versionCode : 1503002
+- APP_VERSION : CAP CLAIR DEV15.3.2 - AUTO UPDATE BRIDGE HOTFIX
+- artifact : cap-clair-dev15-3-2-release-apk
+- tag Release : android-v15.3.2
 
-Consulter `LIVRAISON_DEV15.3.1.txt`, `docs/REPLAY_TERRAIN_DEV15.3.1.md` et `docs/AUTO_UPDATE_DEV15.3.0.md`.
+Consulter `LIVRAISON_DEV15.3.2.txt`, `docs/AUTO_UPDATE_BRIDGE_HOTFIX_DEV15.3.2.md`, `docs/REPLAY_TERRAIN_DEV15.3.1.md` et `docs/AUTO_UPDATE_DEV15.3.0.md`.

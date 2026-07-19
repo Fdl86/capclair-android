@@ -53,6 +53,10 @@ describe("Native Android updater security contract", () => {
       "if (!CERTIFICATE_SHA256.equals(certificate) || !installedCertificate.equals(certificate))",
     );
     expect(source).toContain("verifyCurrentApk();");
+    expect(source).toContain(
+      'NativeBridgeNumbers.nonNegativeLong(\n            call.getData().opt("versionCode"),',
+    );
+    expect(source).not.toContain('call.getLong("versionCode")');
   });
 
   it("uses Android DownloadManager, deletes invalid files and never installs silently", () => {

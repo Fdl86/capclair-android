@@ -110,7 +110,10 @@ public class NativeUpdatePlugin extends Plugin {
         String sha256 = normalizeSha256(call.getString("sha256", ""));
         String expectedPackageName = call.getString("packageName", "");
         String expectedVersionName = call.getString("versionName", "");
-        Long expectedVersionCode = call.getLong("versionCode");
+        long expectedVersionCode = NativeBridgeNumbers.nonNegativeLong(
+            call.getData().opt("versionCode"),
+            0L
+        );
         String expectedCertificate = normalizeSha256(call.getString("signingCertificateSha256", ""));
 
         if (!isHttpsUrl(url)) {
@@ -125,7 +128,7 @@ public class NativeUpdatePlugin extends Plugin {
             call.reject("versionName de mise à jour invalide.", "invalid_version_name");
             return;
         }
-        if (expectedVersionCode == null || expectedVersionCode <= 0L) {
+        if (expectedVersionCode <= 0L) {
             call.reject("versionCode de mise à jour invalide.", "invalid_version_code");
             return;
         }

@@ -1,0 +1,39 @@
+CAP CLAIR DEV15.3.2 - AUTO UPDATE BRIDGE HOTFIX
+
+Base : DEV15.3.1 REPLAY TERRAIN.
+
+Bug corrigé :
+- La recherche de mise à jour détectait correctement DEV15.3.1.
+- Le bouton Télécharger la mise à jour échouait avant le téléchargement avec le message : versionCode de mise à jour invalide.
+- Cause : PluginCall.getLong() ne récupérait pas correctement le nombre transmis par le pont JavaScript Capacitor.
+- Solution : conversion via NativeBridgeNumbers.nonNegativeLong(call.getData().opt("versionCode"), 0L).
+
+Tests ajoutés :
+- versionCode transmis comme entier ;
+- versionCode transmis comme nombre JavaScript décimal ;
+- versionCode transmis comme chaîne numérique ;
+- valeur invalide et valeur négative.
+
+Fonctions conservées :
+- système de mise à jour Android complet ;
+- relief terrain du Replay ;
+- compatibilité avec les anciennes traces et GPX importés ;
+- cache local du relief.
+
+Installation :
+- DEV15.3.2 doit être installée manuellement, car le bug se trouve dans le pont de téléchargement de DEV15.3.0.
+- Après installation, une version DEV15.3.3 ou ultérieure permettra de valider le parcours complet de mise à jour automatique.
+
+Invariants :
+- Aucun changement du moteur GPS Android.
+- Aucun changement du service GPS de premier plan.
+- Aucun changement du stockage natif des traces.
+- Aucun changement du Replay hors correctif déjà présent en DEV15.3.1.
+- Aucun changement du PDF Log nav.
+
+Version :
+- versionName : 15.3.2
+- versionCode : 1503002
+- APP_VERSION : CAP CLAIR DEV15.3.2 - AUTO UPDATE BRIDGE HOTFIX
+- artifact : cap-clair-dev15-3-2-release-apk
+- tag Release : android-v15.3.2
