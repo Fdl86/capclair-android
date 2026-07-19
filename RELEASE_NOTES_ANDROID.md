@@ -1,10 +1,9 @@
-# CAP CLAIR DEV15.3.0
+# CAP CLAIR DEV15.3.1
 
-- Ajout de la vérification des nouvelles versions Android depuis les GitHub Releases publiques de CAP CLAIR.
-- Affichage de la version installée, de la version disponible, de la taille de l’APK et des notes de mise à jour.
-- Téléchargement natif avec progression, reprise après retour dans l’application et nettoyage des fichiers interrompus.
-- Vérification locale du SHA-256, du package fr.capclair.app, du versionCode et de la signature Android CAP CLAIR.
-- Refus automatique des versions identiques, plus anciennes, corrompues ou signées avec un autre certificat.
-- Blocage de la mise à jour pendant le GPS, la finalisation ou récupération d’une trace et l’export PDF.
-- Ouverture de l’installateur Android uniquement après confirmation et autorisation explicites de l’utilisateur.
-- Publication automatique d’une GitHub Release immuable après un build entièrement vert.
+- Ajout du relief terrain dans le profil d'altitude du Replay.
+- Prise en charge des traces CAP CLAIR déjà enregistrées et des GPX importés.
+- Affichage de l'altitude terrain et de la hauteur sol estimée au point courant.
+- Échantillonnage léger limité à 180 points, sans aucun appel réseau pendant l'enregistrement GPS.
+- Mise en cache locale du relief pour les ouvertures suivantes et l'utilisation hors connexion.
+- Bouton permettant d'afficher ou de masquer le relief et possibilité de relancer le chargement en cas d'échec.
+- Attribution visible à Open-Meteo et au modèle Copernicus DEM GLO-90.

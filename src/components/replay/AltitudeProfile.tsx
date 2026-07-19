@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { ReplayModel, ReplaySample } from '../../domain/replay.types';
+import type { TerrainProfileData, TerrainProfilePhase } from '../../domain/terrain.types';
 
 interface AltitudeProfileProps {
   model: ReplayModel;
   sample: ReplaySample | null;
+  terrainProfile: TerrainProfileData | null;
+  terrainPhase: TerrainProfilePhase;
+  terrainVisible: boolean;
+  terrainError: string | null;
+  terrainFromCache: boolean;
+  onTerrainVisibleChange: (visible: boolean) => void;
+  onRetryTerrain: () => void;
   onSeekDistance: (distanceNm: number) => void;
 }
 
@@ -22,7 +30,8 @@ const RIGHT = 12;
 function niceStep(range: number): number {
   if (range <= 750) return 250;
   if (range <= 1800) return 500;
-  return 1000;
+  if (range <= 4000) return 1000;
+  return 2000;
 }
 
 function decimate(points: ProfilePoint[], maxPoints: number): ProfilePoint[] {
@@ -46,7 +55,29 @@ function decimate(points: ProfilePoint[], maxPoints: number): ProfilePoint[] {
   return result;
 }
 
-export function AltitudeProfile({ model, sample, onSeekDistance }: AltitudeProfileProps) {
+function terrainStatusLabel(
+  phase: TerrainProfilePhase,
+  fromCache: boolean,
+): string | null {
+  if (phase === 'loading') return 'Chargement du relief...';
+  if (phase === 'offline') return 'Relief non mis en cache - connexion requise.';
+  if (phase === 'error') return 'Relief temporairement indisponible.';
+  if (phase === 'ready' && fromCache) return 'Relief en cache - disponible hors connexion.';
+  return null;
+}
+
+export function AltitudeProfile({
+  model,
+  sample,
+  terrainProfile,
+  terrainPhase,
+  terrainVisible,
+  terrainError,
+  terrainFromCache,
+  onTerrainVisibleChange,
+  onRetryTerrain,
+  onSeekDistance,
+}: AltitudeProfileProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const [width, setWidth] = useState(420);
@@ -61,22 +92,35 @@ export function AltitudeProfile({ model, sample, onSeekDistance }: AltitudeProfi
     return () => observer.disconnect();
   }, []);
 
-  const altitudeValues = useMemo(() => model.points.map((point) => point.altitudeFt).filter((value): value is number => value !== null), [model]);
+  const altitudeValues = useMemo(
+    () => model.points.map((point) => point.altitudeFt).filter((value): value is number => value !== null),
+    [model],
+  );
+  const terrainValues = useMemo(
+    () => terrainVisible && terrainPhase === 'ready'
+      ? (terrainProfile?.points.map((point) => point.elevationFt) ?? [])
+      : [],
+    [terrainPhase, terrainProfile, terrainVisible],
+  );
+  const allAltitudeValues = useMemo(
+    () => [...altitudeValues, ...terrainValues],
+    [altitudeValues, terrainValues],
+  );
   const bounds = useMemo(() => {
-    if (altitudeValues.length === 0) return { min: 0, max: 1000, step: 500 };
-    const rawMin = Math.min(...altitudeValues);
-    const rawMax = Math.max(...altitudeValues);
+    if (allAltitudeValues.length === 0) return { min: 0, max: 1000, step: 500 };
+    const rawMin = Math.min(...allAltitudeValues);
+    const rawMax = Math.max(...allAltitudeValues);
     const step = niceStep(Math.max(250, rawMax - rawMin));
-    const min = Math.max(0, Math.floor((rawMin - step * 0.25) / step) * step);
-    const max = Math.max(min + step, Math.ceil((rawMax + step * 0.25) / step) * step);
+    const min = Math.max(-1000, Math.floor((rawMin - step * 0.2) / step) * step);
+    const max = Math.max(min + step, Math.ceil((rawMax + step * 0.2) / step) * step);
     return { min, max, step };
-  }, [altitudeValues]);
+  }, [allAltitudeValues]);
 
   const plotWidth = Math.max(1, width - LEFT - RIGHT);
   const xForDistance = (distanceNm: number) => LEFT + (model.totalDistanceNm > 0 ? distanceNm / model.totalDistanceNm : 0) * plotWidth;
   const yForAltitude = (altitudeFt: number) => BOTTOM - ((altitudeFt - bounds.min) / (bounds.max - bounds.min)) * (BOTTOM - TOP);
 
-  const paths = useMemo(() => model.segments.flatMap((segment) => {
+  const aircraftPaths = useMemo(() => model.segments.flatMap((segment) => {
     const pathGroups: ProfilePoint[][] = [];
     let current: ProfilePoint[] = [];
     for (let index = segment.startPointIndex; index <= segment.endPointIndex; index += 1) {
@@ -91,6 +135,15 @@ export function AltitudeProfile({ model, sample, onSeekDistance }: AltitudeProfi
     if (current.length > 0) pathGroups.push(current);
     return pathGroups.map((group) => decimate(group, Math.max(120, Math.round(plotWidth * 1.8))));
   }), [bounds.max, bounds.min, model, plotWidth]);
+
+  const terrainPath = useMemo(() => {
+    if (!terrainVisible || terrainPhase !== 'ready' || !terrainProfile) return [];
+    return terrainProfile.points.map((point, index) => ({
+      x: xForDistance(point.distanceNm),
+      y: yForAltitude(point.elevationFt),
+      index,
+    }));
+  }, [bounds.max, bounds.min, plotWidth, terrainPhase, terrainProfile, terrainVisible]);
 
   const gridValues = useMemo(() => {
     const values: number[] = [];
@@ -130,14 +183,34 @@ export function AltitudeProfile({ model, sample, onSeekDistance }: AltitudeProfi
     onSeekDistance((sample?.cumulativeDistanceNm ?? 0) + direction * model.totalDistanceNm * 0.01);
   };
 
+  const terrainStatus = terrainStatusLabel(terrainPhase, terrainFromCache);
+  const hasGraphData = altitudeValues.length > 0 || terrainPath.length > 0;
+  const terrainButtonDisabled = terrainPhase === 'unavailable';
+
   return (
     <div className="replay-profile-card" ref={hostRef}>
       <div className="replay-profile-heading">
-        <strong>Profil d’altitude</strong>
-        <span>ALT GPS · FT</span>
+        <div>
+          <strong>Profil d’altitude</strong>
+          <span>ALT GPS ET RELIEF - FT</span>
+        </div>
+        <div className="replay-terrain-actions">
+          {(terrainPhase === 'error' || terrainPhase === 'offline') && (
+            <button type="button" onClick={onRetryTerrain}>Réessayer</button>
+          )}
+          <button
+            type="button"
+            className={terrainVisible ? 'active' : ''}
+            aria-pressed={terrainVisible}
+            disabled={terrainButtonDisabled}
+            onClick={() => onTerrainVisibleChange(!terrainVisible)}
+          >
+            Relief
+          </button>
+        </div>
       </div>
-      {altitudeValues.length === 0 ? (
-        <div className="replay-profile-empty">Altitude indisponible pour cette trace.</div>
+      {!hasGraphData && terrainPhase !== 'loading' ? (
+        <div className="replay-profile-empty">Altitude et relief indisponibles pour cette trace.</div>
       ) : (
         <svg
           className="replay-profile-svg"
@@ -163,11 +236,23 @@ export function AltitudeProfile({ model, sample, onSeekDistance }: AltitudeProfi
               </g>
             );
           })}
-          {paths.map((path, index) => {
+          {terrainPath.length > 1 && (() => {
+            const area = `M${terrainPath[0].x.toFixed(1)} ${BOTTOM} ${terrainPath.map((point) => `L${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ')} L${terrainPath.at(-1)!.x.toFixed(1)} ${BOTTOM} Z`;
+            return <path d={area} className="replay-terrain-area" />;
+          })()}
+          {aircraftPaths.map((path, index) => {
+            if (path.length === 0) return null;
+            const area = `M${path[0].x.toFixed(1)} ${BOTTOM} ${path.map((point) => `L${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ')} L${path.at(-1)!.x.toFixed(1)} ${BOTTOM} Z`;
+            return <path key={`area-${index}`} d={area} className="replay-profile-area" />;
+          })}
+          {terrainPath.length > 1 && (() => {
+            const line = terrainPath.map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+            return <path d={line} className="replay-terrain-line" />;
+          })()}
+          {aircraftPaths.map((path, index) => {
             if (path.length === 0) return null;
             const line = path.map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
-            const area = `M${path[0].x.toFixed(1)} ${BOTTOM} ${path.map((point) => `L${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ')} L${path.at(-1)!.x.toFixed(1)} ${BOTTOM} Z`;
-            return <g key={index}><path d={area} className="replay-profile-area" /><path d={line} className="replay-profile-line" /></g>;
+            return <path key={`line-${index}`} d={line} className="replay-profile-line" />;
           })}
           <line x1={cursorX} y1={TOP - 6} x2={cursorX} y2={BOTTOM + 2} className="replay-profile-cursor" />
           {sample?.altitudeFt !== null && sample?.altitudeFt !== undefined && (
@@ -177,6 +262,11 @@ export function AltitudeProfile({ model, sample, onSeekDistance }: AltitudeProfi
           <text x={LEFT + plotWidth / 2} y={132} textAnchor="middle" className="replay-profile-axis">{(model.totalDistanceNm / 2).toFixed(1).replace('.', ',')}</text>
           <text x={width - RIGHT} y={132} textAnchor="end" className="replay-profile-axis">{model.totalDistanceNm.toFixed(1).replace('.', ',')} NM</text>
         </svg>
+      )}
+      {terrainStatus && <p className="replay-terrain-status">{terrainStatus}</p>}
+      {terrainPhase === 'error' && terrainError && <p className="replay-terrain-error">{terrainError}</p>}
+      {terrainPhase === 'ready' && terrainVisible && (
+        <p className="replay-terrain-credit">Relief estimé - Open-Meteo / Copernicus DEM GLO-90, résolution 90 m.</p>
       )}
     </div>
   );

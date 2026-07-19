@@ -6,6 +6,7 @@ import { ReplayPlaybackOverlay, ReplaySpeedControls } from '../components/replay
 import { ReplayMap } from '../components/replay/ReplayMap';
 import { MapLayerToggle } from '../components/map/MapLayerToggle';
 import { useTraceReplay } from '../hooks/useTraceReplay';
+import { useTerrainProfile } from '../hooks/useTerrainProfile';
 import { buildReplayModel } from '../services/replay/traceReplayModel';
 import { getCrossTrackError } from '../services/geo/crossTrackError';
 
@@ -31,6 +32,7 @@ function formatGap(durationMs: number): string {
 export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, onBack }: TraceReplayScreenProps) {
   const model = useMemo(() => buildReplayModel(trace), [trace]);
   const replay = useTraceReplay(model);
+  const terrain = useTerrainProfile(trace, model);
   const hasPlannedRoute = (trace.plannedRoute?.points.length ?? 0) >= 2;
   const [showPlannedRoute, setShowPlannedRoute] = useState(hasPlannedRoute);
   const [followAircraft, setFollowAircraft] = useState(true);
@@ -39,6 +41,14 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
   const traceDate = new Date(trace.startedAt ?? trace.date);
   const replayDistanceNm = replay.sample?.cumulativeDistanceNm
     ?? (replay.activeTimeMs >= model.totalActiveTimeMs ? model.totalDistanceNm : null);
+  const terrainElevationFt = terrain.visible && replay.sample
+    ? terrain.elevationAtDistance(replay.sample.cumulativeDistanceNm)
+    : null;
+  const estimatedHeightFt = replay.sample?.altitudeFt !== null
+    && replay.sample?.altitudeFt !== undefined
+    && terrainElevationFt !== null
+    ? replay.sample.altitudeFt - terrainElevationFt
+    : null;
   const dateLabel = Number.isNaN(traceDate.getTime())
     ? ''
     : traceDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
@@ -76,7 +86,17 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
       <div className="replay-metrics">
         <div><span>Heure</span><strong>{replay.sample ? new Date(replay.sample.timestamp).toLocaleTimeString('fr-FR') : '--'}</strong></div>
         <div><span>Vitesse sol</span><strong>{metric(replay.sample?.speedKt, 'kt')}</strong></div>
-        <div><span>Altitude GPS</span><strong>{metric(replay.sample?.altitudeFt, 'ft')}</strong></div>
+        <div>
+          <span>Altitude GPS</span>
+          <strong>{metric(replay.sample?.altitudeFt, 'ft')}</strong>
+          {terrain.phase === 'loading' ? (
+            <small>Relief en cours de chargement</small>
+          ) : terrainElevationFt !== null ? (
+            <small>Sol {metric(terrainElevationFt, 'ft')} · H sol estimée {metric(estimatedHeightFt, 'ft')}</small>
+          ) : (
+            <small>Relief non disponible</small>
+          )}
+        </div>
         <div><span>Distance</span><strong>{metric(replayDistanceNm, 'NM', 1)}</strong><small>sur {model.totalDistanceNm.toFixed(1).replace('.', ',')} NM</small></div>
       </div>
 
@@ -129,7 +149,18 @@ export function TraceReplayScreen({ trace, mapBaseLayer, onMapBaseLayerChange, o
         )}
       </div>
 
-      <AltitudeProfile model={model} sample={replay.sample} onSeekDistance={replay.seekDistance} />
+      <AltitudeProfile
+        model={model}
+        sample={replay.sample}
+        terrainProfile={terrain.profile}
+        terrainPhase={terrain.phase}
+        terrainVisible={terrain.visible}
+        terrainError={terrain.error}
+        terrainFromCache={terrain.fromCache}
+        onTerrainVisibleChange={terrain.setVisible}
+        onRetryTerrain={terrain.retry}
+        onSeekDistance={replay.seekDistance}
+      />
 
       <div className="replay-speed-area">
         <ReplaySpeedControls speed={replay.speed} onSpeedChange={replay.changeSpeed} />

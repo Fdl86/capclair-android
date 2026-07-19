@@ -822,3 +822,80 @@
     max-width: calc(100% - 150px);
   }
 }
+
+/* DEV15.3.1 - relief terrain dans le Replay */
+.replay-profile-heading > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.replay-terrain-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.replay-terrain-actions button {
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 9px;
+  background: rgba(17, 28, 42, 0.82);
+  color: var(--text-2);
+  font-size: 0.62rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.replay-terrain-actions button.active {
+  border-color: rgba(210, 150, 76, 0.88);
+  background: rgba(126, 78, 32, 0.3);
+  color: #ffd3a0;
+}
+
+.replay-terrain-actions button:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+
+.replay-terrain-area {
+  fill: rgba(139, 88, 42, 0.38);
+}
+
+.replay-terrain-line {
+  fill: none;
+  stroke: #d29a58;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.replay-terrain-status,
+.replay-terrain-error,
+.replay-terrain-credit {
+  margin: 1px 3px 4px;
+  font-size: 0.58rem;
+  line-height: 1.25;
+}
+
+.replay-terrain-status,
+.replay-terrain-credit {
+  color: var(--text-3);
+}
+
+.replay-terrain-error {
+  color: var(--warn);
+}
+
+@media (max-width: 430px) {
+  .replay-profile-heading > div:first-child span {
+    font-size: 0.52rem;
+  }
+
+  .replay-terrain-actions button {
+    min-height: 26px;
+    padding: 0 7px;
+    font-size: 0.57rem;
+  }
+}

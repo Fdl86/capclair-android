@@ -1,0 +1,37 @@
+CAP CLAIR DEV15.3.1 - REPLAY TERRAIN
+
+Base : DEV15.3.0 AUTO UPDATE installée et validée.
+
+Fonctions ajoutées :
+- Relief superposé à l'altitude GPS dans la frise du Replay.
+- Compatibilité avec les traces CAP CLAIR existantes.
+- Compatibilité avec les traces GPX importées disposant de coordonnées valides.
+- Altitude terrain interpolée au point courant du Replay.
+- Hauteur sol estimée calculée à partir de l'altitude GPS et du relief.
+- Bouton Relief pour masquer ou afficher la couche terrain.
+- Réessai manuel en cas d'échec réseau.
+- Cache local par trace, réutilisé hors connexion.
+- Attribution Open-Meteo / Copernicus DEM GLO-90 affichée dans le Replay.
+
+Architecture :
+- Aucun téléchargement de relief pendant le GPS ou l'enregistrement.
+- Chargement uniquement à l'ouverture d'un Replay.
+- 180 échantillons maximum par trace.
+- Lots réseau de 100 coordonnées maximum.
+- Aucune modification des positions enregistrées ou du fichier GPX.
+- Aucun changement du moteur GPS Android, du service de premier plan, du journal natif, du stockage des traces ou du PDF.
+
+Test de mise à jour automatique :
+- DEV15.3.0 doit détecter DEV15.3.1 dans l'écran Plus.
+- Vérifier l'affichage du changelog.
+- Télécharger, vérifier puis installer l'APK depuis CAP CLAIR.
+- Vérifier que les traces et réglages existants sont conservés.
+- Ouvrir une ancienne trace et vérifier le chargement du relief.
+- Rouvrir la même trace hors connexion et vérifier l'utilisation du cache.
+
+Version :
+- versionName : 15.3.1
+- versionCode : 1503001
+- APP_VERSION : CAP CLAIR DEV15.3.1 - REPLAY TERRAIN
+- artifact : cap-clair-dev15-3-1-release-apk
+- tag Release : android-v15.3.1
