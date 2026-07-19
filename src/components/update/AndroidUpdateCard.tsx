@@ -8,6 +8,16 @@ function formatBytes(value: number | undefined): string {
   return `${megabytes.toFixed(megabytes >= 10 ? 0 : 1).replace(".", ",")} Mo`;
 }
 
+function formatDateTime(value: number | null | undefined): string {
+  if (!value) return "Jamais";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function phaseLabel(update: AndroidUpdateState): string {
   switch (update.phase) {
     case "initializing":
@@ -18,12 +28,14 @@ function phaseLabel(update: AndroidUpdateState): string {
       return "Application à jour";
     case "available":
       return "Nouvelle version disponible";
+    case "preparing-download":
+      return "Préparation du téléchargement";
     case "downloading":
       return "Téléchargement en cours";
     case "downloaded":
       return "Vérification en attente";
     case "verifying":
-      return "Vérifications de sécurité";
+      return update.verificationProgress?.label ?? "Vérifications de sécurité";
     case "ready":
       return "Mise à jour prête";
     case "permission-required":
@@ -99,6 +111,15 @@ export function AndroidUpdateCard({ update }: { update: AndroidUpdateState }) {
         </div>
       </div>
 
+      <div className="android-update-check-meta">
+        <span>Dernière vérification</span>
+        <strong>{formatDateTime(update.lastCheckedAt)}</strong>
+        <small>
+          Recherche automatique environ 7 secondes après le lancement, hors
+          activité GPS, récupération de trace ou export.
+        </small>
+      </div>
+
       {update.release?.available && (
         <div className="android-update-release">
           <div className="android-update-release-meta">
@@ -136,6 +157,13 @@ export function AndroidUpdateCard({ update }: { update: AndroidUpdateState }) {
         </div>
       )}
 
+      {update.phase === "verifying" && update.verificationProgress && (
+        <div className="android-update-verification-step" role="status">
+          <span>Contrôle en cours</span>
+          <strong>{update.verificationProgress.label}</strong>
+        </div>
+      )}
+
       {update.busyReason && (
         <p className="android-update-blocked" role="status">
           {update.busyReason}
@@ -160,6 +188,7 @@ export function AndroidUpdateCard({ update }: { update: AndroidUpdateState }) {
           <Button
             variant="secondary"
             onClick={() => void update.checkNow(false)}
+            disabled={Boolean(update.busyReason)}
           >
             Vérifier les mises à jour
           </Button>
@@ -170,12 +199,22 @@ export function AndroidUpdateCard({ update }: { update: AndroidUpdateState }) {
           </Button>
         )}
         {update.phase === "available" && (
-          <Button
-            variant="primary"
-            onClick={() => void update.startDownload()}
-            disabled={!canDownload}
-          >
-            Télécharger la mise à jour
+          <>
+            <Button variant="secondary" onClick={update.remindLater}>
+              Plus tard
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void update.startDownload()}
+              disabled={!canDownload}
+            >
+              Télécharger la mise à jour
+            </Button>
+          </>
+        )}
+        {update.phase === "preparing-download" && (
+          <Button variant="secondary" disabled>
+            Préparation...
           </Button>
         )}
         {update.phase === "downloading" && (
@@ -233,6 +272,33 @@ export function AndroidUpdateCard({ update }: { update: AndroidUpdateState }) {
           </Button>
         )}
       </div>
+
+      <details className="android-update-diagnostics">
+        <summary>
+          Journal diagnostic
+          <span>{update.diagnostics.length}</span>
+        </summary>
+        <div className="android-update-diagnostics-body">
+          {update.diagnostics.length > 0 ? (
+            <ol>
+              {update.diagnostics.map((entry) => (
+                <li key={entry.id} className={`is-${entry.level}`}>
+                  <span>{formatDateTime(entry.timestamp)}</span>
+                  <strong>{entry.action}</strong>
+                  <p>{entry.message}</p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>Aucun événement enregistré.</p>
+          )}
+          {update.diagnostics.length > 0 && (
+            <Button variant="secondary" onClick={update.clearDiagnostics}>
+              Effacer le journal
+            </Button>
+          )}
+        </div>
+      </details>
 
       <p className="android-update-safety">
         CAP CLAIR vérifie le SHA-256, le package, le versionCode et la signature

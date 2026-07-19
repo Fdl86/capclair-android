@@ -1,62 +1,71 @@
-# CAP CLAIR DEV15.3.2 - AUTO UPDATE BRIDGE HOTFIX
+# CAP CLAIR DEV15.3.3 - AUTO UPDATE UX VALIDATION
 
 Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.3.2 conserve intégralement le relief du Replay ajouté en DEV15.3.1 et corrige la transmission du `versionCode` entre TypeScript et le plugin Android de mise à jour.
+DEV15.3.3 améliore l'expérience du système de mise à jour semi-automatique introduit en DEV15.3.0 et corrigé en DEV15.3.2. Cette version sert de première validation complète d'une mise à jour détectée, téléchargée, vérifiée et installée directement depuis CAP CLAIR.
 
-## Correctif de mise à jour
+## Recherche automatique
 
-La détection d'une nouvelle Release fonctionnait, mais le téléchargement était refusé avec le message `versionCode de mise à jour invalide`.
+CAP CLAIR lance une vérification légère environ 7 secondes après son démarrage lorsque l'application est disponible.
 
-Le pont Capacitor transmet les nombres JavaScript sous une forme numérique qui n'était pas récupérée correctement par `PluginCall.getLong()`. Le plugin utilise désormais le convertisseur numérique robuste déjà employé par le GPS.
+La recherche est reportée si l'une des activités suivantes est en cours :
 
-Le `versionCode` est accepté sous les formes suivantes :
+- enregistrement ou finalisation GPS ;
+- récupération ou vérification d'une trace ;
+- export du log de navigation.
 
-- entier Java ;
-- nombre JavaScript représenté en décimal ;
-- chaîne numérique.
+La recherche ne déclenche jamais le téléchargement ni l'installation.
 
-Une valeur absente, négative ou non numérique reste refusée.
+## Information utilisateur
 
-## Relief dans le Replay
+Lorsqu'une version plus récente est disponible :
 
-CAP CLAIR conserve toutes les fonctions de DEV15.3.1 :
+- une notification discrète apparaît dans l'application ;
+- un badge est affiché sur l'onglet `Plus` ;
+- le bouton `Voir` ouvre la fiche complète ;
+- le bouton `Plus tard` masque la notification pendant 12 heures ;
+- la fiche de mise à jour reste toujours accessible dans `Plus`.
 
-- profil du relief sous les traces CAP CLAIR existantes ;
-- prise en charge des GPX importés ;
-- altitude terrain et hauteur sol estimée ;
-- cache local et réouverture hors connexion ;
-- aucun appel réseau pendant l'enregistrement GPS.
+L'écran affiche aussi la date et l'heure de la dernière tentative de vérification.
 
-## Mise à jour Android
+## Téléchargement et vérifications
 
-Dans l'écran `Plus`, CAP CLAIR :
+Le téléchargement reste volontaire et utilise le DownloadManager Android. Les étapes de sécurité sont désormais affichées précisément :
 
-- effectue une vérification automatique une seule fois par lancement lorsque l'écran est ouvert ;
-- permet une vérification manuelle à tout moment ;
-- affiche la version installée, la version disponible, la taille de l'APK et le changelog ;
-- télécharge l'APK avec le DownloadManager Android ;
-- vérifie le SHA-256, le package, le versionCode et la signature Android ;
-- ouvre l'installateur système sans installation silencieuse.
+- calcul du SHA-256 ;
+- vérification du package `fr.capclair.app` ;
+- vérification du versionCode et du versionName ;
+- vérification de la signature Android ;
+- APK prêt à installer.
 
-## Protections
+Un journal diagnostic local conserve les 30 derniers événements de l'updater. Il ne contient ni jeton, ni donnée de vol, ni information sensible et peut être effacé depuis l'écran `Plus`.
 
-- package attendu : `fr.capclair.app` ;
-- certificat SHA-256 épinglé dans le code natif ;
-- refus d'une version identique ou plus ancienne ;
-- refus d'un APK corrompu, mal signé ou associé à un autre package ;
-- mise à jour interdite pendant le GPS, la finalisation ou récupération d'une trace et l'export PDF.
+## Nettoyage
+
+- un APK plus ancien est supprimé lorsqu'une Release plus récente est détectée ;
+- après une installation réussie, l'ancien APK est supprimé au prochain lancement ;
+- les téléchargements interrompus ou invalides continuent d'être supprimés immédiatement.
+
+## Fonctions conservées
+
+DEV15.3.3 conserve intégralement :
+
+- le relief terrain du Replay ;
+- la prise en charge des anciennes traces et GPX importés ;
+- les protections SHA-256, package, versionCode et signature ;
+- le refus des versions identiques ou plus anciennes ;
+- l'ouverture de l'installateur système avec confirmation Android.
 
 ## Invariants
 
-Le moteur GPS, le Suivi, la collecte des positions, le stockage natif des traces et le PDF Log nav ne sont pas modifiés.
+Le moteur GPS, le Suivi, la collecte des positions, le stockage natif des traces, le Replay, le relief et le PDF Log nav ne sont pas modifiés.
 
 ## Version
 
-- versionName : 15.3.2
-- versionCode : 1503002
-- APP_VERSION : CAP CLAIR DEV15.3.2 - AUTO UPDATE BRIDGE HOTFIX
-- artifact : cap-clair-dev15-3-2-release-apk
-- tag Release : android-v15.3.2
+- versionName : 15.3.3
+- versionCode : 1503003
+- APP_VERSION : CAP CLAIR DEV15.3.3 - AUTO UPDATE UX VALIDATION
+- artifact : cap-clair-dev15-3-3-release-apk
+- tag Release : android-v15.3.3
 
-Consulter `LIVRAISON_DEV15.3.2.txt`, `docs/AUTO_UPDATE_BRIDGE_HOTFIX_DEV15.3.2.md`, `docs/REPLAY_TERRAIN_DEV15.3.1.md` et `docs/AUTO_UPDATE_DEV15.3.0.md`.
+Consulter `LIVRAISON_DEV15.3.3.txt`, `docs/AUTO_UPDATE_UX_VALIDATION_DEV15.3.3.md`, `docs/AUTO_UPDATE_BRIDGE_HOTFIX_DEV15.3.2.md` et `docs/AUTO_UPDATE_DEV15.3.0.md`.

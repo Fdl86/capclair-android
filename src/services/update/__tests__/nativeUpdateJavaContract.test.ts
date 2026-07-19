@@ -73,6 +73,21 @@ describe("Native Android updater security contract", () => {
     expect(source).not.toContain("commit(");
   });
 
+  it("reports real APK verification stages and removes superseded downloads", () => {
+    const source = fs.readFileSync(pluginPath, "utf8");
+
+    expect(source).toContain('notifyVerificationProgress("sha256"');
+    expect(source).toContain('notifyVerificationProgress("package"');
+    expect(source).toContain('notifyVerificationProgress("version"');
+    expect(source).toContain('notifyVerificationProgress("signature"');
+    expect(source).toContain('notifyVerificationProgress("complete"');
+    expect(source).toContain('notifyListeners("verificationProgress", event, true)');
+    expect(source).toContain(
+      "if (available && storedVersionCode > installedCode && storedVersionCode < versionCode)",
+    );
+    expect(source).toContain("clearCurrentDownload(true);");
+  });
+
   it("blocks download and installation while GPS or an unsaved native trace is active", () => {
     const source = fs.readFileSync(pluginPath, "utf8");
 

@@ -7,17 +7,17 @@ import org.junit.Test;
 public class NativeBridgeNumbersTest {
     @Test
     public void nonNegativeLongAcceptsIntegerNumber() {
-        assertEquals(1503002L, NativeBridgeNumbers.nonNegativeLong(1503002, 0L));
+        assertEquals(1503003L, NativeBridgeNumbers.nonNegativeLong(1503003, 0L));
     }
 
     @Test
     public void nonNegativeLongAcceptsJavascriptDouble() {
-        assertEquals(1503002L, NativeBridgeNumbers.nonNegativeLong(1503002.0d, 0L));
+        assertEquals(1503003L, NativeBridgeNumbers.nonNegativeLong(1503003.0d, 0L));
     }
 
     @Test
     public void nonNegativeLongAcceptsNumericString() {
-        assertEquals(1503002L, NativeBridgeNumbers.nonNegativeLong("1503002", 0L));
+        assertEquals(1503003L, NativeBridgeNumbers.nonNegativeLong("1503003", 0L));
     }
 
     @Test

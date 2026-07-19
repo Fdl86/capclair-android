@@ -3843,3 +3843,181 @@
     width: 100%;
   }
 }
+
+/* DEV15.3.3 - Auto update UX validation */
+.android-update-check-meta,
+.android-update-verification-step {
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(5, 12, 20, 0.48);
+}
+
+.android-update-check-meta span,
+.android-update-verification-step span {
+  color: var(--text-3);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.android-update-check-meta small {
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
+.android-update-verification-step {
+  border-color: rgba(89, 207, 255, 0.28);
+  background: rgba(9, 24, 37, 0.58);
+}
+
+.android-update-diagnostics {
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  overflow: hidden;
+  background: rgba(5, 12, 20, 0.42);
+}
+
+.android-update-diagnostics summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  cursor: pointer;
+  color: var(--text-2);
+  font-weight: 700;
+}
+
+.android-update-diagnostics summary span {
+  min-width: 24px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(24, 174, 239, 0.12);
+  color: var(--cyan-soft);
+  text-align: center;
+  font-size: 0.72rem;
+}
+
+.android-update-diagnostics-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.android-update-diagnostics-body > p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 0.82rem;
+}
+
+.android-update-diagnostics ol {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.android-update-diagnostics li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  padding: 8px 9px;
+  border-left: 3px solid var(--border);
+  border-radius: 8px;
+  background: rgba(12, 22, 34, 0.72);
+}
+
+.android-update-diagnostics li.is-success {
+  border-left-color: rgba(61, 220, 132, 0.72);
+}
+
+.android-update-diagnostics li.is-warning {
+  border-left-color: rgba(255, 178, 76, 0.72);
+}
+
+.android-update-diagnostics li.is-error {
+  border-left-color: rgba(255, 101, 101, 0.72);
+}
+
+.android-update-diagnostics li > span {
+  color: var(--text-3);
+  font-size: 0.68rem;
+}
+
+.android-update-diagnostics li > strong {
+  color: var(--text-2);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.android-update-diagnostics li > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.android-update-notice {
+  position: fixed;
+  right: 12px;
+  bottom: calc(82px + var(--safe-bottom));
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(520px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid rgba(89, 207, 255, 0.34);
+  border-radius: 15px;
+  background: rgba(7, 18, 29, 0.97);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(14px);
+}
+
+.android-update-notice > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.android-update-notice span {
+  color: var(--cyan-soft);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.android-update-notice strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.android-update-notice-actions {
+  display: flex;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 520px) {
+  .android-update-notice {
+    left: 8px;
+    right: 8px;
+    bottom: calc(80px + var(--safe-bottom));
+    width: auto;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .android-update-notice-actions .btn {
+    flex: 1 1 0;
+  }
+}

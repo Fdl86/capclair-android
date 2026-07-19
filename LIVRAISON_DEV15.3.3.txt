@@ -1,0 +1,26 @@
+CAP CLAIR DEV15.3.3 - AUTO UPDATE UX VALIDATION
+
+Version : 15.3.3
+versionCode : 1503003
+Artifact GitHub Actions : cap-clair-dev15-3-3-release-apk
+Release : android-v15.3.3
+APK : cap-clair-dev15-3-3.apk
+
+Objectif principal :
+- valider la chaîne complète d'auto-update depuis DEV15.3.2 ;
+- ajouter une recherche automatique discrète après le lancement ;
+- améliorer la visibilité et le diagnostic des mises à jour.
+
+Procédure de publication :
+1. Conserver uniquement .git dans le dossier local de la branche Android.
+2. Copier tout le contenu de ce ZIP, dossier .github inclus.
+3. Commit sur main puis Push origin.
+4. Attendre les deux jobs verts du workflow Android Release APK.
+5. Ne pas installer manuellement DEV15.3.3.
+6. Depuis DEV15.3.2 installée, ouvrir l’écran Plus : la recherche se lance à sa première ouverture, ou utiliser le bouton de vérification.
+7. Télécharger, vérifier et installer DEV15.3.3 depuis CAP CLAIR.
+8. À partir de DEV15.3.3, les versions suivantes seront recherchées automatiquement environ 7 secondes après le lancement.
+9. Vérifier après installation que la version affichée est DEV15.3.3 et que traces, réglages, profils avion et relief sont conservés.
+
+Aucun fichier android/app/src/main/assets/public n'a été modifié manuellement.
+Ces fichiers doivent provenir de npm run build:android puis npx cap sync android.

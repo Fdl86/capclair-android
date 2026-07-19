@@ -342,6 +342,10 @@ public class NativeUpdatePlugin extends Plugin {
         JSObject installed = installedInfo();
         long installedCode = installed.optLong("versionCode", 0L);
         boolean available = versionCode > installedCode;
+        long storedVersionCode = preferences().getLong("versionCode", 0L);
+        if (available && storedVersionCode > installedCode && storedVersionCode < versionCode) {
+            clearCurrentDownload(true);
+        }
 
         JSObject result = new JSObject();
         result.put("available", available);
@@ -444,6 +448,7 @@ public class NativeUpdatePlugin extends Plugin {
     }
 
     private JSObject verifyCurrentApk() throws Exception {
+        notifyVerificationProgress("preparing", "Préparation de la vérification");
         JSObject downloadStatus = readDownloadStatus(false);
         String state = downloadStatus.optString("state", "idle");
         if (!("downloaded".equals(state) || "verified".equals(state))) {
@@ -456,18 +461,21 @@ public class NativeUpdatePlugin extends Plugin {
             throw new UpdateException("apk_missing", "Fichier APK téléchargé introuvable.");
         }
 
+        notifyVerificationProgress("sha256", "Calcul du SHA-256");
         String expectedSha256 = normalizeSha256(prefs.getString("sha256", ""));
         String actualSha256 = sha256(apkFile);
         if (!expectedSha256.equals(actualSha256)) {
             throw new UpdateException("checksum_mismatch", "SHA-256 incorrect. Le téléchargement a été supprimé.");
         }
 
+        notifyVerificationProgress("package", "Vérification du package CAP CLAIR");
         PackageInfo archiveInfo = archivePackageInfo(apkFile);
         if (archiveInfo == null) throw new UpdateException("apk_invalid", "APK Android illisible.");
         if (!PACKAGE_NAME.equals(archiveInfo.packageName)) {
             throw new UpdateException("package_mismatch", "L'APK ne correspond pas au package CAP CLAIR.");
         }
 
+        notifyVerificationProgress("version", "Vérification de la version Android");
         long versionCode = packageVersionCode(archiveInfo);
         long expectedVersionCode = prefs.getLong("versionCode", 0L);
         long installedVersionCode = installedVersionCode();
@@ -483,6 +491,7 @@ public class NativeUpdatePlugin extends Plugin {
             throw new UpdateException("version_not_newer", "L'APK n'est pas plus récent que la version installée.");
         }
 
+        notifyVerificationProgress("signature", "Vérification de la signature Android");
         String certificate = primaryCertificateDigest(archiveInfo);
         String installedCertificate = primaryCertificateDigest(installedPackageInfo());
         if (!CERTIFICATE_SHA256.equals(certificate) || !installedCertificate.equals(certificate)) {
@@ -499,6 +508,7 @@ public class NativeUpdatePlugin extends Plugin {
             .putLong("verifiedAt", System.currentTimeMillis())
             .apply();
 
+        notifyVerificationProgress("complete", "APK vérifié et prêt à installer");
         JSObject result = new JSObject();
         result.put("state", "verified");
         result.put("verified", true);
@@ -512,6 +522,13 @@ public class NativeUpdatePlugin extends Plugin {
         return result;
     }
 
+
+    private void notifyVerificationProgress(String step, String label) {
+        JSObject event = new JSObject();
+        event.put("step", step);
+        event.put("label", label);
+        notifyListeners("verificationProgress", event, true);
+    }
 
     private boolean shouldDeleteDownloadedApk(String code) {
         return "checksum_mismatch".equals(code)

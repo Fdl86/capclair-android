@@ -16,6 +16,7 @@ import { runStorageMaintenance } from "../services/storage/storageMaintenance";
 import { Button } from "../components/ui/Button";
 import { exportNavLogPdf } from "../services/export/navLogExport";
 import { useAndroidUpdate } from "../hooks/useAndroidUpdate";
+import { UpdateAvailableNotice } from "../components/update/UpdateAvailableNotice";
 
 const CalculationsScreen = lazy(() =>
   import("../screens/CalculationsScreen").then((module) => ({
@@ -128,7 +129,7 @@ export function App() {
         : null;
   const androidUpdate = useAndroidUpdate({
     busyReason: updateBusyReason,
-    autoCheckEnabled: currentScreen === "more",
+    autoCheckEnabled: true,
   });
   const replayTrace = replayTraceId
     ? (traceState.traces.find((trace) => trace.id === replayTraceId) ?? null)
@@ -204,7 +205,17 @@ export function App() {
       currentScreen={currentScreen}
       onNavigate={setCurrentScreen}
       immersive={currentScreen === "replay"}
+      moreBadge={androidUpdate.updateBadgeVisible}
     >
+      {androidUpdate.showUpdateNotice &&
+        currentScreen !== "more" &&
+        currentScreen !== "tracking" &&
+        currentScreen !== "replay" && (
+          <UpdateAvailableNotice
+            update={androidUpdate}
+            onOpen={() => setCurrentScreen("more")}
+          />
+        )}
       <Suspense
         fallback={
           <div className="screen-loading">Chargement de l’écran...</div>

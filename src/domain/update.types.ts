@@ -55,6 +55,20 @@ export interface AndroidDownloadStatus {
   verifiedAt?: number;
 }
 
+
+export type AndroidUpdateVerificationStep =
+  | "preparing"
+  | "sha256"
+  | "package"
+  | "version"
+  | "signature"
+  | "complete";
+
+export interface AndroidUpdateVerificationProgress {
+  step: AndroidUpdateVerificationStep;
+  label: string;
+}
+
 export interface VerifiedAndroidApk {
   state: "verified";
   verified: true;
@@ -74,6 +88,7 @@ export type AndroidUpdatePhase =
   | "checking"
   | "up-to-date"
   | "available"
+  | "preparing-download"
   | "downloading"
   | "downloaded"
   | "verifying"

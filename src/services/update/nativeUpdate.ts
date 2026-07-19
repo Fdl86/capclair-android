@@ -1,9 +1,11 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import type { PluginListenerHandle } from "@capacitor/core";
 import type {
   AndroidDownloadStatus,
   AndroidUpdateCheckResult,
   InstalledAndroidVersion,
   VerifiedAndroidApk,
+  AndroidUpdateVerificationProgress,
 } from "../../domain/update.types";
 
 const DEFAULT_UPDATE_MANIFEST_URL =
@@ -37,6 +39,10 @@ interface NativeUpdatePlugin {
     versionCode: number;
   }>;
   cleanupDownloads(): Promise<{ cleaned: boolean }>;
+  addListener(
+    eventName: "verificationProgress",
+    listener: (event: AndroidUpdateVerificationProgress) => void,
+  ): Promise<PluginListenerHandle>;
 }
 
 const NativeUpdate = registerPlugin<NativeUpdatePlugin>("NativeUpdate");
@@ -115,4 +121,10 @@ export function installAndroidUpdateApk(): Promise<{
 
 export function cleanupAndroidUpdateDownloads(): Promise<{ cleaned: boolean }> {
   return NativeUpdate.cleanupDownloads();
+}
+
+export function addAndroidUpdateVerificationListener(
+  listener: (event: AndroidUpdateVerificationProgress) => void,
+): Promise<PluginListenerHandle> {
+  return NativeUpdate.addListener("verificationProgress", listener);
 }
