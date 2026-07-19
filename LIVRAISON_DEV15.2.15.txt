@@ -1,0 +1,26 @@
+CAP CLAIR DEV15.2.15 - NAV LOG UI HOTFIX
+
+Base : DEV15.2.14 validée.
+
+Corrections principales :
+- TAS du log synchronisée avec le profil avion actif.
+- Suppression du réglage TAS local dans le log.
+- Saisie directe de l'altitude par défaut, compatible 9500 et FL095.
+- Correction de la propagation de l'altitude par défaut aux branches sans exception.
+- Possibilité d'appliquer l'altitude par défaut à toutes les branches.
+- Suppression des fréquences fictives du constructeur de route.
+- Nouvelle navigation : confirmation et effacement du déroutement.
+- Validation des codes aérodromes avec restauration de la valeur réellement enregistrée.
+- Résumé vide sans fausse vitesse sol.
+- Restauration cohérente de l'état du vent mémorisé.
+- Saisie numérique différée et validée pour le profil avion et le devis carburant.
+- Suppression possible d'un profil avion, sauf le dernier.
+- Mise à jour des textes sur le GPS écran éteint.
+- Durée des traces longues affichée en heures et minutes.
+- Avertissement PDF visible au-delà de 8 branches.
+- Libellé "Passer au suivi" clarifié.
+
+Invariants :
+- Aucun changement du moteur GPS Android.
+- Aucun changement du Suivi, du stockage des traces, du Replay ou de la reconstruction GPS.
+- Aucun changement manuel de android/app/src/main/assets/public.

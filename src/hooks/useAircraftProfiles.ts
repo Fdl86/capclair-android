@@ -47,7 +47,8 @@ function ensureProfiles(profiles: AircraftProfile[]) {
 }
 
 function profileLabel(profile: AircraftProfile) {
-  return profile.registration ? `${profile.model} ${profile.registration}` : profile.model;
+  const model = profile.model.trim() || 'Avion sans nom';
+  return profile.registration.trim() ? `${model} ${profile.registration.trim()}` : model;
 }
 
 export function useAircraftProfiles() {
@@ -83,12 +84,22 @@ export function useAircraftProfiles() {
     return profile;
   };
 
+  const deleteProfile = (profileId: string) => {
+    if (safeProfiles.length <= 1) return activeProfile;
+    const remaining = safeProfiles.filter((profile) => profile.id !== profileId);
+    const selected = activeProfile.id === profileId ? remaining[0] : activeProfile;
+    setProfiles(remaining);
+    if (activeProfile.id === profileId) setActiveAircraftId(selected.id);
+    return selected;
+  };
+
   return {
     profiles: safeProfiles,
     activeProfile,
     activeAircraftId: activeProfile.id,
     selectProfile,
     updateProfile,
-    createProfile
+    createProfile,
+    deleteProfile
   };
 }

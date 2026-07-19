@@ -39,7 +39,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
 
       <Card className="safety-card">
         <strong>Prototype</strong>
-        <p>Prototype technique et UX. Ne pas utiliser pour une navigation réelle. Le suivi GPS fonctionne uniquement app ouverte au premier plan.</p>
+        <p>Prototype technique et UX. Ne pas utiliser comme source unique de navigation. Sur Android, le suivi écran éteint nécessite l'autorisation de batterie sans restriction.</p>
       </Card>
     </section>
   );

@@ -219,7 +219,7 @@ export function buildBranches(points: NavPoint[], options: RouteBuildOptions = {
       estimatedStartIso,
       estimatedMidIso,
       estimatedArrivalIso,
-      frequencyMhz: index === 0 ? '123.500' : index === points.length - 2 ? '118.355' : '123.500',
+      frequencyMhz: undefined,
       remarks: index === 0 ? 'Départ à confirmer' : index === points.length - 2 ? 'Arrivée à préparer' : 'Point tournant'
     };
   });
@@ -237,7 +237,9 @@ export function buildRoute(points: NavPoint[], options: RouteBuildOptions = {}):
   const totalTimeMinutes = branches.reduce((sum, branch) => sum + branch.tempsBrancheMin, 0);
   const totalDistance = Number(branches.reduce((sum, branch) => sum + branch.distanceNm, 0).toFixed(1));
   const hasWindCalculationError = branches.some((branch) => branch.windCalculationValid === false);
-  const averageGroundSpeedKt = hasWindCalculationError
+  const averageGroundSpeedKt = branches.length === 0
+    ? 0
+    : hasWindCalculationError
     ? 0
     : totalTimeMinutes > 0
       ? Math.max(0, Math.round((totalDistance / totalTimeMinutes) * 60))
@@ -253,7 +255,11 @@ export function buildRoute(points: NavPoint[], options: RouteBuildOptions = {}):
     vitesseSolKt: averageGroundSpeedKt,
     hasWindCalculationError,
     profile,
-    branchAltitudeById: Object.fromEntries(branches.map((branch) => [branch.id, branch.altitudeFt])),
+    branchAltitudeById: Object.fromEntries(
+      branches
+        .filter((branch) => branchAltitudeById[branch.id] !== undefined && branch.altitudeFt !== profile.defaultAltitudeFt)
+        .map((branch) => [branch.id, branch.altitudeFt])
+    ),
     branchWindById: Object.fromEntries(branches.filter((branch) => branch.wind).map((branch) => [branch.id, branch.wind as BranchWind])),
     dateModification: new Date().toISOString()
   };

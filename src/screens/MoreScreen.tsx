@@ -13,9 +13,10 @@ interface MoreScreenProps {
   onSelectAircraft: (profileId: string) => void;
   onUpdateAircraft: (profileId: string, patch: Partial<AircraftProfile>) => void;
   onCreateAircraft: () => void;
+  onDeleteAircraft: (profileId: string) => void;
 }
 
-export function MoreScreen({ onNavigate, aircraftProfiles, activeAircraft, onSelectAircraft, onUpdateAircraft, onCreateAircraft }: MoreScreenProps) {
+export function MoreScreen({ onNavigate, aircraftProfiles, activeAircraft, onSelectAircraft, onUpdateAircraft, onCreateAircraft, onDeleteAircraft }: MoreScreenProps) {
   return (
     <Page title="Plus" subtitle="Accès rapide aux outils de préparation.">
       <div className="more-grid">
@@ -32,6 +33,7 @@ export function MoreScreen({ onNavigate, aircraftProfiles, activeAircraft, onSel
             onSelectProfile={onSelectAircraft}
             onUpdateProfile={onUpdateAircraft}
             onCreateProfile={onCreateAircraft}
+            onDeleteProfile={onDeleteAircraft}
           />
         </Accordion>
         <Card>
@@ -46,7 +48,7 @@ export function MoreScreen({ onNavigate, aircraftProfiles, activeAircraft, onSel
         </Card>
         <Card className="safety-card">
           <strong>Limites</strong>
-          <p>Prototype non réglementaire. METAR/TAF bruts, pas de SUP AIP automatique, pas de GPS en arrière-plan.</p>
+          <p>Application non réglementaire. Le suivi Android peut fonctionner écran éteint lorsque CAP CLAIR est autorisé à fonctionner sans restriction de batterie.</p>
         </Card>
       </div>
     </Page>

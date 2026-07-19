@@ -1,4 +1,4 @@
-# CAP CLAIR DEV15.2.14 - CI SYNC ORDER HOTFIX
+# CAP CLAIR DEV15.2.15 - NAV LOG UI HOTFIX
 
 Application VFR mobile-first Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
@@ -43,9 +43,9 @@ Le code GPS de DEV15.2.13 est inchangé. Le workflow exécute désormais le buil
 
 ## Version
 
-- versionName : 15.2.14
-- versionCode : 1502014
-- APP_VERSION : CAP CLAIR DEV15.2.14 - CI SYNC ORDER HOTFIX
-- artifact : cap-clair-dev15-2-14-debug-apk
+- versionName : 15.2.15
+- versionCode : 1502015
+- APP_VERSION : CAP CLAIR DEV15.2.15 - NAV LOG UI HOTFIX
+- artifact : cap-clair-dev15-2-15-debug-apk
 
-Consulter `LIVRAISON_DEV15.2.14.txt`.
+Consulter `LIVRAISON_DEV15.2.15.txt`.

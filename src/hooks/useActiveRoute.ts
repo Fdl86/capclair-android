@@ -73,18 +73,27 @@ function safeRoute(route: NavRoute): NavRoute {
   });
 }
 
+function initialWeatherStatus(route: NavRoute): string {
+  if (route.branches.length === 0) return 'Vent non chargé';
+  const loaded = route.branches.filter((branch) => branch.wind).length;
+  if (loaded === 0) return 'Vent non chargé';
+  if (loaded === route.branches.length) return 'Vent mémorisé';
+  return `Vent partiel ${loaded}/${route.branches.length}`;
+}
+
 export function useActiveRoute() {
   const [route, setRoute] = useLocalStorageState<NavRoute>(STORAGE_KEY, defaultRoute);
   const [selectedPointId, setSelectedPointId] = useState<string | null>(route.points[1]?.id ?? route.points[0]?.id ?? null);
   const [routeMessage, setRouteMessage] = useState('Route prête');
-  const [weatherStatus, setWeatherStatus] = useState('Vent non chargé');
+  const [weatherStatus, setWeatherStatus] = useState(() => initialWeatherStatus(safeRoute(route)));
 
   const normalizedRoute = useMemo(() => safeRoute(route), [route]);
   const selectedPoint = useMemo(() => normalizedRoute.points.find((point) => point.id === selectedPointId) ?? null, [normalizedRoute.points, selectedPointId]);
 
   useEffect(() => {
-    if (route.id !== normalizedRoute.id) setRoute(normalizedRoute);
-  }, [normalizedRoute, route.id, setRoute]);
+    const altitudeStorageChanged = JSON.stringify(route.branchAltitudeById ?? {}) !== JSON.stringify(normalizedRoute.branchAltitudeById);
+    if (route.id !== normalizedRoute.id || altitudeStorageChanged) setRoute(normalizedRoute);
+  }, [normalizedRoute, route.branchAltitudeById, route.id, setRoute]);
 
   const rebuild = (
     points: NavPoint[] = normalizedRoute.points,
@@ -218,10 +227,20 @@ export function useActiveRoute() {
       return;
     }
     const normalizedAltitudeFt = Math.max(500, Math.min(12500, Math.round(altitudeFt / 100) * 100));
-    const nextAltitudes = { ...normalizedRoute.branchAltitudeById, [branchId]: normalizedAltitudeFt };
+    const nextAltitudes = { ...normalizedRoute.branchAltitudeById };
+    if (normalizedAltitudeFt === normalizedRoute.profile.defaultAltitudeFt) {
+      delete nextAltitudes[branchId];
+    } else {
+      nextAltitudes[branchId] = normalizedAltitudeFt;
+    }
     const nextWinds = { ...normalizedRoute.branchWindById };
     delete nextWinds[branchId];
     rebuild(normalizedRoute.points, normalizedRoute.profile, nextAltitudes, nextWinds, `Altitude branche ${normalizedAltitudeFt} ft`);
+    setWeatherStatus('Vent à rafraîchir');
+  };
+
+  const applyDefaultAltitudeToAllBranches = () => {
+    rebuild(normalizedRoute.points, normalizedRoute.profile, {}, {}, `Altitude ${normalizedRoute.profile.defaultAltitudeFt} ft appliquée à toutes les branches`);
     setWeatherStatus('Vent à rafraîchir');
   };
 
@@ -262,8 +281,13 @@ export function useActiveRoute() {
     }
   };
 
-  const resetRoute = () => {
-    setRoute(createEmptyRoute());
+  const resetRoute = (tasKt = normalizedRoute.profile.tasKt) => {
+    setRoute(createEmptyRoute({
+      profile: {
+        tasKt,
+        defaultAltitudeFt: normalizedRoute.profile.defaultAltitudeFt
+      }
+    }));
     setSelectedPointId(null);
     setRouteMessage('Nouvelle navigation vide : saisir départ et arrivée.');
     setWeatherStatus('Vent non chargé');
@@ -285,6 +309,7 @@ export function useActiveRoute() {
     setDefaultAltitudeFt,
     setDepartureTimeIso,
     setBranchAltitudeFt,
+    applyDefaultAltitudeToAllBranches,
     refreshWinds,
     resetRoute
   };

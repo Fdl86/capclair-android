@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { BranchZoneProfile } from '../../domain/airspace.types';
 import type { NavRoute } from '../../domain/navigation.types';
 import { formatMagneticVariation } from '../../services/geo/magneticVariation';
+import { parseAltitudeInput } from '../../services/navigation/altitudeInput';
 
 interface BranchTableProps {
   route: NavRoute;
@@ -51,26 +52,22 @@ function BranchAltitudeInput({
   }, [value]);
 
   const commit = () => {
-    const parsed = Number(draft);
-    if (!Number.isFinite(parsed) || parsed < 500 || parsed > 12500) {
+    const parsed = parseAltitudeInput(draft);
+    if (parsed === null) {
       setDraft(String(value));
       return;
     }
-    const normalized = Math.round(parsed / 100) * 100;
-    setDraft(String(normalized));
-    onCommit(branchId, normalized);
+    setDraft(String(parsed));
+    onCommit(branchId, parsed);
   };
 
   return (
     <input
       className="branch-alt-input"
-      type="number"
-      inputMode="numeric"
-      min={500}
-      max={12500}
-      step={100}
+      type="text"
+      inputMode="text"
       value={draft}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => setDraft(event.target.value.toUpperCase())}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {

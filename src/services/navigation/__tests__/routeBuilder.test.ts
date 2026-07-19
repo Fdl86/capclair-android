@@ -115,4 +115,31 @@ describe('route builder', () => {
     expect(route.profile.departureTimeIso).toBe(departureTimeIso);
     expect(route.profile.weatherAnalysisTimeIso).toBe(weatherAnalysisTimeIso);
   });
+
+  it('does not invent a ground speed or frequencies for an empty or unclassified route', () => {
+    const empty = createEmptyRoute({ profile: { tasKt: 90 } });
+    const route = buildRoute([departure, destination]);
+
+    expect(empty.vitesseSolKt).toBe(0);
+    expect(route.branches[0].frequencyMhz).toBeUndefined();
+  });
+
+  it('stores only real branch altitude overrides', () => {
+    const baseline = buildRoute([departure, destination], {
+      profile: { tasKt: 100, defaultAltitudeFt: 2500 }
+    });
+    const branchId = baseline.branches[0].id;
+    const sameAsDefault = buildRoute([departure, destination], {
+      profile: { tasKt: 100, defaultAltitudeFt: 2500 },
+      branchAltitudeById: { [branchId]: 2500 }
+    });
+    const overridden = buildRoute([departure, destination], {
+      profile: { tasKt: 100, defaultAltitudeFt: 2500 },
+      branchAltitudeById: { [branchId]: 6500 }
+    });
+
+    expect(sameAsDefault.branchAltitudeById).toEqual({});
+    expect(overridden.branchAltitudeById).toEqual({ [branchId]: 6500 });
+    expect(overridden.branches[0].altitudeFt).toBe(6500);
+  });
 });

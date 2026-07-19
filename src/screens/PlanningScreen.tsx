@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NavRoute } from '../domain/navigation.types';
 import type { GpsPosition } from '../domain/gps.types';
 import type { MapBaseLayer } from '../mapEngine/mapTypes';
@@ -9,6 +9,7 @@ import { Card } from '../components/ui/Card';
 import { OpenLayersMap } from '../components/map/OpenLayersMap';
 import { MapLayerToggle } from '../components/map/MapLayerToggle';
 import { RoutePointList } from '../components/navigation/RoutePointList';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface PlanningScreenProps {
   route: NavRoute;
@@ -22,7 +23,7 @@ interface PlanningScreenProps {
   onReverseRoute: () => void;
   onResetRoute: () => void;
   alternateCode: string;
-  onSetAlternateCode: (code: string) => void;
+  onSetAlternateCode: (code: string) => boolean;
   onCalculations: () => void;
   mapBaseLayer: MapBaseLayer;
   onMapBaseLayerChange: (value: MapBaseLayer) => void;
@@ -80,6 +81,9 @@ export function PlanningScreen({
   const [destinationInput, setDestinationInput] = useState(endpointCode(route, 'destination'));
   const [alternateInput, setAlternateInput] = useState(alternateCode);
   const [activeAerodromeField, setActiveAerodromeField] = useState<AerodromeField | null>(null);
+  const [aerodromeError, setAerodromeError] = useState<string | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const skipNextAerodromeBlur = useRef(false);
 
   useEffect(() => {
     setDepartureInput(endpointCode(route, 'depart'));
@@ -100,23 +104,61 @@ export function PlanningScreen({
   const suggestions = useMemo(() => aerodromeSuggestions(activeAerodromeInput), [activeAerodromeInput]);
 
   const applyDeparture = () => {
-    if (departureInput.trim().length >= 4) onSetDepartureCode(departureInput);
+    if (skipNextAerodromeBlur.current) {
+      skipNextAerodromeBlur.current = false;
+      return;
+    }
+    const normalized = departureInput.trim().toUpperCase();
+    const accepted = normalized.length >= 4 && onSetDepartureCode(normalized);
+    if (!accepted) {
+      setDepartureInput(endpointCode(route, 'depart'));
+      setAerodromeError(normalized ? `Départ inconnu ou invalide : ${normalized}` : null);
+    } else {
+      setAerodromeError(null);
+    }
+    setActiveAerodromeField(null);
   };
 
   const applyDestination = () => {
-    if (destinationInput.trim().length >= 4) onSetDestinationCode(destinationInput);
+    if (skipNextAerodromeBlur.current) {
+      skipNextAerodromeBlur.current = false;
+      return;
+    }
+    const normalized = destinationInput.trim().toUpperCase();
+    const accepted = normalized.length >= 4 && onSetDestinationCode(normalized);
+    if (!accepted) {
+      setDestinationInput(endpointCode(route, 'destination'));
+      setAerodromeError(normalized ? `Arrivée inconnue ou invalide : ${normalized}` : null);
+    } else {
+      setAerodromeError(null);
+    }
+    setActiveAerodromeField(null);
   };
 
   const applyAlternate = () => {
+    if (skipNextAerodromeBlur.current) {
+      skipNextAerodromeBlur.current = false;
+      return;
+    }
     const normalized = alternateInput.trim().toUpperCase();
     if (!normalized) {
       onSetAlternateCode('');
+      setAerodromeError(null);
+      setActiveAerodromeField(null);
       return;
     }
-    if (normalized.length >= 4) onSetAlternateCode(normalized);
+    const accepted = normalized.length >= 4 && onSetAlternateCode(normalized);
+    if (!accepted) {
+      setAlternateInput(alternateCode);
+      setAerodromeError(`Dégagement inconnu : ${normalized}`);
+    } else {
+      setAerodromeError(null);
+    }
+    setActiveAerodromeField(null);
   };
 
   const chooseAerodrome = (field: AerodromeField, code: string) => {
+    skipNextAerodromeBlur.current = true;
     if (field === 'departure') {
       setDepartureInput(code);
       onSetDepartureCode(code);
@@ -129,6 +171,7 @@ export function PlanningScreen({
       setAlternateInput(code);
       onSetAlternateCode(code);
     }
+    setAerodromeError(null);
     setActiveAerodromeField(null);
     if (typeof document !== 'undefined') {
       (document.activeElement as HTMLElement | null)?.blur?.();
@@ -243,10 +286,12 @@ export function PlanningScreen({
             </div>
           )}
 
+          {aerodromeError && <p className="route-field-error" role="alert">{aerodromeError}</p>}
+
           <div className="route-summary-line">
-            <strong>{route.distanceTotale.toFixed(1).replace('.', ',')} NM</strong>
-            <span>{route.hasWindCalculationError ? 'Vent incompatible' : formatDuration(route.tempsEstimeMin)}</span>
-            <span>{route.hasWindCalculationError ? 'GS à vérifier' : `GS moy. ${route.vitesseSolKt} kt`}</span>
+            <strong>{route.branches.length ? `${route.distanceTotale.toFixed(1).replace('.', ',')} NM` : '-'}</strong>
+            <span>{route.branches.length ? (route.hasWindCalculationError ? 'Vent incompatible' : formatDuration(route.tempsEstimeMin)) : '-'}</span>
+            <span>{route.branches.length ? (route.hasWindCalculationError ? 'GS à vérifier' : `GS moy. ${route.vitesseSolKt} kt`) : '-'}</span>
           </div>
 
           <RoutePointList points={route.points} selectedPointId={selectedPointId} onSelect={onSelectPoint} onRemove={onRemovePoint} />
@@ -258,10 +303,30 @@ export function PlanningScreen({
           </div>
 
           <div className="route-actions-row route-actions-row-single">
-            <Button variant="secondary" onClick={() => { setAddWaypointMode(false); onResetRoute(); }}>Nouvelle nav</Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setAddWaypointMode(false);
+                if (route.points.length || alternateCode) setResetConfirmOpen(true);
+                else onResetRoute();
+              }}
+            >Nouvelle nav</Button>
           </div>
         </Card>
       </div>
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="Créer une nouvelle navigation ?"
+        message="La route, les points, les vents, les altitudes et l'aérodrome de déroutement seront effacés."
+        confirmLabel="Créer la nouvelle nav"
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={() => {
+          setResetConfirmOpen(false);
+          setAerodromeError(null);
+          setActiveAerodromeField(null);
+          onResetRoute();
+        }}
+      />
     </Page>
   );
 }

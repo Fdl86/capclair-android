@@ -49,6 +49,12 @@ export function App() {
     runStorageMaintenance();
   }, []);
 
+  useEffect(() => {
+    if (routeState.route.profile.tasKt !== aircraftState.activeProfile.cruiseTasKt) {
+      routeState.setTasKt(aircraftState.activeProfile.cruiseTasKt);
+    }
+  }, [aircraftState.activeProfile.cruiseTasKt, routeState.route.profile.tasKt]);
+
   const departureCode = routeEndpointCode(routeState.route, 'depart');
   const destinationCode = routeEndpointCode(routeState.route, 'destination');
   const safeAlternateCode = safeAerodromeCode(alternateCode, '');
@@ -61,8 +67,20 @@ export function App() {
   const replayTrace = replayTraceId ? traceState.traces.find((trace) => trace.id === replayTraceId) ?? null : null;
   const wakeLockActive = useScreenWakeLock(gpsIsRecording);
 
-  const setAlternate = (code: string) => {
-    setAlternateCode(safeAerodromeCode(code, safeAlternateCode));
+  const setAlternate = (code: string): boolean => {
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) {
+      setAlternateCode('');
+      return true;
+    }
+    if (!findAerodrome(normalized)) return false;
+    setAlternateCode(normalized);
+    return true;
+  };
+
+  const resetNavigation = () => {
+    routeState.resetRoute(aircraftState.activeProfile.cruiseTasKt);
+    setAlternateCode('');
   };
 
   const selectAircraft = (profileId: string) => {
@@ -100,7 +118,7 @@ export function App() {
           onAddWaypointAt={routeState.addWaypointAt}
           onRemovePoint={routeState.removePoint}
           onReverseRoute={routeState.reverseRoute}
-          onResetRoute={routeState.resetRoute}
+          onResetRoute={resetNavigation}
           alternateCode={safeAlternateCode}
           onSetAlternateCode={setAlternate}
           onCalculations={() => setCurrentScreen('calculations')}
@@ -118,8 +136,8 @@ export function App() {
           weatherStatus={routeState.weatherStatus}
           onSetBranchAltitude={routeState.setBranchAltitudeFt}
           onRefreshWinds={routeState.refreshWinds}
-          onSetTasKt={routeState.setTasKt}
           onSetDefaultAltitudeFt={routeState.setDefaultAltitudeFt}
+          onApplyDefaultAltitudeToAll={routeState.applyDefaultAltitudeToAllBranches}
           aircraftProfiles={aircraftState.profiles}
           activeAircraft={aircraftState.activeProfile}
           onSelectAircraft={selectAircraft}
@@ -187,6 +205,10 @@ export function App() {
           onSelectAircraft={selectAircraft}
           onUpdateAircraft={updateAircraft}
           onCreateAircraft={createAircraft}
+          onDeleteAircraft={(profileId) => {
+            const selected = aircraftState.deleteProfile(profileId);
+            routeState.setTasKt(selected.cruiseTasKt);
+          }}
         />
       )}
       </Suspense>

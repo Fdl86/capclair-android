@@ -13,8 +13,10 @@ interface TraceListItemProps {
 }
 
 function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   const remaining = seconds % 60;
+  if (hours > 0) return `${hours} h ${String(minutes).padStart(2, '0')} min`;
   return `${minutes} min ${String(remaining).padStart(2, '0')} s`;
 }
 

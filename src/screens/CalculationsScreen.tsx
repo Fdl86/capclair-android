@@ -19,14 +19,15 @@ import { FuelPlanningPanel } from '../components/flight/FuelPlanningPanel';
 import { findAerodrome } from '../data/aerodromeCatalog';
 import { diversionMinutes } from '../services/navigation/diversion';
 import type { NavLogExportResult } from '../services/export/navLogExport.types';
+import { formatFlightLevel, parseAltitudeInput } from '../services/navigation/altitudeInput';
 
 interface CalculationsScreenProps {
   route: NavRoute;
   weatherStatus: string;
   onSetBranchAltitude: (branchId: string, altitudeFt: number) => void;
   onRefreshWinds: () => void;
-  onSetTasKt: (tasKt: number) => void;
   onSetDefaultAltitudeFt: (altitudeFt: number) => void;
+  onApplyDefaultAltitudeToAll: () => void;
   aircraftProfiles: AircraftProfile[];
   activeAircraft: AircraftProfile;
   onSelectAircraft: (profileId: string) => void;
@@ -73,13 +74,61 @@ function SummaryCard({ label, value, detail }: { label: string; value: string; d
   );
 }
 
+function DefaultAltitudeInput({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(String(value));
+    setError(null);
+  }, [value]);
+
+  const commit = () => {
+    const parsed = parseAltitudeInput(draft);
+    if (parsed === null) {
+      setDraft(String(value));
+      setError('Saisir 500 à 12500 ft, par exemple 9500 ou FL095.');
+      return;
+    }
+    setDraft(String(parsed));
+    setError(null);
+    onCommit(parsed);
+  };
+
+  return (
+    <label className={`navlog-direct-field ${error ? 'is-invalid' : ''}`}>
+      <span>Altitude de croisière</span>
+      <div>
+        <input
+          value={draft}
+          inputMode="text"
+          autoComplete="off"
+          onChange={(event) => setDraft(event.target.value.toUpperCase())}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur();
+            if (event.key === 'Escape') {
+              setDraft(String(value));
+              setError(null);
+            }
+          }}
+          aria-invalid={Boolean(error)}
+          aria-label="Altitude de croisière"
+        />
+        <strong>ft</strong>
+      </div>
+      <small>{error ?? `${formatFlightLevel(value)} - saisie directe autorisée`}</small>
+    </label>
+  );
+}
+
 export function CalculationsScreen({
   route,
   weatherStatus,
   onSetBranchAltitude,
   onRefreshWinds,
-  onSetTasKt,
   onSetDefaultAltitudeFt,
+  onApplyDefaultAltitudeToAll,
   aircraftProfiles,
   activeAircraft,
   onSelectAircraft,
@@ -202,23 +251,16 @@ export function CalculationsScreen({
               activeProfile={activeAircraft}
               onSelectProfile={onSelectAircraft}
             />
-            <div className="cockpit-stepper-grid navlog-stepper-grid">
-              <div className="cockpit-stepper">
-                <span>TAS</span>
-                <div>
-                  <button type="button" onClick={() => onSetTasKt(route.profile.tasKt - 1)} aria-label="Réduire la TAS">-</button>
-                  <strong>{route.profile.tasKt}</strong>
-                  <button type="button" onClick={() => onSetTasKt(route.profile.tasKt + 1)} aria-label="Augmenter la TAS">+</button>
-                </div>
+            <div className="navlog-direct-grid">
+              <div className="navlog-readonly-field">
+                <span>TAS du profil avion</span>
+                <strong>{activeAircraft.cruiseTasKt} kt</strong>
+                <small>Réglage dans Plus - Avion</small>
               </div>
-              <div className="cockpit-stepper">
-                <span>Alt défaut</span>
-                <div>
-                  <button type="button" onClick={() => onSetDefaultAltitudeFt(route.profile.defaultAltitudeFt - 100)} aria-label="Réduire l'altitude">-</button>
-                  <strong>{route.profile.defaultAltitudeFt}</strong>
-                  <button type="button" onClick={() => onSetDefaultAltitudeFt(route.profile.defaultAltitudeFt + 100)} aria-label="Augmenter l'altitude">+</button>
-                </div>
-              </div>
+              <DefaultAltitudeInput value={route.profile.defaultAltitudeFt} onCommit={onSetDefaultAltitudeFt} />
+              {Object.keys(route.branchAltitudeById).length > 0 && (
+                <Button variant="ghost" onClick={onApplyDefaultAltitudeToAll}>Appliquer à toutes les branches</Button>
+              )}
             </div>
           </div>
         </Card>
@@ -281,9 +323,14 @@ export function CalculationsScreen({
           <Button variant="secondary" onClick={onBackPlanning}>Retour planification</Button>
           <div>
             <Button variant="secondary" onClick={handlePdfExport} disabled={pdfExporting}>{pdfExporting ? 'Préparation PDF...' : 'Exporter PDF'}</Button>
-            <Button variant="primary" onClick={onValidate}>Valider et passer au suivi</Button>
+            <Button variant="primary" onClick={onValidate}>Passer au suivi</Button>
           </div>
         </div>
+        {route.branches.length > 8 && (
+          <p className="navlog-pdf-limit" role="note">
+            Le PDF imprimera les 8 premières branches. {route.branches.length - 8} branche(s) supplémentaire(s) ne seront pas incluse(s).
+          </p>
+        )}
         {pdfExportStatus && (
           <p className={`navlog-pdf-status is-${pdfExportStatus.kind}`} role="status" aria-live="polite">
             {pdfExportStatus.message}
