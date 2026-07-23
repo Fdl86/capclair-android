@@ -10,6 +10,7 @@ import { OpenLayersMap } from '../components/map/OpenLayersMap';
 import { MapLayerToggle } from '../components/map/MapLayerToggle';
 import { RoutePointList } from '../components/navigation/RoutePointList';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { isRouteReady, routeReadinessMessage } from '../services/navigation/routeValidation';
 
 interface PlanningScreenProps {
   route: NavRoute;
@@ -102,6 +103,8 @@ export function PlanningScreen({
         ? alternateInput
         : '';
   const suggestions = useMemo(() => aerodromeSuggestions(activeAerodromeInput), [activeAerodromeInput]);
+  const routeReady = isRouteReady(route);
+  const readinessMessage = routeReadinessMessage(route);
 
   const applyDeparture = () => {
     if (skipNextAerodromeBlur.current) {
@@ -150,7 +153,9 @@ export function PlanningScreen({
     const accepted = normalized.length >= 4 && onSetAlternateCode(normalized);
     if (!accepted) {
       setAlternateInput(alternateCode);
-      setAerodromeError(`Dégagement inconnu : ${normalized}`);
+      setAerodromeError(normalized === endpointCode(route, 'destination')
+        ? 'Le dégagement doit être différent de l’arrivée.'
+        : `Dégagement inconnu : ${normalized}`);
     } else {
       setAerodromeError(null);
     }
@@ -159,19 +164,33 @@ export function PlanningScreen({
 
   const chooseAerodrome = (field: AerodromeField, code: string) => {
     skipNextAerodromeBlur.current = true;
-    if (field === 'departure') {
-      setDepartureInput(code);
-      onSetDepartureCode(code);
+    const accepted = field === 'departure'
+      ? onSetDepartureCode(code)
+      : field === 'destination'
+        ? onSetDestinationCode(code)
+        : onSetAlternateCode(code);
+
+    if (accepted) {
+      if (field === 'departure') setDepartureInput(code);
+      if (field === 'destination') setDestinationInput(code);
+      if (field === 'alternate') setAlternateInput(code);
+      setAerodromeError(null);
+    } else {
+      if (field === 'departure') {
+        setDepartureInput(endpointCode(route, 'depart'));
+        setAerodromeError(`Départ inconnu ou invalide : ${code}`);
+      }
+      if (field === 'destination') {
+        setDestinationInput(endpointCode(route, 'destination'));
+        setAerodromeError(`Arrivée inconnue ou invalide : ${code}`);
+      }
+      if (field === 'alternate') {
+        setAlternateInput(alternateCode);
+        setAerodromeError(code === endpointCode(route, 'destination')
+          ? 'Le dégagement doit être différent de l’arrivée.'
+          : `Dégagement inconnu : ${code}`);
+      }
     }
-    if (field === 'destination') {
-      setDestinationInput(code);
-      onSetDestinationCode(code);
-    }
-    if (field === 'alternate') {
-      setAlternateInput(code);
-      onSetAlternateCode(code);
-    }
-    setAerodromeError(null);
     setActiveAerodromeField(null);
     if (typeof document !== 'undefined') {
       (document.activeElement as HTMLElement | null)?.blur?.();
@@ -216,7 +235,7 @@ export function PlanningScreen({
               <span>Route active</span>
               <strong>{route.nom}</strong>
             </div>
-            <button type="button" onClick={onCalculations}>Log de nav</button>
+            <button type="button" onClick={onCalculations} disabled={!routeReady} title={readinessMessage ?? undefined}>Log de nav</button>
           </div>
 
           <div className="route-builder">
@@ -289,9 +308,9 @@ export function PlanningScreen({
           {aerodromeError && <p className="route-field-error" role="alert">{aerodromeError}</p>}
 
           <div className="route-summary-line">
-            <strong>{route.branches.length ? `${route.distanceTotale.toFixed(1).replace('.', ',')} NM` : '-'}</strong>
-            <span>{route.branches.length ? (route.hasWindCalculationError ? 'Vent incompatible' : formatDuration(route.tempsEstimeMin)) : '-'}</span>
-            <span>{route.branches.length ? (route.hasWindCalculationError ? 'GS à vérifier' : `GS moy. ${route.vitesseSolKt} kt`) : '-'}</span>
+            <strong>{routeReady ? `${route.distanceTotale.toFixed(1).replace('.', ',')} NM` : (readinessMessage ?? '-')}</strong>
+            <span>{routeReady ? (route.hasWindCalculationError ? 'Vent incompatible' : formatDuration(route.tempsEstimeMin)) : '-'}</span>
+            <span>{routeReady ? (route.hasWindCalculationError ? 'GS à vérifier' : `GS moy. ${route.vitesseSolKt} kt`) : '-'}</span>
           </div>
 
           <RoutePointList points={route.points} selectedPointId={selectedPointId} onSelect={onSelectPoint} onRemove={onRemovePoint} />

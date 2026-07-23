@@ -21,6 +21,7 @@ import { AerodromeWeatherPanel } from "../components/flight/AerodromeWeatherPane
 import { FuelPlanningPanel } from "../components/flight/FuelPlanningPanel";
 import { findAerodrome } from "../data/aerodromeCatalog";
 import { diversionMinutes } from "../services/navigation/diversion";
+import { isRouteReady, routeReadinessMessage } from "../services/navigation/routeValidation";
 import type { NavLogExportResult } from "../services/export/navLogExport.types";
 import {
   formatFlightLevel,
@@ -169,6 +170,8 @@ export function CalculationsScreen({
 }: CalculationsScreenProps) {
   const departure = pointByType(route, "depart");
   const destination = pointByType(route, "destination");
+  const routeReady = isRouteReady(route);
+  const readinessMessage = routeReadinessMessage(route);
   const windModelTime = route.branches.find(
     (branch) => branch.wind?.sourceTimeIso,
   )?.wind?.sourceTimeIso;
@@ -186,6 +189,10 @@ export function CalculationsScreen({
 
   const handlePdfExport = async () => {
     if (pdfExporting) return;
+    if (!routeReady) {
+      setPdfExportStatus({ kind: "error", message: readinessMessage ?? "Navigation incomplète." });
+      return;
+    }
     if (exportBlockedReason) {
       setPdfExportStatus({ kind: "error", message: exportBlockedReason });
       return;
@@ -470,6 +477,12 @@ export function CalculationsScreen({
           </Accordion>
         </div>
 
+        {!routeReady && (
+          <p className="navlog-pdf-status is-warning" role="status">
+            {readinessMessage ?? "Navigation incomplète."}
+          </p>
+        )}
+
         <div className="navlog-actions">
           <Button variant="secondary" onClick={onBackPlanning}>
             Retour planification
@@ -478,11 +491,11 @@ export function CalculationsScreen({
             <Button
               variant="secondary"
               onClick={handlePdfExport}
-              disabled={pdfExporting || Boolean(exportBlockedReason)}
+              disabled={pdfExporting || Boolean(exportBlockedReason) || !routeReady}
             >
               {pdfExporting ? "Préparation PDF..." : "Exporter PDF"}
             </Button>
-            <Button variant="primary" onClick={onValidate}>
+            <Button variant="primary" onClick={onValidate} disabled={!routeReady} title={readinessMessage ?? undefined}>
               Passer au suivi
             </Button>
           </div>

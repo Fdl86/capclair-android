@@ -1,41 +1,45 @@
-# CAP CLAIR DEV15.4.1 - SUP AIP LOCAL DATABASE
+# CAP CLAIR DEV15.4.2 - LOOP ROUTE AND NAV SAFETY FIXES
 
 Application VFR mobile-first construite avec Vite, React, TypeScript, OpenLayers et Capacitor Android.
 
-DEV15.4.1 consolide l'espace Briefing introduit en DEV15.4.0. L'application utilise désormais le pipeline SUP AIP versionné de WEB13.30.4, vérifie chaque fichier avant activation et conserve une base locale complète utilisable hors ligne.
+DEV15.4.2 autorise les navigations en boucle avec un départ et une arrivée identiques, corrige plusieurs validations de route et renforce les calculs géométriques utilisés pour les espaces aériens et la pertinence des SUP AIP.
 
-## Briefing aéronautique
+## Routes en boucle
 
-L'espace Briefing fournit :
+Une route comme `LFBI - point tournant - LFBI` est désormais autorisée.
+
+Une simple route `LFBI - LFBI` reste volontairement incomplète tant qu'aucun point tournant distinct n'a été ajouté. CAP CLAIR affiche alors `Boucle à compléter : ajoutez au moins un point tournant.` et bloque le Log nav, le PDF et le démarrage du Suivi afin de ne pas générer un temps ou un carburant fictif.
+
+## Sécurité de navigation
+
+DEV15.4.2 apporte aussi :
+
+- une intersection exacte entre chaque branche et les polygones d'espaces aériens, sans dépendre de quelques points échantillonnés ;
+- un classement SUP AIP fondé sur la distance au tracé complet et non seulement aux points de navigation ;
+- un dégagement obligatoirement distinct de l'arrivée ;
+- une saisie cohérente entre clavier et suggestions d'aérodromes ;
+- des marqueurs cartographiques `D`, `A` et `D/A` corrects ;
+- le libellé NOTAM `Départ et arrivée` pour un aérodrome commun aux deux extrémités.
+
+## Briefing et base SUP AIP
+
+Les fonctions de DEV15.4.1 sont conservées :
 
 - import local d'un PIB SOFIA ;
-- analyse et classement des NOTAM ;
-- liste, détails et carte des SUP AIP ;
+- analyse et carte des NOTAM ;
+- données SUP AIP versionnées et vérifiées par SHA-256 ;
+- base locale active, précédente et embarquée ;
+- fonctionnement hors ligne ;
 - accès aux PDF officiels SIA ;
-- mise en évidence des éléments sélectionnés ;
-- carte indépendante du GPS, du Suivi et du Replay.
-
-Toutes les SUP AIP restent affichées sans filtrage vertical. Les limites plancher et plafond sont indiquées, ou le message `Limites verticales non extraites - consulter le PDF SIA` est utilisé.
-
-## Base SUP AIP locale
-
-L'application consulte `latest.json`, vérifie le manifeste et les fichiers immuables par taille et SHA-256, puis installe la nouvelle révision dans IndexedDB en une transaction.
-
-Trois niveaux de secours sont disponibles :
-
-- base locale active ;
-- base locale précédente ;
-- base complète embarquée dans l'APK.
-
-Une révision inchangée ne provoque pas le retéléchargement du GeoJSON complet. Seules les informations de fraîcheur sont actualisées.
+- aucune SUP AIP masquée par un filtre vertical.
 
 ## Fonctions conservées
 
-DEV15.4.1 conserve les fonctions validées de DEV15.3.3 et DEV15.4.0 :
+DEV15.4.2 conserve les fonctions Android déjà validées :
 
 - GPS écran éteint ;
-- Suivi ;
-- enregistrement et récupération des traces ;
+- Suivi et enregistrement ;
+- récupération des traces ;
 - Replay et relief ;
 - PDF Log nav ;
 - profils et réglages ;
@@ -44,10 +48,10 @@ DEV15.4.1 conserve les fonctions validées de DEV15.3.3 et DEV15.4.0 :
 
 ## Version
 
-- versionName : 15.4.1
-- versionCode : 1504001
-- APP_VERSION : CAP CLAIR DEV15.4.1 - SUP AIP LOCAL DATABASE
-- artifact : cap-clair-dev15-4-1-release-apk
-- tag Release : android-v15.4.1
+- versionName : 15.4.2
+- versionCode : 1504002
+- APP_VERSION : CAP CLAIR DEV15.4.2 - LOOP ROUTE AND NAV SAFETY FIXES
+- artifact : cap-clair-dev15-4-2-release-apk
+- tag Release : android-v15.4.2
 
-Consulter `LIVRAISON_DEV15.4.1.txt`, `docs/SUP_AIP_LOCAL_DATABASE_DEV15.4.1.md` et `docs/ANDROID_BRIEFING_DEV15.4.0.md`.
+Consulter `LIVRAISON_DEV15.4.2.txt`, `docs/LOOP_ROUTE_NAV_SAFETY_DEV15.4.2.md` et `docs/SUP_AIP_LOCAL_DATABASE_DEV15.4.1.md`.

@@ -143,3 +143,39 @@ describe('route builder', () => {
     expect(overridden.branches[0].altitudeFt).toBe(6500);
   });
 });
+
+it('supports a real loop while rejecting the zero-distance placeholder branch', () => {
+  const loopDeparture: NavPoint = {
+    ...departure,
+    id: 'depart-loop',
+    nom: 'LFBI',
+    code: 'LFBI',
+    latitude: 46.5877,
+    longitude: 0.3067
+  };
+  const loopDestination: NavPoint = {
+    ...loopDeparture,
+    id: 'destination-loop',
+    type: 'destination'
+  };
+  const incomplete = buildRoute([loopDeparture, loopDestination]);
+  expect(incomplete.branches).toHaveLength(0);
+  expect(incomplete.distanceTotale).toBe(0);
+  expect(incomplete.tempsEstimeMin).toBe(0);
+  expect(incomplete.vitesseSolKt).toBe(0);
+
+  const turningPoint: NavPoint = {
+    id: 'waypoint-loop',
+    nom: 'WP1',
+    code: 'WP1',
+    type: 'waypoint',
+    source: 'manual',
+    latitude: 46.85,
+    longitude: 0.75
+  };
+  const loop = buildRoute([loopDeparture, turningPoint, loopDestination]);
+  expect(loop.branches).toHaveLength(2);
+  expect(loop.distanceTotale).toBeGreaterThan(0);
+  expect(loop.tempsEstimeMin).toBeGreaterThan(0);
+  expect(loop.points[0].code).toBe(loop.points.at(-1)?.code);
+});

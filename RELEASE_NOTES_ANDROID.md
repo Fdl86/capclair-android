@@ -1,14 +1,14 @@
-# CAP CLAIR DEV15.4.1
+# CAP CLAIR DEV15.4.2
 
-- Adoption du pipeline SUP AIP versionné de WEB13.30.4 via `latest.json` et ses révisions immuables.
-- Distinction entre la date de dernière modification métier et la date du dernier contrôle SIA réussi.
-- Vérification de la taille et du SHA-256 du manifeste avant toute utilisation.
-- Vérification de la taille et du SHA-256 du statut, du GeoJSON et de l'index des publications incomplètes.
-- Installation transactionnelle de chaque nouvelle base SUP AIP après validation complète de son contenu.
-- Conservation locale d'une base active, d'une base précédente et de la base embarquée de secours.
-- Retour automatique vers la base précédente si la base active locale est absente, corrompue ou incohérente.
-- Aucun téléchargement de la base complète lorsque la révision serveur n'a pas changé.
-- Actualisation séparée de la fraîcheur serveur et de la dernière vérification effectuée par l'appareil.
-- Ajout d'un pont Android natif limité au domaine CAP CLAIR pour préserver les octets exacts nécessaires aux contrôles SHA-256.
-- Maintien temporaire de la compatibilité avec l'ancien contrat serveur SUP AIP.
-- Aucun changement fonctionnel du GPS, du Suivi, des traces, du Replay, du relief, du PDF Log nav ou de l'auto-update.
+- Autorisation d'un départ et d'une arrivée identiques pour préparer une navigation en boucle.
+- Blocage explicite d'une boucle sans point tournant afin d'éviter une branche de 0 NM, un temps fictif et un carburant erroné.
+- Blocage du Log nav, du PDF et du démarrage du Suivi tant que la boucle n'est pas réellement construite.
+- Suppression des branches à distance nulle dans le moteur de route.
+- Validation du dégagement : il doit être connu et différent de l'arrivée.
+- Harmonisation de la saisie au clavier et de la sélection dans les suggestions d'aérodromes.
+- Correction des marqueurs cartographiques : `D` pour le départ, `A` pour l'arrivée et `D/A` pour une boucle.
+- Libellé NOTAM `Départ et arrivée` lorsque le même aérodrome occupe les deux rôles.
+- Remplacement de l'échantillonnage des espaces aériens par une intersection géométrique segment-polygone.
+- Calcul de la pertinence SUP AIP par rapport aux branches complètes de la route et aux contours des zones.
+- Ajout de tests dédiés aux boucles, dégagements, marqueurs, NOTAM, espaces aériens, SUP AIP et progression du Suivi.
+- Aucun changement du moteur GPS, du stockage des traces, du Replay, du relief, de l'export PDF natif, de la base SUP AIP locale ou de l'auto-update.

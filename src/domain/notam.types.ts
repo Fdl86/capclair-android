@@ -63,7 +63,7 @@ export interface ParsedNotam {
   exactPolygon: NotamCoordinate[] | null;
   temporalStatus: NotamTemporalStatus;
   temporalExplanation: string;
-  routeRelevance: 'departure' | 'destination' | 'alternate' | 'route' | 'outside' | 'unknown';
+  routeRelevance: 'departure' | 'destination' | 'departure-destination' | 'alternate' | 'route' | 'outside' | 'unknown';
   routeDistanceNm: number | null;
   interpretationStatus: NotamInterpretationStatus;
   warnings: string[];

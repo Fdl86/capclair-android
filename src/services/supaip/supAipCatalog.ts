@@ -2,6 +2,7 @@ import type { NavPoint } from '../../domain/navigation.types';
 import type { PibAnalysis } from '../../domain/notam.types';
 import type { SupAipProperties, SupAipVisualStatus } from '../../domain/supaip.types';
 import { distanceNm } from '../geo/distance';
+import { pointInPolygon, pointToSegmentDistanceNm, segmentToSegmentDistanceNm, type GeoCoordinate } from '../geo/planarGeometry';
 import type {
   SupAipDatasetBundle,
   SupAipGeoJsonFeature,
@@ -42,32 +43,92 @@ function normalizeRef(value: string): string {
   return match ? `${String(Number(match[1])).padStart(3, '0')}/${match[2]}` : value.trim();
 }
 
-function flattenCoordinates(value: unknown, output: GeoPoint[]): void {
-  if (!Array.isArray(value)) return;
-  if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
-    output.push({ longitude: Number(value[0]), latitude: Number(value[1]) });
-    return;
-  }
-  for (const entry of value) flattenCoordinates(entry, output);
+function coordinatePair(value: unknown): GeoPoint | null {
+  if (!Array.isArray(value) || value.length < 2) return null;
+  if (typeof value[0] !== 'number' || typeof value[1] !== 'number') return null;
+  return { longitude: Number(value[0]), latitude: Number(value[1]) };
 }
 
-function reducedFeaturePoints(feature: SupAipGeoJsonFeature): GeoPoint[] {
-  const points: GeoPoint[] = [];
-  flattenCoordinates(feature.geometry.coordinates, points);
-  if (points.length <= 80) return points;
-  const stride = Math.ceil(points.length / 80);
-  return points.filter((_, index) => index % stride === 0);
+function parseRing(value: unknown): GeoPoint[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(coordinatePair).filter((point): point is GeoPoint => point !== null);
+}
+
+function featurePolygons(feature: SupAipGeoJsonFeature): GeoPoint[][][] {
+  const coordinates = feature.geometry.coordinates;
+  if (!Array.isArray(coordinates)) return [];
+  if (feature.geometry.type === 'Polygon') {
+    return [coordinates.map(parseRing).filter((ring) => ring.length >= 3)];
+  }
+  return coordinates
+    .filter(Array.isArray)
+    .map((polygon) => (polygon as unknown[]).map(parseRing).filter((ring) => ring.length >= 3))
+    .filter((polygon) => polygon.length > 0);
+}
+
+function ringEdges(ring: GeoPoint[]): Array<[GeoPoint, GeoPoint]> {
+  if (ring.length < 2) return [];
+  return ring.map((point, index) => [point, ring[(index + 1) % ring.length]]);
+}
+
+function segmentDistanceToPolygon(start: GeoPoint, end: GeoPoint, polygon: GeoPoint[][]): number {
+  if (pointInPolygon(start, polygon) || pointInPolygon(end, polygon)) return 0;
+  let minimum = Number.POSITIVE_INFINITY;
+  for (const ring of polygon) {
+    for (const [edgeStart, edgeEnd] of ringEdges(ring)) {
+      const current = segmentToSegmentDistanceNm(start, end, edgeStart, edgeEnd);
+      if (current <= 0.001) return 0;
+      if (current < minimum) minimum = current;
+    }
+  }
+  return minimum;
+}
+
+function pointDistanceToPolygon(point: GeoPoint, polygon: GeoPoint[][]): number {
+  if (pointInPolygon(point, polygon)) return 0;
+  let minimum = Number.POSITIVE_INFINITY;
+  for (const ring of polygon) {
+    for (const [edgeStart, edgeEnd] of ringEdges(ring)) {
+      const current = pointToSegmentDistanceNm(point, edgeStart, edgeEnd);
+      if (current < minimum) minimum = current;
+    }
+  }
+  return minimum;
 }
 
 function routeDistance(features: SupAipGeoJsonFeature[], route: NavPoint[]): number | null {
   if (features.length === 0 || route.length === 0) return null;
+  const polygons = features.flatMap(featurePolygons);
+  if (polygons.length === 0) return null;
   let minimum = Number.POSITIVE_INFINITY;
-  for (const feature of features) {
-    for (const geometryPoint of reducedFeaturePoints(feature)) {
-      for (const routePoint of route) {
-        const current = distanceNm(geometryPoint, routePoint);
-        if (current < minimum) minimum = current;
-        if (minimum < 0.2) return minimum;
+
+  if (route.length === 1) {
+    const routePoint = { latitude: route[0].latitude, longitude: route[0].longitude };
+    for (const polygon of polygons) {
+      minimum = Math.min(minimum, pointDistanceToPolygon(routePoint, polygon));
+      if (minimum <= 0.001) return 0;
+    }
+    return Number.isFinite(minimum) ? minimum : null;
+  }
+
+  for (let routeIndex = 0; routeIndex < route.length - 1; routeIndex += 1) {
+    const start = { latitude: route[routeIndex].latitude, longitude: route[routeIndex].longitude };
+    const end = { latitude: route[routeIndex + 1].latitude, longitude: route[routeIndex + 1].longitude };
+    for (const polygon of polygons) {
+      const current = segmentDistanceToPolygon(start, end, polygon);
+      if (current <= 0.001) return 0;
+      if (current < minimum) minimum = current;
+    }
+  }
+
+  if (!Number.isFinite(minimum)) {
+    for (const feature of features) {
+      for (const polygon of featurePolygons(feature)) {
+        for (const ring of polygon) {
+          for (const geometryPoint of ring) {
+            for (const routePoint of route) minimum = Math.min(minimum, distanceNm(geometryPoint, routePoint));
+          }
+        }
       }
     }
   }

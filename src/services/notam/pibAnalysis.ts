@@ -78,7 +78,7 @@ function summaryFor(
     supAipMissingOrIncompleteCount: reconciliations.filter((item) => ['partial', 'unmapped', 'absent'].includes(item.status)).length,
     uninterpretedCount: notams.filter((notam) => notam.interpretationStatus === 'uninterpreted' || notam.temporalStatus === 'unknown' || notam.temporalStatus === 'complex').length,
     approximateCircleCount,
-    routeRelevantCount: notams.filter((notam) => ['departure', 'destination', 'alternate', 'route'].includes(notam.routeRelevance)).length,
+    routeRelevantCount: notams.filter((notam) => ['departure', 'destination', 'departure-destination', 'alternate', 'route'].includes(notam.routeRelevance)).length,
     activeAtPlannedTimeCount: notams.filter((notam) => notam.temporalStatus === 'active').length
   };
 }

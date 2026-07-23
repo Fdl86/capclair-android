@@ -248,6 +248,9 @@ function routeRelevance(
   route: BriefingRouteSnapshot,
   context: PibRouteContext
 ): { relevance: ParsedNotam['routeRelevance']; distance: number | null } {
+  if (route.departure && route.destination && route.departure === route.destination && aFields.includes(route.departure)) {
+    return { relevance: 'departure-destination', distance: 0 };
+  }
   if (route.departure && aFields.includes(route.departure)) return { relevance: 'departure', distance: 0 };
   if (route.destination && aFields.includes(route.destination)) return { relevance: 'destination', distance: 0 };
   if (route.alternates.some((code) => aFields.includes(code))) return { relevance: 'alternate', distance: 0 };

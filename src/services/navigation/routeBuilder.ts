@@ -179,10 +179,11 @@ export function buildBranches(points: NavPoint[], options: RouteBuildOptions = {
   const branchWindById = options.branchWindById ?? {};
   let elapsedMinutes = 0;
 
-  return points.slice(0, -1).map((point, index) => {
+  return points.slice(0, -1).flatMap((point, index) => {
     const next = points[index + 1];
     const id = branchId(point, next);
     const distance = distanceNm(point, next);
+    if (!Number.isFinite(distance) || distance <= 0.01) return [];
     const routeVraie = normalizeHeading(bearingDeg(point, next));
     const mid = midpoint(point, next);
     const magneticVariationDeg = estimatedMagneticVariationDeg(mid.latitude, mid.longitude);
@@ -198,7 +199,7 @@ export function buildBranches(points: NavPoint[], options: RouteBuildOptions = {
     elapsedMinutes += tempsBrancheMin;
     const estimatedArrivalIso = addMinutes(profile.departureTimeIso, elapsedMinutes);
 
-    return {
+    return [{
       id,
       from: point.id,
       to: next.id,
@@ -221,7 +222,7 @@ export function buildBranches(points: NavPoint[], options: RouteBuildOptions = {
       estimatedArrivalIso,
       frequencyMhz: undefined,
       remarks: index === 0 ? 'Départ à confirmer' : index === points.length - 2 ? 'Arrivée à préparer' : 'Point tournant'
-    };
+    }];
   });
 }
 

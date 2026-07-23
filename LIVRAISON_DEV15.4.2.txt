@@ -1,0 +1,39 @@
+CAP CLAIR DEV15.4.2 - LOOP ROUTE AND NAV SAFETY FIXES
+
+Version : 15.4.2
+versionCode : 1504002
+Artifact GitHub Actions : cap-clair-dev15-4-2-release-apk
+Release : android-v15.4.2
+APK : cap-clair-dev15-4-2.apk
+
+Objectif principal :
+- autoriser une navigation en boucle avec départ et arrivée identiques ;
+- empêcher toute boucle vide de produire un temps, une vitesse sol ou un carburant fictif ;
+- corriger les intersections avec les espaces aériens ;
+- calculer la pertinence SUP AIP sur le tracé complet ;
+- corriger les validations et les marqueurs associés à la route.
+
+Procédure de publication :
+1. Dans le dossier local de la branche Android, conserver uniquement le dossier .git.
+2. Copier tout le contenu de ce ZIP, dossier .github inclus.
+3. Effectuer le commit sur main puis Push origin avec GitHub Desktop.
+4. Attendre les deux jobs verts du workflow Android Release APK.
+5. Utiliser uniquement l'artifact du dernier run vert.
+6. Vérifier que la Release android-v15.4.2 et ses fichiers de mise à jour ont été publiés.
+7. Installer DEV15.4.2 par-dessus DEV15.4.1 avec le système de mise à jour CAP CLAIR.
+8. Vérifier que la version affichée est DEV15.4.2.
+9. Vérifier la conservation des traces, réglages, profils avion, briefing et base SUP AIP locale.
+
+Contrôles prioritaires sur téléphone réel :
+- créer LFBI - point tournant - LFBI puis ouvrir le Log nav ;
+- vérifier qu'une simple route LFBI - LFBI affiche Boucle à compléter et bloque Log nav, PDF et démarrage du Suivi ;
+- vérifier les deux branches, caps, distances, temps, altitudes et vents d'une boucle ;
+- vérifier le marqueur D/A sur la carte ;
+- vérifier qu'un dégagement identique à l'arrivée est refusé ;
+- effectuer un court test de Suivi sur une boucle et confirmer la progression aller puis retour ;
+- contrôler les espaces aériens et les SUP AIP sur une route longue ;
+- vérifier l'import PIB, les libellés NOTAM et les PDF officiels ;
+- vérifier l'absence de régression GPS écran éteint, traces, Replay, relief, PDF et auto-update.
+
+Aucun fichier android/app/src/main/assets/public ne doit être modifié manuellement.
+Ces fichiers doivent provenir de npm run build:android puis npx cap sync android.

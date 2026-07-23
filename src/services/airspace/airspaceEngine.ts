@@ -1,7 +1,7 @@
 import type { AirspaceCatalogItem, AirspacePart, AirspaceType, BranchZoneBlock, BranchZoneProfile } from '../../domain/airspace.types';
 import type { NavBranch, NavPoint, NavRoute } from '../../domain/navigation.types';
+import { polygonSegmentIntervals, type GeoCoordinate } from '../geo/planarGeometry';
 
-const SAMPLE_STEPS = 16;
 const ROUTE_BBOX_MARGIN = 0.08;
 
 const TYPE_PRIORITY: Record<AirspaceType, number> = {
@@ -20,13 +20,6 @@ function pointById(points: NavPoint[], id: string): NavPoint | null {
   return points.find((point) => point.id === id) ?? null;
 }
 
-function branchPoint(from: NavPoint, to: NavPoint, ratio: number) {
-  return {
-    latitude: from.latitude + (to.latitude - from.latitude) * ratio,
-    longitude: from.longitude + (to.longitude - from.longitude) * ratio
-  };
-}
-
 function bboxIntersects(a: [number, number, number, number], b: [number, number, number, number]): boolean {
   return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 }
@@ -38,20 +31,6 @@ function buildBranchBbox(from: NavPoint, to: NavPoint): [number, number, number,
     Math.max(from.latitude, to.latitude) + ROUTE_BBOX_MARGIN,
     Math.max(from.longitude, to.longitude) + ROUTE_BBOX_MARGIN
   ];
-}
-
-function pointInPolygon(latitude: number, longitude: number, polygon: Array<[number, number]>): boolean {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
-    const yi = polygon[i][0];
-    const xi = polygon[i][1];
-    const yj = polygon[j][0];
-    const xj = polygon[j][1];
-    const intersects = ((yi > latitude) !== (yj > latitude)) &&
-      longitude < ((xj - xi) * (latitude - yi)) / ((yj - yi) || 1e-9) + xi;
-    if (intersects) inside = !inside;
-  }
-  return inside;
 }
 
 function altitudeRelation(altitudeFt: number, part: AirspacePart): BranchZoneBlock['altitudeRelation'] {
@@ -83,7 +62,7 @@ function frequencyLabel(block?: BranchZoneBlock): string {
 function uniqueBlocks(blocks: BranchZoneBlock[]): BranchZoneBlock[] {
   const bestByKey = new Map<string, BranchZoneBlock>();
   for (const block of blocks) {
-    const key = `${block.zoneId}:${block.floorFt}:${block.ceilingFt}:${block.startRatio.toFixed(2)}:${block.endRatio.toFixed(2)}`;
+    const key = `${block.zoneId}:${block.floorFt}:${block.ceilingFt}:${block.startRatio.toFixed(6)}:${block.endRatio.toFixed(6)}`;
     const current = bestByKey.get(key);
     if (!current || block.priority > current.priority) bestByKey.set(key, block);
   }
@@ -96,51 +75,45 @@ function buildBlocksForBranch(route: NavRoute, branch: NavBranch, catalog: Airsp
   if (!from || !to) return [];
 
   const routeBbox = buildBranchBbox(from, to);
-  const samples = Array.from({ length: SAMPLE_STEPS + 1 }, (_, index) => {
-    const ratio = index / SAMPLE_STEPS;
-    const point = branchPoint(from, to, ratio);
-    return { ratio, ...point };
-  });
-
+  const branchStart: GeoCoordinate = { latitude: from.latitude, longitude: from.longitude };
+  const branchEnd: GeoCoordinate = { latitude: to.latitude, longitude: to.longitude };
   const blocks: BranchZoneBlock[] = [];
 
   for (const zone of catalog) {
     for (const part of zone.parts) {
       if (!bboxIntersects(routeBbox, part.bbox)) continue;
 
-      const hitRatios = samples
-        .filter((sample) => pointInPolygon(sample.latitude, sample.longitude, part.points))
-        .map((sample) => sample.ratio);
-
-      if (!hitRatios.length) continue;
+      const ring = part.points.map(([latitude, longitude]) => ({ latitude, longitude }));
+      const intervals = polygonSegmentIntervals(branchStart, branchEnd, [ring]);
+      if (!intervals.length) continue;
 
       const relation = altitudeRelation(branch.altitudeFt, part);
       const containsPlannedAltitude = relation === 'inside' || relation === 'uncertain';
-      const startRatio = Math.max(0, Math.min(...hitRatios) - 1 / SAMPLE_STEPS);
-      const endRatio = Math.min(1, Math.max(...hitRatios) + 1 / SAMPLE_STEPS);
       const contact = zone.contacts[0];
       const status: BranchZoneBlock['status'] = containsPlannedAltitude
         ? relation === 'uncertain' ? 'confirm' : 'activeAltitude'
         : 'crossedOutAltitude';
 
-      blocks.push({
-        id: `${branch.id}:${zone.id}:${part.id}`,
-        zoneId: zone.id,
-        zoneName: zone.name,
-        zoneType: zone.type,
-        classCode: part.classCode,
-        floorFt: part.floorFt,
-        ceilingFt: part.ceilingFt,
-        floorLabel: part.floorLabel,
-        ceilingLabel: part.ceilingLabel,
-        verticalUncertain: part.verticalUncertain,
-        startRatio,
-        endRatio,
-        containsPlannedAltitude,
-        altitudeRelation: relation,
-        contact,
-        priority: blockPriority(zone, part, containsPlannedAltitude),
-        status
+      intervals.forEach((interval, intervalIndex) => {
+        blocks.push({
+          id: `${branch.id}:${zone.id}:${part.id}:${intervalIndex}`,
+          zoneId: zone.id,
+          zoneName: zone.name,
+          zoneType: zone.type,
+          classCode: part.classCode,
+          floorFt: part.floorFt,
+          ceilingFt: part.ceilingFt,
+          floorLabel: part.floorLabel,
+          ceilingLabel: part.ceilingLabel,
+          verticalUncertain: part.verticalUncertain,
+          startRatio: interval.startRatio,
+          endRatio: interval.endRatio,
+          containsPlannedAltitude,
+          altitudeRelation: relation,
+          contact,
+          priority: blockPriority(zone, part, containsPlannedAltitude),
+          status
+        });
       });
     }
   }

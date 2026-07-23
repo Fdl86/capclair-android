@@ -18,6 +18,8 @@ import { exportNavLogPdf } from "../services/export/navLogExport";
 import { useAndroidUpdate } from "../hooks/useAndroidUpdate";
 import { useSupAipDataset } from "../hooks/useSupAipDataset";
 import { UpdateAvailableNotice } from "../components/update/UpdateAvailableNotice";
+import { isIncompleteLoopRoute, isRouteReady, routeReadinessMessage } from "../services/navigation/routeValidation";
+import { validateAlternateCode } from "../services/navigation/alternateValidation";
 
 const CalculationsScreen = lazy(() =>
   import("../screens/CalculationsScreen").then((module) => ({
@@ -103,7 +105,13 @@ export function App() {
 
   const departureCode = routeEndpointCode(routeState.route, "depart");
   const destinationCode = routeEndpointCode(routeState.route, "destination");
-  const safeAlternateCode = safeAerodromeCode(alternateCode, "");
+  const storedAlternateCode = safeAerodromeCode(alternateCode, "");
+  const safeAlternateCode = storedAlternateCode === destinationCode ? "" : storedAlternateCode;
+
+  useEffect(() => {
+    if (storedAlternateCode && storedAlternateCode === destinationCode) setAlternateCode("");
+  }, [destinationCode, storedAlternateCode, setAlternateCode]);
+
   const aerodromeWeatherState = useAerodromeWeather(
     [departureCode, destinationCode, safeAlternateCode].filter(Boolean),
   );
@@ -149,13 +157,9 @@ export function App() {
   const wakeLockActive = useScreenWakeLock(gpsIsRecording);
 
   const setAlternate = (code: string): boolean => {
-    const normalized = code.trim().toUpperCase();
-    if (!normalized) {
-      setAlternateCode("");
-      return true;
-    }
-    if (!findAerodrome(normalized)) return false;
-    setAlternateCode(normalized);
+    const validation = validateAlternateCode(code, destinationCode);
+    if (!validation.valid) return false;
+    setAlternateCode(validation.code);
     return true;
   };
 
@@ -194,6 +198,9 @@ export function App() {
   };
 
   const handleNavLogExport = async () => {
+    if (!isRouteReady(routeState.route)) {
+      throw new Error(routeReadinessMessage(routeState.route) ?? "Navigation incomplète.");
+    }
     if (androidUpdate.operationActive) {
       throw new Error(
         "Export indisponible pendant le téléchargement ou la vérification d’une mise à jour Android.",
@@ -303,7 +310,9 @@ export function App() {
             activityBlockedReason={
               androidUpdate.operationActive
                 ? "Arrête ou annule la mise à jour Android avant de démarrer un enregistrement."
-                : null
+                : isIncompleteLoopRoute(routeState.route)
+                  ? routeReadinessMessage(routeState.route)
+                  : null
             }
           />
         )}

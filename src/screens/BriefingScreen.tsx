@@ -61,9 +61,23 @@ function notamPriority(notam: ParsedNotam): boolean {
     || notam.warnings.length > 0;
 }
 
+
+function routeRelevanceLabel(value: ParsedNotam['routeRelevance']): string {
+  const labels: Record<ParsedNotam['routeRelevance'], string> = {
+    departure: 'Départ',
+    destination: 'Arrivée',
+    'departure-destination': 'Départ et arrivée',
+    alternate: 'Dégagement',
+    route: 'Sur la route',
+    outside: 'Hors route estimée',
+    unknown: 'À confirmer'
+  };
+  return labels[value];
+}
+
 function notamMatchesFilter(notam: ParsedNotam, filter: NotamFilter): boolean {
   if (filter === 'all') return true;
-  if (filter === 'route') return ['departure', 'destination', 'alternate', 'route'].includes(notam.routeRelevance);
+  if (filter === 'route') return ['departure', 'destination', 'departure-destination', 'alternate', 'route'].includes(notam.routeRelevance);
   if (filter === 'supaip') return notam.supAipReferences.length > 0;
   return notamPriority(notam);
 }
@@ -320,7 +334,7 @@ export function BriefingScreen({ route, alternateCode, dataset, onBack }: Briefi
                     </div>
                     <p>{notam.fields.e || 'Texte du champ E non interprété.'}</p>
                     <div className="briefing-item-meta">
-                      <span>{notam.routeRelevance === 'outside' ? 'Hors route estimée' : `Pertinence: ${notam.routeRelevance}`}</span>
+                      <span>Pertinence : {routeRelevanceLabel(notam.routeRelevance)}</span>
                       {notam.supAipReferences.length > 0 && <span>SUP AIP: {notam.supAipReferences.map((reference) => reference.id).join(', ')}</span>}
                     </div>
                     <div className="briefing-item-actions">
